@@ -6,15 +6,17 @@ import { Topbar } from '../topbar/topbar'
 import { supabase } from '../../../utils/supabase-client'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
 import { getLandingPath, rolesForPath } from '../sidebar/nav-items'
+import { AUTH_BYPASS } from '../../../utils/dev-auth-bypass' // DEV AUTH BYPASS
 
 const { Header, Sider, Content } = Layout
 
 
 function useRequireAuth() {
   const navigate = useNavigate()
-  const [checking, setChecking] = useState(true)
+  const [checking, setChecking] = useState(!AUTH_BYPASS) // DEV AUTH BYPASS (was: useState(true))
 
   useEffect(() => {
+    if (AUTH_BYPASS) return // DEV AUTH BYPASS
     let isMounted = true
 
     supabase.auth.getSession().then(({ data: { session } }) => {

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../../utils/supabase-client' // adjust to your actual client import path
+import { AUTH_BYPASS, MOCK_EMAIL, MOCK_PROFILE } from '../../utils/dev-auth-bypass' // DEV AUTH BYPASS
 
 export type ProfileRole = 'warehouse_admin' | 'pos_admin' 
 
@@ -72,5 +73,6 @@ export function useCurrentProfile() {
     retry: 1,
   })
 
+  if (AUTH_BYPASS) return { ...query, data: MOCK_PROFILE, isLoading: false, isError: false, email: MOCK_EMAIL } // DEV AUTH BYPASS
   return { ...query, email }
 }
