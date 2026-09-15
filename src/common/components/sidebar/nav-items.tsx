@@ -41,6 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'supplier',  path: '/supplier',  label: 'Suppliers',     icon: <ShopOutlined />,      roles: ['warehouse_admin'] },
   { key: 'truck',     path: '/truck',     label: 'Deliveries',    icon: <TruckOutlined />,     roles: ['warehouse_admin'] },
   { key: 'stock',     path: '/stock',     label: 'Stock',         icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
+  { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['warehouse_admin'] },
 ]
 
 /** True when `pathname` is `prefix` itself or a route nested under it. */
