@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   DatePicker,
@@ -14,8 +15,10 @@ import {
   Typography,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { useNavigate } from "react-router-dom";
 
 import {
+  useOpenQuestionCount,
   useShippingContainerNotebook,
   useSuppliers,
 } from "../../../queries/useHooks";
@@ -25,7 +28,9 @@ import { ContainerTable } from "./container-table";
 const { RangePicker } = DatePicker;
 
 export default function ContainerPage() {
+  const navigate = useNavigate();
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers();
+  const { data: openQuestionCount } = useOpenQuestionCount();
 
   // undefined = all suppliers
   const [supplierId, setSupplierId] = useState<string | undefined>();
@@ -71,11 +76,21 @@ export default function ContainerPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Shipping container notebook
+          Shipments
         </Typography.Title>
-        <Button onClick={() => refetch()} loading={isFetching}>
-          Refresh
-        </Button>
+        <Flex gap={8}>
+          <Button onClick={() => refetch()} loading={isFetching}>
+            Refresh
+          </Button>
+          <Badge count={openQuestionCount} size="small">
+            <Button onClick={() => navigate("/containers/discrepancies")}>
+              View discrepancies
+            </Button>
+          </Badge>
+          <Button type="primary" onClick={() => navigate("/containers/items")}>
+            Register Shipment
+          </Button>
+        </Flex>
       </Flex>
       <Typography.Text type="secondary">
         Packing lists with their containers. Only one date applies here, since

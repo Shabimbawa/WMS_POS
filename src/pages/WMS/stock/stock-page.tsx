@@ -37,6 +37,7 @@ export default function StockPage() {
 
   const [brand, setBrand] = useState<string | undefined>();
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [availableOnly, setAvailableOnly] = useState(false);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([
     dayjs().subtract(365, "day"),
     dayjs(),
@@ -55,6 +56,7 @@ export default function StockPage() {
     () => ({
       brand,
       inStockOnly,
+      availableOnly,
       page,
       pageSize,
       dateField: "updated_at" as const,
@@ -63,7 +65,7 @@ export default function StockPage() {
       sortBy,
       sortDir,
     }),
-    [brand, inStockOnly, page, pageSize, range, sortBy, sortDir],
+    [brand, inStockOnly, availableOnly, page, pageSize, range, sortBy, sortDir],
   );
 
   const {
@@ -96,7 +98,7 @@ export default function StockPage() {
         </Button>
       </Flex>
       <Typography.Text type="secondary">
-        On-hand sacks per brand and size.
+        On-hand sacks per product.
       </Typography.Text>
 
       <Card size="small">
@@ -117,6 +119,15 @@ export default function StockPage() {
               size="small"
             />
             <Typography.Text>Hide zero stock</Typography.Text>
+          </Flex>
+
+          <Flex align="center" gap={8}>
+            <Switch
+              checked={availableOnly}
+              onChange={reset(setAvailableOnly)}
+              size="small"
+            />
+            <Typography.Text>Available only</Typography.Text>
           </Flex>
 
           <RangePicker

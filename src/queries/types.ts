@@ -6,6 +6,7 @@ export type SortDir = "asc" | "desc";
 
 export type ContainerStatus =
   | "DOCUMENTED"
+  | "ARRIVED_AT_PORT"
   | "DELIVERED"
   | "UNLOADED"
   | "CANCELLED";
@@ -21,12 +22,6 @@ export interface DateRange {
   dateFrom: string;
   dateTo: string;
 }
-
-/** The three dates, wherever all three are reachable. */
-export type ContainerDateField =
-  | "date_list_received"
-  | "date_delivered"
-  | "date_unloaded";
 
 /** Shipment rows only carry the one date. */
 export type ShipmentDateField = "date_list_received";
@@ -70,33 +65,28 @@ export interface Supplier {
 export interface ProductCategory {
   id: string;
   brand: string;
+  variety: string | null;
   size_kg: number;
-  is_active: boolean;
+  /** Notebook shorthand (L, G, PAL…), shared across a brand's sizes. */
+  code: string | null;
+  /** The only availability signal — a price on an unavailable product is a leftover. */
+  is_available: boolean;
+  selling_price: number | null;
 }
+
+/** The product fields every embed needs to render a label. */
+export type ProductLabel = Pick<
+  ProductCategory,
+  "id" | "brand" | "variety" | "code" | "size_kg"
+>;
 
 export interface ContainerItemRow {
   id: string;
   qty_sacks: number;
+  /** NULL until the container is unloaded. */
+  actual_qty_sacks: number | null;
   price_per_sack: number | null;
-  product_category: Pick<ProductCategory, "id" | "brand" | "size_kg">;
-}
-
-/** Supplier notebook + truck notebook both return this shape. */
-export interface ContainerRow {
-  id: string;
-  container_no: string | null;
-  is_company_truck: boolean;
-  status: ContainerStatus;
-  date_delivered: string | null;
-  date_unloaded: string | null;
-  notes: string | null;
-  shipment: {
-    id: string;
-    date_list_received: string;
-    reference: string | null;
-    supplier: Pick<Supplier, "id" | "name" | "code">;
-  };
-  container_item: ContainerItemRow[];
+  product_category: ProductLabel;
 }
 
 /** Shipping container notebook is rooted at the packing list. */
@@ -113,6 +103,8 @@ export interface ShipmentRow {
     status: ContainerStatus;
     date_delivered: string | null;
     date_unloaded: string | null;
+    /** NULL until unloaded. */
+    items_match: boolean | null;
     container_item: ContainerItemRow[];
   }>;
 }
@@ -120,19 +112,12 @@ export interface ShipmentRow {
 export interface StockStatusRow {
   id: string;
   remaining_qty: number;
-  selling_price: number | null;
   updated_at: string;
-  product_category: Pick<ProductCategory, "id" | "brand" | "size_kg">;
+  product_category: ProductLabel &
+    Pick<ProductCategory, "selling_price" | "is_available">;
 }
 
 // ---- params -----------------------------------------------------
-
-export interface SupplierNotebookParams
-  extends ListParams<ContainerDateField> {
-  /** Required: this notebook is per-supplier by definition. */
-  supplierId: string;
-  status?: ContainerStatus[];
-}
 
 export interface ShippingContainerNotebookParams
   extends ListParams<ShipmentDateField> {
@@ -140,15 +125,126 @@ export interface ShippingContainerNotebookParams
   supplierId?: string;
 }
 
-export interface TruckNotebookParams
-  extends ListParams<Exclude<ContainerDateField, "date_list_received">> {
-  supplierId?: string;
-  status?: ContainerStatus[];
-}
-
 export interface StockStatusParams
   extends ListParams<"updated_at", StockSortField> {
   brand?: string;
   /** Hide rows sitting at zero. */
   inStockOnly?: boolean;
+  /** Hide products that aren't currently sold. */
+  availableOnly?: boolean;
 }
+
+export interface ProductCategoryParams {
+  availableOnly?: boolean;
+}
+
+// ---- mutation inputs --------------------------------------------
+
+export interface CreateShipmentItem {
+  product_category_id: string;
+  qty_sacks: number;
+  price_per_sack: number | null;
+}
+
+export interface CreateShipmentContainer {
+  container_no: string | null;
+  is_company_truck: boolean;
+  items: CreateShipmentItem[];
+}
+
+export interface CreateShipmentInput {
+  supplierId: string;
+  dateListReceived: string;
+  reference: string | null;
+  containers: CreateShipmentContainer[];
+}
+
+export interface UpdateContainerStatusInput {
+  containerId: string;
+  /** UNLOADED only happens through unload_container. */
+  status: Exclude<ContainerStatus, "UNLOADED">;
+  /** Required when status is DELIVERED, ignored otherwise. */
+  dateDelivered?: string;
+}
+
+// ---- discrepancies ----------------------------------------------
+
+export type DiscrepancyReason =
+  | "SHORT"
+  | "OVER"
+  | "DAMAGED"
+  | "UNDECLARED"
+  | "OTHER";
+
+/**
+ * One element of unload_container's p_discrepancies. declared_qty is never
+ * sent — the function reads it off container_item.
+ *  - SHORT / OVER / DAMAGED: actual_qty required, written onto the line
+ *  - UNDECLARED: actual_qty required, creates its own line
+ *  - OTHER: note required, no actual_qty, writes nothing
+ */
+export interface DiscrepancyInput {
+  product_category_id: string;
+  reason: DiscrepancyReason;
+  actual_qty?: number;
+  note?: string | null;
+}
+
+export interface UnloadContainerInput {
+  containerId: string;
+  dateUnloaded: string;
+  discrepancies: DiscrepancyInput[];
+}
+
+/** One container with everything the resolve page shows. */
+export interface ContainerDetail {
+  id: string;
+  container_no: string | null;
+  is_company_truck: boolean;
+  status: ContainerStatus;
+  date_delivered: string | null;
+  date_unloaded: string | null;
+  items_match: boolean | null;
+  shipment: {
+    id: string;
+    date_list_received: string;
+    reference: string | null;
+    supplier: Pick<Supplier, "id" | "name">;
+  };
+  container_item: ContainerItemRow[];
+}
+
+/** v_container_variance — declared vs counted, per container. */
+export interface ContainerVarianceRow {
+  container_id: string;
+  container_no: string | null;
+  status: ContainerStatus;
+  items_match: boolean | null;
+  date_unloaded: string | null;
+  supplier: string;
+  date_list_received: string;
+  declared_sacks: number;
+  actual_sacks: number;
+  /** actual − declared; negative is a shortfall. */
+  variance_sacks: number;
+  discrepancy_count: number;
+}
+
+/** v_open_questions — every OTHER discrepancy. */
+export interface OpenQuestionRow {
+  id: string;
+  created_at: string;
+  container_no: string | null;
+  supplier: string;
+  brand: string;
+  variety: string | null;
+  size_kg: number;
+  note: string | null;
+}
+
+export interface VarianceParams extends Pagination {
+  /** Hide containers whose count matched the packing list. */
+  mismatchOnly?: boolean;
+}
+
+export type OpenQuestionParams = Pagination;

@@ -9,9 +9,10 @@ import LoginPage from './pages/login/login-page.tsx'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './utils/query-client.ts'
 import StockPage from './pages/WMS/stock/stock-page.tsx'
-import TruckPage from './pages/WMS/truck/truck-page.tsx'
-import SupplierPage from './pages/WMS/supplier/supplier-page.tsx'
 import ContainerPage from './pages/WMS/container/container-page.tsx'
+import CreateShipmentPage from './pages/WMS/container/create-shipment-page.tsx'
+import ResolveDiscrepancyPage from './pages/WMS/container/resolve-discrepancy-page.tsx'
+import DiscrepanciesPage from './pages/WMS/container/discrepancies-page.tsx'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -21,10 +22,11 @@ createRoot(document.getElementById('root')!).render(
             <Route index element={<LoginPage />} />
             
               <Route element={<AppLayout />}>   
-                <Route path="/container" element={<ContainerPage />} />
-                <Route path="/supplier" element={<SupplierPage />} />
+                <Route path="/containers" element={<ContainerPage />} />
+                <Route path="/containers/items" element={<CreateShipmentPage />} />
+                <Route path="/containers/discrepancies" element={<DiscrepanciesPage />} />
+                <Route path="/containers/:containerId/unload" element={<ResolveDiscrepancyPage />} />
                 <Route path="/stock" element={<StockPage />} />
-                <Route path="/truck" element={<TruckPage />} />
 
               </Route>
           </Routes>

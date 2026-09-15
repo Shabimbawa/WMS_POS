@@ -61,7 +61,7 @@ export default function LoginPage() {
       // sending everyone there dropped approvers and employees on a page they
       // can't read. Resolve the profile first, then land on the first page
       // their role actually has.
-      let landingPath = '/container';
+      let landingPath = '/containers';
       const userId = data.user?.id;
 
       if (userId) {

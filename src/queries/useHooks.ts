@@ -10,22 +10,26 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  createShipment,
+  getContainer,
+  getContainerVariance,
+  getOpenQuestionCount,
+  getOpenQuestions,
   getProductCategories,
   getShippingContainerNotebook,
   getStockStatus,
-  getSupplierNotebook,
   getSuppliers,
-  getTruckNotebook,
-  markContainerDelivered,
-  markContainerUnloaded,
+  unloadContainer,
+  updateContainerStatus,
   updateStockStatus,
 } from "./warehouse.ts";
 
 import type {
+  OpenQuestionParams,
+  ProductCategoryParams,
   ShippingContainerNotebookParams,
   StockStatusParams,
-  SupplierNotebookParams,
-  TruckNotebookParams,
+  VarianceParams,
 } from "./types.ts";
 
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes
@@ -34,19 +38,24 @@ const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 //
 // Params go in the key, so changing a page or a sort refetches and
 // caches separately. Hierarchical so invalidation can be broad:
-// invalidating ['notebook'] clears all three notebooks at once.
+// invalidating ['notebook'] clears every shipment list at once.
 
 export const qk = {
   suppliers: ["suppliers"] as const,
-  productCategories: ["product-categories"] as const,
+  productCategories: (p: ProductCategoryParams = {}) =>
+    ["product-categories", p] as const,
 
   notebooks: ["notebook"] as const,
-  supplierNotebook: (p: SupplierNotebookParams) =>
-    ["notebook", "supplier", p] as const,
   shippingNotebook: (p: ShippingContainerNotebookParams) =>
     ["notebook", "shipping", p] as const,
-  truckNotebook: (p: TruckNotebookParams) =>
-    ["notebook", "truck", p] as const,
+  // Under "notebook" so anything that invalidates shipments refreshes it too.
+  container: (id: string) => ["notebook", "container", id] as const,
+
+  discrepancies: ["discrepancies"] as const,
+  variance: (p: VarianceParams) => ["discrepancies", "variance", p] as const,
+  openQuestions: (p: OpenQuestionParams) =>
+    ["discrepancies", "open-questions", p] as const,
+  openQuestionCount: ["discrepancies", "open-questions", "count"] as const,
 
   stock: ["stock"] as const,
   stockStatus: (p: StockStatusParams) => ["stock", "status", p] as const,
@@ -65,31 +74,18 @@ export function useSuppliers() {
   });
 }
 
-export function useProductCategories() {
+export function useProductCategories(params: ProductCategoryParams = {}) {
   return useQuery({
-    queryKey: qk.productCategories,
-    queryFn: getProductCategories,
+    queryKey: qk.productCategories(params),
+    queryFn: () => getProductCategories(params),
     staleTime: STALE_TIME,
   });
 }
 
-// ---- notebooks --------------------------------------------------
+// ---- lists ------------------------------------------------------
 //
 // placeholderData: keepPreviousData holds the current page on screen
 // while the next one loads, instead of flashing a spinner.
-
-export function useSupplierNotebook(
-  params: SupplierNotebookParams,
-  enabled = true,
-) {
-  return useQuery({
-    queryKey: qk.supplierNotebook(params),
-    queryFn: () => getSupplierNotebook(params),
-    enabled: enabled && Boolean(params.supplierId),
-    placeholderData: keepPreviousData,
-    staleTime: STALE_TIME,
-  });
-}
 
 export function useShippingContainerNotebook(
   params: ShippingContainerNotebookParams,
@@ -104,12 +100,40 @@ export function useShippingContainerNotebook(
   });
 }
 
-export function useTruckNotebook(params: TruckNotebookParams, enabled = true) {
+export function useContainer(id: string | undefined) {
   return useQuery({
-    queryKey: qk.truckNotebook(params),
-    queryFn: () => getTruckNotebook(params),
+    queryKey: qk.container(id ?? ""),
+    queryFn: () => getContainer(id!),
+    enabled: Boolean(id),
+  });
+}
+
+// ---- discrepancies ----------------------------------------------
+
+export function useContainerVariance(params: VarianceParams, enabled = true) {
+  return useQuery({
+    queryKey: qk.variance(params),
+    queryFn: () => getContainerVariance(params),
     enabled,
     placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
+  });
+}
+
+export function useOpenQuestions(params: OpenQuestionParams, enabled = true) {
+  return useQuery({
+    queryKey: qk.openQuestions(params),
+    queryFn: () => getOpenQuestions(params),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
+  });
+}
+
+export function useOpenQuestionCount() {
+  return useQuery({
+    queryKey: qk.openQuestionCount,
+    queryFn: getOpenQuestionCount,
     staleTime: STALE_TIME,
   });
 }
@@ -126,24 +150,35 @@ export function useStockStatus(params: StockStatusParams, enabled = true) {
 
 // ---- mutations --------------------------------------------------
 
-export function useMarkContainerDelivered() {
+export function useCreateShipment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: markContainerDelivered,
+    mutationFn: createShipment,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
     },
   });
 }
 
-export function useMarkContainerUnloaded() {
+export function useUpdateContainerStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: markContainerUnloaded,
+    mutationFn: updateContainerStatus,
     onSuccess: () => {
-      // unloading is what moves stock, so both trees are stale
+      qc.invalidateQueries({ queryKey: qk.notebooks });
+    },
+  });
+}
+
+export function useUnloadContainer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: unloadContainer,
+    onSuccess: () => {
+      // The RPC writes counts and discrepancies; every view of them is stale.
       qc.invalidateQueries({ queryKey: qk.notebooks });
       qc.invalidateQueries({ queryKey: qk.stock });
+      qc.invalidateQueries({ queryKey: qk.discrepancies });
     },
   });
 }
