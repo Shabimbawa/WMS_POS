@@ -1,0 +1,2 @@
+DROP INDEX "container_number_lower_uq";--> statement-breakpoint
+CREATE INDEX "container_number_lower_idx" ON "container" USING btree (lower("container_no")) WHERE "container"."container_no" is not null;

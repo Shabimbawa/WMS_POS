@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789637342653,
+      "tag": "0000_supreme_vargas",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789637840676,
+      "tag": "0001_aberrant_ben_urich",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789637850630,
+      "tag": "0002_stock-balance-trigger",
+      "breakpoints": true
+    }
+  ]
+}

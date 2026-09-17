@@ -1,5 +1,9 @@
 # WMS — Backend
 
+> This file documents the temporary Supabase implementation and remains useful
+> as domain history. The replacement local Node.js/PostgreSQL backend is defined
+> in **[BACKEND_PLAN.md](./BACKEND_PLAN.md)** and implemented in `server/`.
+
 Warehouse management for a rice importer, replacing four paper notebooks.
 Supabase (Postgres) for the MVP, intended to migrate to Django later.
 

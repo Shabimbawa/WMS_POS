@@ -1,5 +1,11 @@
 # WMS — Frontend
 
+> **Backend work is now in this repository.** The local Node.js/PostgreSQL
+> architecture and phased rollout are documented in
+> **[BACKEND_PLAN.md](./BACKEND_PLAN.md)**. The runnable Fastify/Drizzle package
+> is under **[server/](./server/README.md)**. The frontend has not yet been cut
+> over, so the Supabase query layer remains in use during UI development.
+
 Warehouse management for a rice importer, replacing the paper notebooks that
 track packing lists, container arrivals, unloading and stock.
 
