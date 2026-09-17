@@ -45,7 +45,7 @@ export default function LoginPage() {
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (AUTH_BYPASS) { navigate('/container', { replace: true }); return; } // DEV AUTH BYPASS
+    if (AUTH_BYPASS) { navigate('/containers', { replace: true }); return; } // DEV AUTH BYPASS
 
     setIsSubmitting(true);
     try {
@@ -63,7 +63,7 @@ export default function LoginPage() {
       // sending everyone there dropped approvers and employees on a page they
       // can't read. Resolve the profile first, then land on the first page
       // their role actually has.
-      let landingPath = '/container';
+      let landingPath = '/containers';
       const userId = data.user?.id;
 
       if (userId) {

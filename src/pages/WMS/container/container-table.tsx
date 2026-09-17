@@ -3,9 +3,15 @@ import { Tag } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
-import type { ShipmentRow } from "../../../queries/types";
-import { STATUS_COLOR, fmtInt } from "../type-format/format";
+import type { ContainerStatus, ShipmentRow } from "../../../queries/types";
+import {
+  STATUS_COLOR,
+  STATUS_LABEL,
+  fmtInt,
+  fmtProduct,
+} from "../type-format/format";
 import { DateParser } from "../../../common/utils/util";
+import { ContainerActions } from "./container-actions";
 
 /** Rows here are packing lists, with containers nested underneath. */
 export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
@@ -23,16 +29,10 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
     accessorFn: (r) => r.supplier.name,
     size: 130,
   },
-  {
-    id: "reference",
-    header: "Reference",
-    accessorFn: (r) => r.reference,
-    size: 170,
-    cell: (c) => c.getValue<string | null>() ?? "—",
-  },
+
   {
     id: "container_count",
-    header: "Boxes",
+    header: "Container count",
     accessorFn: (r) => r.container.length,
     size: 90,
     cell: (c) => fmtInt(c.getValue<number>()),
@@ -69,9 +69,7 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
       const brands = new Set<string>();
       c.row.original.container.forEach((ct) =>
         ct.container_item.forEach((i) =>
-          brands.add(
-            `${i.product_category.brand}-${i.product_category.size_kg}kg`,
-          ),
+          brands.add(fmtProduct(i.product_category)),
         ),
       );
       if (!brands.size) return <span style={{ opacity: 0.45 }}>—</span>;
@@ -102,7 +100,108 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
   },
 ];
 
+type ShipmentContainer = ShipmentRow["container"][number];
+
+const dash = <span style={{ opacity: 0.45 }}>—</span>;
+
+/** One row per container inside a packing list, shown when it's expanded. */
+export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
+  {
+    id: "container_no",
+    header: "Container no.",
+    accessorFn: (r) => r.container_no,
+    size: 150,
+    cell: (c) => (
+      <span style={{ fontFamily: "monospace" }}>
+        {c.getValue<string | null>() ?? "no box"}
+      </span>
+    ),
+  },
+  {
+    id: "status",
+    header: "Status",
+    accessorFn: (r) => r.status,
+    size: 110,
+    cell: (c) => (
+      <Tag color={STATUS_COLOR[c.getValue<string>()]} style={{ margin: 0 }}>
+        {STATUS_LABEL[c.getValue<ContainerStatus>()]}
+      </Tag>
+    ),
+  },
+  {
+    id: "items",
+    header: "Brands",
+    accessorFn: (r) => r.container_item.length,
+    size: 260,
+    cell: (c) => {
+      const items = c.row.original.container_item;
+      if (!items.length) return dash;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {items.map((i) => (
+            <div
+              key={i.id}
+              style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+            >
+              <span>{fmtProduct(i.product_category)}</span>
+
+            </div>
+          ))}
+        </div>
+      );
+    },
+  },
+  {
+    id: "sacks",
+    header: "Sacks",
+    accessorFn: (r) => r.container_item.reduce((n, i) => n + i.qty_sacks, 0),
+    size: 90,
+    cell: (c) => fmtInt(c.getValue<number>()),
+  },
+  {
+    id: "date_delivered",
+    header: "Delivered",
+    accessorFn: (r) => r.date_delivered,
+    size: 130,
+    cell: (c) => {
+      const v = c.getValue<string | null>();
+      return v ? DateParser(v) : dash;
+    },
+  },
+  {
+    id: "date_unloaded",
+    header: "Unloaded",
+    accessorFn: (r) => r.date_unloaded,
+    size: 130,
+    cell: (c) => {
+      const v = c.getValue<string | null>();
+      return v ? DateParser(v) : dash;
+    },
+  },
+  {
+    id: "actions",
+    header: "",
+    accessorFn: (r) => r.id,
+    size: 230,
+    meta: { fixed: "right" },
+    cell: (c) => <ContainerActions container={c.row.original} />,
+  },
+];
+
 export function ContainerTable({ data }: { data: ShipmentRow[] }) {
   const columns = useMemo(() => containerColumns, []);
-  return <DataTable data={data} columns={columns} />;
+  return (
+    <DataTable
+      data={data}
+      columns={columns}
+      renderExpanded={(shipment) =>
+        shipment.container.length ? (
+          <DataTable
+            data={shipment.container}
+            columns={shipmentContainerColumns}
+          />
+        ) : null
+      }
+    />
+  );
 }

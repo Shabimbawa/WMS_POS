@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-table'
 
 import { ConfigProvider, Table } from 'antd'
+import type { ReactNode } from 'react'
 
 declare module '@tanstack/react-table' {
   // The type parameters must match TanStack's declaration exactly for the
@@ -32,6 +33,11 @@ interface DataTableProps<TData> {
   tableOptions?: Partial<TableOptions<TData>>
   meta?: TableMeta<TData>
   columnVisibility?: VisibilityState
+  /**
+   * Makes rows expandable, rendering this beneath the row when opened.
+   * Return null for rows with nothing to show and they get no expand toggle.
+   */
+  renderExpanded?: (row: TData) => ReactNode
 }
 
 export function DataTable<TData>({
@@ -40,6 +46,7 @@ export function DataTable<TData>({
   tableOptions,
   meta,
   columnVisibility,
+  renderExpanded,
 }: DataTableProps<TData>) {
   const table = useReactTable({
     data,
@@ -77,6 +84,18 @@ export function DataTable<TData>({
     ),
   }))
 
+  const rowsById = new Map(table.getRowModel().rows.map((r) => [r.id, r]))
+  const expandable = renderExpanded && {
+    expandedRowRender: (record: { key: string }) => {
+      const row = rowsById.get(record.key)
+      return row ? renderExpanded(row.original) : null
+    },
+    rowExpandable: (record: { key: string }) => {
+      const row = rowsById.get(record.key)
+      return !!row && renderExpanded(row.original) !== null
+    },
+  }
+
   return (
     <ConfigProvider
       theme={{
@@ -91,6 +110,7 @@ export function DataTable<TData>({
       <Table
         columns={antdColumns}
         dataSource={antdData}
+        expandable={expandable || undefined}
         pagination={false}
         bordered={false}
         scroll={{ x: 'max-content' }}

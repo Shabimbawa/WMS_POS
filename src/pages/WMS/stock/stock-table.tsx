@@ -4,23 +4,28 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
 import type { StockStatusRow } from "../../../queries/types";
-import { fmtInt, fmtMoney } from "../type-format/format";
+import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import { DateParser } from "../../../common/utils/util";
 
 export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
   {
-    id: "brand",
-    header: "Brand",
-    accessorFn: (r) => r.product_category.brand,
-    size: 120,
+    id: "product",
+    header: "Product",
+    accessorFn: (r) => fmtProduct(r.product_category),
+    size: 220,
     meta: { fixed: "left" },
   },
   {
-    id: "size_kg",
-    header: "Size",
-    accessorFn: (r) => r.product_category.size_kg,
-    size: 100,
-    cell: (c) => `${c.getValue<number>()} kg`,
+    id: "is_available",
+    header: "Available",
+    accessorFn: (r) => r.product_category.is_available,
+    size: 110,
+    cell: (c) =>
+      c.getValue<boolean>() ? (
+        <Tag color="success">Yes</Tag>
+      ) : (
+        <Tag>No</Tag>
+      ),
   },
   {
     id: "remaining_qty",
@@ -42,19 +47,31 @@ export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
   {
     id: "selling_price",
     header: "Price / sack",
-    accessorFn: (r) => r.selling_price,
+    accessorFn: (r) => r.product_category.selling_price,
     size: 140,
-    cell: (c) => fmtMoney(c.getValue<number | null>()),
+    // A price on an unavailable product is a leftover, not a signal.
+    cell: (c) => (
+      <span
+        style={{
+          opacity: c.row.original.product_category.is_available ? 1 : 0.45,
+        }}
+      >
+        {fmtMoney(c.getValue<number | null>())}
+      </span>
+    ),
   },
   {
     id: "value",
     header: "Value",
-    accessorFn: (r) => r.remaining_qty * (r.selling_price ?? 0),
+    accessorFn: (r) =>
+      r.remaining_qty * (r.product_category.selling_price ?? 0),
     size: 160,
-    cell: (c) =>
-      c.row.original.selling_price === null
+    cell: (c) => {
+      const pc = c.row.original.product_category;
+      return pc.selling_price === null || !pc.is_available
         ? "—"
-        : fmtMoney(c.getValue<number>()),
+        : fmtMoney(c.getValue<number>());
+    },
   },
   {
     id: "updated_at",

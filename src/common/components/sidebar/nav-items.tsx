@@ -1,14 +1,5 @@
 import type { ReactNode } from 'react'
-import {
-  TeamOutlined,
-  CalendarOutlined,
-  IssuesCloseOutlined,
-  FileDoneOutlined,
-  ContainerOutlined,
-  ShopOutlined,
-  TruckOutlined,
-  DatabaseOutlined,
-} from '@ant-design/icons'
+import { ContainerOutlined, DatabaseOutlined, FileDoneOutlined } from '@ant-design/icons'
 import type { ProfileRole } from '../../../pages/login/auth-useQuery'
 
 export type NavItem = {
@@ -37,10 +28,9 @@ export type NavItem = {
  * guard built on this config is client-side UX and defense-in-depth only.
  */
 export const NAV_ITEMS: NavItem[] = [
-  { key: 'container', path: '/container', label: 'Packing Lists', icon: <ContainerOutlined />, roles: ['warehouse_admin'] },
-  { key: 'supplier',  path: '/supplier',  label: 'Suppliers',     icon: <ShopOutlined />,      roles: ['warehouse_admin'] },
-  { key: 'truck',     path: '/truck',     label: 'Deliveries',    icon: <TruckOutlined />,     roles: ['warehouse_admin'] },
-  { key: 'stock',     path: '/stock',     label: 'Stock',         icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
+  // /containers/items (register shipment) is owned by this entry via prefix match.
+  { key: 'containers', path: '/containers', label: 'Shipments', icon: <ContainerOutlined />, roles: ['warehouse_admin'] },
+  { key: 'stock',      path: '/stock',      label: 'Stock',     icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
   { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['warehouse_admin'] },
 ]
 
@@ -84,5 +74,5 @@ export function rolesForPath(pathname: string): ProfileRole[] | null {
  * page every role can read, if a role somehow has no entries at all.
  */
 export function getLandingPath(role: ProfileRole): string {
-  return NAV_ITEMS.find((item) => item.roles.includes(role))?.path
+  return NAV_ITEMS.find((item) => item.roles.includes(role))?.path ?? '/containers'
 }
