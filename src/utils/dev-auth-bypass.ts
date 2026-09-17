@@ -5,5 +5,5 @@ import type { Profile } from '../pages/login/auth-useQuery'
 
 export const AUTH_BYPASS = import.meta.env.VITE_AUTH_BYPASS === 'true'
 
-export const MOCK_PROFILE: Profile = { id: 0, user_id: 'dev', roles: 'warehouse_admin' }
+export const MOCK_PROFILE: Profile = { id: 0, user_id: 'dev', roles: 'pos_admin' }
 export const MOCK_EMAIL = 'dev@local'
