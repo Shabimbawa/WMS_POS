@@ -6,6 +6,7 @@ import {
   Descriptions,
   Flex,
   Result,
+  Skeleton,
   Space,
   Tag,
   Typography,
@@ -23,8 +24,8 @@ import {
   PAYMENT_STATUS_LABEL,
 } from "../type-format/format";
 import { DateParser } from "../../../common/utils/util";
-// TODO: mock data — swap getOrderSlip for a query hook keyed by id.
-import { getOrderSlip, lineAmount } from "./orderslip-data";
+import { lineAmount } from "../../../queries/pos";
+import { useOrderSlip } from "../../../queries/useHooks";
 import { EditOrderSlipButton } from "./orderslip-actions";
 
 const itemColumns: ColumnDef<OrderSlipItem, any>[] = [
@@ -68,10 +69,12 @@ function BackToList() {
 
 export default function OrderSlipDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const slip = getOrderSlip(id);
+  const { data: slip, isLoading, isError } = useOrderSlip(id);
   const columns = useMemo(() => itemColumns, []);
 
-  if (!slip) {
+  if (isLoading) return <Skeleton active paragraph={{ rows: 8 }} />;
+
+  if (isError || !slip) {
     return (
       <Result
         status="404"

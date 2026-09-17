@@ -178,18 +178,29 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     const itemsByContainer = groupBy(itemRows, (row) => row.containerId);
     const enrichedContainers = containerRows.map((container) => ({
       ...container,
-      container_item: (itemsByContainer.get(container.id) ?? []).map(
-        ({ containerId: _containerId, ...item }) => item,
-      ),
+      container_item: (itemsByContainer.get(container.id) ?? []).map((item) => ({
+        id: item.id,
+        qty_sacks: item.qty_sacks,
+        actual_qty_sacks: item.actual_qty_sacks,
+        price_per_sack: item.price_per_sack,
+        product_category: item.product_category,
+      })),
     }));
     const containersByShipment = groupBy(enrichedContainers, (row) => row.shipmentId);
 
     return pageResult(
       shipmentRows.map((row) => ({
         ...row,
-        container: (containersByShipment.get(row.id) ?? []).map(
-          ({ shipmentId: _shipmentId, ...container }) => container,
-        ),
+        container: (containersByShipment.get(row.id) ?? []).map((container) => ({
+          id: container.id,
+          container_no: container.container_no,
+          is_company_truck: container.is_company_truck,
+          status: container.status,
+          date_delivered: container.date_delivered,
+          date_unloaded: container.date_unloaded,
+          items_match: container.items_match,
+          container_item: container.container_item,
+        })),
       })),
       total,
       query.page,

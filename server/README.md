@@ -57,12 +57,10 @@ The allowed roles are `warehouse_admin` and `pos_admin`.
 
 The API, database schema, migration, authentication, inbound shipment/unload
 flow, discrepancy reports, ledger-backed stock, manual adjustments, and POS
-order-slip flow are implemented. The React client still calls Supabase and the
-POS pages still use mock data; switching `src/queries` to this REST API is the
-next phase and is intentionally separate so frontend work is not disrupted.
+order-slip flow are implemented. The React client now uses this API for login,
+warehouse operations, stock, discrepancies, and POS order slips.
 
 Supplier/product seed rows are not included because the SQL seed files named
 in `SUPABASEREADME.md` are absent from this repository. Export those rows from
 the existing Supabase project instead of reconstructing unconfirmed notebook
 transcriptions.
-

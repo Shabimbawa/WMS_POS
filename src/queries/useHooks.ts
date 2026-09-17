@@ -23,6 +23,13 @@ import {
   updateContainerStatus,
   updateStockStatus,
 } from "./warehouse.ts";
+import {
+  createOrderSlip,
+  getOrderSlip,
+  getOrderSlips,
+  getPosProducts,
+  updateOrderSlip,
+} from "./pos.ts";
 
 import type {
   OpenQuestionParams,
@@ -31,6 +38,7 @@ import type {
   StockStatusParams,
   VarianceParams,
 } from "./types.ts";
+import type { OrderSlipListParams } from "./posTypes.ts";
 
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 
@@ -59,6 +67,11 @@ export const qk = {
 
   stock: ["stock"] as const,
   stockStatus: (p: StockStatusParams) => ["stock", "status", p] as const,
+
+  posProducts: ["pos", "products"] as const,
+  orderSlips: ["order-slips"] as const,
+  orderSlipList: (p: OrderSlipListParams) => ["order-slips", "list", p] as const,
+  orderSlip: (id: string) => ["order-slips", "detail", id] as const,
 };
 
 // ---- reference data ---------------------------------------------
@@ -148,6 +161,30 @@ export function useStockStatus(params: StockStatusParams, enabled = true) {
   });
 }
 
+export function usePosProducts() {
+  return useQuery({
+    queryKey: qk.posProducts,
+    queryFn: getPosProducts,
+    staleTime: STALE_TIME,
+  });
+}
+
+export function useOrderSlips(params: OrderSlipListParams) {
+  return useQuery({
+    queryKey: qk.orderSlipList(params),
+    queryFn: () => getOrderSlips(params),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useOrderSlip(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.orderSlip(id ?? ""),
+    queryFn: () => getOrderSlip(id!),
+    enabled: Boolean(id),
+  });
+}
+
 // ---- mutations --------------------------------------------------
 
 export function useCreateShipment() {
@@ -175,7 +212,7 @@ export function useUnloadContainer() {
   return useMutation({
     mutationFn: unloadContainer,
     onSuccess: () => {
-      // The RPC writes counts and discrepancies; every view of them is stale.
+      // The transaction writes counts and discrepancies; every view is stale.
       qc.invalidateQueries({ queryKey: qk.notebooks });
       qc.invalidateQueries({ queryKey: qk.stock });
       qc.invalidateQueries({ queryKey: qk.discrepancies });
@@ -188,6 +225,31 @@ export function useUpdateStockStatus() {
   return useMutation({
     mutationFn: updateStockStatus,
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.stock });
+    },
+  });
+}
+
+export function useCreateOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createOrderSlip,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.orderSlips });
+      qc.invalidateQueries({ queryKey: qk.posProducts });
+      qc.invalidateQueries({ queryKey: qk.stock });
+    },
+  });
+}
+
+export function useUpdateOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateOrderSlip,
+    onSuccess: (_data, input) => {
+      qc.invalidateQueries({ queryKey: qk.orderSlips });
+      qc.invalidateQueries({ queryKey: qk.orderSlip(input.id) });
+      qc.invalidateQueries({ queryKey: qk.posProducts });
       qc.invalidateQueries({ queryKey: qk.stock });
     },
   });

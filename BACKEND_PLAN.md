@@ -183,10 +183,10 @@ Errors use a stable machine code and a human-readable message:
    auth, bootstrap-admin command, structured errors and logging.
 2. **Inbound WMS**: reference data, shipment listing/creation, guarded status
    transitions, unload transaction, variance and open-question queries.
-3. **Inventory and POS**: balance/ledger endpoints and real order-slip CRUD;
-   remove POS mock data.
-4. **Frontend cutover**: add a single HTTP client, replace Supabase calls in
-   `src/queries`, proxy `/api` in Vite, then remove Supabase dependencies.
+3. **Inventory and POS — complete**: balance/ledger endpoints and real
+   order-slip CRUD replace the POS mock data.
+4. **Frontend cutover — complete**: a single HTTP client replaces Supabase,
+   Vite proxies `/api`, and the POS mock store has been removed.
 5. **Operations**: seed/import script, backup/restore scripts, Windows service
    or Docker Compose deployment, firewall rule limited to the private LAN.
 6. **Verification**: transaction/concurrency tests, role tests, restore drill,
@@ -211,4 +211,3 @@ parent tables first. Existing balances require one `OPENING_BALANCE` movement
 per product; do not copy a balance without the corresponding ledger entry.
 After reconciliation, switch the frontend to the local API and make the
 Supabase project read-only during the acceptance window.
-

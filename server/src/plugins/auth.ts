@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { and, eq, gt } from "drizzle-orm";
 import { config } from "../config.js";
 import { db } from "../db/client.js";
@@ -51,14 +51,14 @@ export async function authPlugin(app: FastifyInstance): Promise<void> {
   });
 }
 
-export async function requireUser(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
+export async function requireUser(request: FastifyRequest): Promise<void> {
   if (!request.currentUser) {
     throw new ApiError(401, "UNAUTHENTICATED", "Sign in is required");
   }
 }
 
 export function requireRole(...roles: ProfileRole[]) {
-  return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
+  return async (request: FastifyRequest): Promise<void> => {
     if (!request.currentUser) {
       throw new ApiError(401, "UNAUTHENTICATED", "Sign in is required");
     }

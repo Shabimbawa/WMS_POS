@@ -1,11 +1,4 @@
-// ============================================================
-// Supabase query functions
-//
-// Plain async functions — no React. Hooks wrap these in hooks.ts,
-// which keeps them testable and reusable from loaders or scripts.
-// ============================================================
-
-import { supabase } from "../utils/supabase-client";
+import { apiRequest, queryString } from "../utils/api-client";
 import type {
   ContainerDetail,
   ContainerVarianceRow,
@@ -25,306 +18,98 @@ import type {
   VarianceParams,
 } from "./types";
 
-// ---- helpers ----------------------------------------------------
-
-/** 1-based page -> inclusive [from, to] for .range() */
-function toRange(page: number, pageSize: number): [number, number] {
-  if (page < 1) throw new Error("page is 1-based");
-  if (pageSize < 1) throw new Error("pageSize must be >= 1");
-  const from = (page - 1) * pageSize;
-  return [from, from + pageSize - 1];
-}
-
-function toPage<T>(
-  rows: T[] | null,
-  count: number | null,
-  page: number,
-  pageSize: number,
-): Page<T> {
-  const total = count ?? 0;
-  return {
-    rows: rows ?? [],
-    total,
-    page,
-    pageSize,
-    pageCount: Math.max(1, Math.ceil(total / pageSize)),
-  };
-}
-
-// Selected columns, kept here so the shapes in types.ts stay honest.
-const PRODUCT_LABEL_COLS = "id, brand, variety, code, size_kg";
-
-const ITEM_COLS = `
-  id,
-  qty_sacks,
-  actual_qty_sacks,
-  price_per_sack,
-  product_category ( ${PRODUCT_LABEL_COLS} )
-`;
-
-// ---- reference data ---------------------------------------------
-
 export async function getSuppliers(): Promise<Supplier[]> {
-  const { data, error } = await supabase
-    .from("supplier")
-    .select("id, name, code, is_active")
-    .order("name", { ascending: true });
-
-  if (error) throw error;
-  return data ?? [];
+  return apiRequest<Supplier[]>("/suppliers");
 }
-
 export async function getProductCategories(
-  p: ProductCategoryParams = {},
+  params: ProductCategoryParams = {},
 ): Promise<ProductCategory[]> {
-  let q = supabase
-    .from("product_category")
-    .select(`${PRODUCT_LABEL_COLS}, is_available, selling_price`);
-
-  if (p.availableOnly) q = q.eq("is_available", true);
-
-  const { data, error } = await q
-    .order("brand", { ascending: true })
-    .order("variety", { ascending: true, nullsFirst: true })
-    .order("size_kg", { ascending: true });
-
-  if (error) throw error;
-  return data ?? [];
+  return apiRequest<ProductCategory[]>(`/products${queryString(params)}`);
 }
-
-// ---- shipments ---------------------------------------------------
-//
-// Rooted at the packing list. supplierId optional: omit for all.
 
 export async function getShippingContainerNotebook(
-  p: ShippingContainerNotebookParams,
+  params: ShippingContainerNotebookParams,
 ): Promise<Page<ShipmentRow>> {
-  const [from, to] = toRange(p.page, p.pageSize);
-  const ascending = (p.sortDir ?? "desc") === "asc";
-
-  let q = supabase
-    .from("shipment")
-    .select(
-      `
-        id,
-        date_list_received,
-        reference,
-        notes,
-        supplier!inner ( id, name, code ),
-        container (
-          id,
-          container_no,
-          is_company_truck,
-          status,
-          date_delivered,
-          date_unloaded,
-          items_match,
-          container_item ( ${ITEM_COLS} )
-        )
-      `,
-      { count: "exact" },
-    )
-    .gte("date_list_received", p.dateFrom)
-    .lte("date_list_received", p.dateTo);
-
-  if (p.supplierId) q = q.eq("supplier_id", p.supplierId);
-
-  const { data, error, count } = await q
-    .order("date_list_received", { ascending })
-    .range(from, to);
-
-  if (error) throw error;
-  return toPage(data as unknown as ShipmentRow[], count, p.page, p.pageSize);
+  return apiRequest<Page<ShipmentRow>>(`/shipments${queryString(params)}`);
 }
-
-// ---- stock status -----------------------------------------------
 
 export async function getStockStatus(
-  p: StockStatusParams,
+  params: StockStatusParams,
 ): Promise<Page<StockStatusRow>> {
-  const [from, to] = toRange(p.page, p.pageSize);
-  const sortBy = p.sortBy ?? "updated_at";
-  const ascending = (p.sortDir ?? "desc") === "asc";
-
-  let q = supabase
-    .from("stock_status")
-    .select(
-      `
-        id,
-        remaining_qty,
-        updated_at,
-        product_category!inner (
-          ${PRODUCT_LABEL_COLS},
-          selling_price,
-          is_available
-        )
-      `,
-      { count: "exact" },
-    )
-    .gte("updated_at", p.dateFrom)
-    .lte("updated_at", p.dateTo);
-
-  if (p.brand) q = q.eq("product_category.brand", p.brand);
-  if (p.inStockOnly) q = q.gt("remaining_qty", 0);
-  if (p.availableOnly) q = q.eq("product_category.is_available", true);
-
-  // NOTE: brand, size and price all live on product_category now.
-  // PostgREST can't order parent rows by a referenced table's column —
-  // this only sorts the embed, so those three won't reorder the rows.
-  // Needs a flattened view if that sort matters.
-  if (
-    sortBy === "brand" ||
-    sortBy === "size_kg" ||
-    sortBy === "selling_price"
-  ) {
-    q = q.order(sortBy, { referencedTable: "product_category", ascending });
-  } else {
-    q = q.order(sortBy, { ascending });
-  }
-
-  const { data, error, count } = await q.range(from, to);
-  if (error) throw error;
-
-  return toPage(data as unknown as StockStatusRow[], count, p.page, p.pageSize);
+  return apiRequest<Page<StockStatusRow>>(`/stock${queryString(params)}`);
 }
 
-// ---- mutations --------------------------------------------------
-
-/**
- * Creates the shipment, its containers and their items in one transaction.
- * Returns the new shipment id.
- */
-export async function createShipment(input: CreateShipmentInput) {
-  const { data, error } = await supabase.rpc("create_shipment", {
-    p_supplier_id: input.supplierId,
-    p_date_list_received: input.dateListReceived,
-    p_reference: input.reference,
-    // Passed as-is: supabase-js serialises it. A stringified array
-    // makes jsonb_array_elements fail server-side.
-    p_containers: input.containers,
+export async function createShipment(input: CreateShipmentInput): Promise<string> {
+  const result = await apiRequest<{ id: string }>("/shipments", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
-
-  if (error) throw error;
-  return data as string;
+  return result.id;
 }
 
-/**
- * Any status change except UNLOADED — that one goes through unloadContainer,
- * which also writes actual_qty_sacks and items_match.
- */
 export async function updateContainerStatus({
   containerId,
   status,
   dateDelivered,
+  dateArrivedAtPort,
+  cancellationReason,
 }: UpdateContainerStatusInput) {
-  const patch: Record<string, unknown> = {
-    status,
-    updated_at: new Date().toISOString(),
-  };
-  if (status === "DELIVERED") patch.date_delivered = dateDelivered;
-
-  const { data, error } = await supabase
-    .from("container")
-    .update(patch)
-    .eq("id", containerId)
-    .select("id, status, date_delivered")
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-/**
- * Unloads a container. An empty discrepancy list means everything matched.
- * The RPC defaults every line to its declared qty, then each discrepancy's
- * trigger overrides its line and flips items_match.
- */
-export async function unloadContainer(input: UnloadContainerInput) {
-  const { error } = await supabase.rpc("unload_container", {
-    p_container_id: input.containerId,
-    p_date_unloaded: input.dateUnloaded,
-    // Passed as-is, same as create_shipment — never stringified.
-    p_discrepancies: input.discrepancies,
+  if (status === "DOCUMENTED") {
+    throw new Error("Containers cannot be moved backward to Documented");
+  }
+  if (status === "ARRIVED_AT_PORT") {
+    return apiRequest(`/containers/${containerId}/arrive-at-port`, {
+      method: "POST",
+      body: JSON.stringify({ date: dateArrivedAtPort }),
+    });
+  }
+  if (status === "DELIVERED") {
+    return apiRequest(`/containers/${containerId}/deliver`, {
+      method: "POST",
+      body: JSON.stringify({ date: dateDelivered }),
+    });
+  }
+  return apiRequest(`/containers/${containerId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason: cancellationReason }),
   });
-
-  if (error) throw error;
 }
 
-// ---- discrepancy views ------------------------------------------
+export async function unloadContainer(input: UnloadContainerInput): Promise<void> {
+  await apiRequest(`/containers/${input.containerId}/unload`, {
+    method: "POST",
+    body: JSON.stringify({
+      dateUnloaded: input.dateUnloaded,
+      discrepancies: input.discrepancies,
+    }),
+  });
+}
 
 export async function getContainer(id: string): Promise<ContainerDetail> {
-  const { data, error } = await supabase
-    .from("container")
-    .select(
-      `
-        id,
-        container_no,
-        is_company_truck,
-        status,
-        date_delivered,
-        date_unloaded,
-        items_match,
-        shipment!inner (
-          id,
-          date_list_received,
-          reference,
-          supplier!inner ( id, name )
-        ),
-        container_item ( ${ITEM_COLS} )
-      `,
-    )
-    .eq("id", id)
-    .single();
-
-  if (error) throw error;
-  return data as unknown as ContainerDetail;
+  return apiRequest<ContainerDetail>(`/containers/${id}`);
 }
 
 export async function getContainerVariance(
-  p: VarianceParams,
+  params: VarianceParams,
 ): Promise<Page<ContainerVarianceRow>> {
-  const [from, to] = toRange(p.page, p.pageSize);
-
-  // Only unloaded containers: before unload actual_qty_sacks is NULL, the
-  // view coalesces it to 0, and every pending container reads as a total loss.
-  let q = supabase
-    .from("v_container_variance")
-    .select("*", { count: "exact" })
-    .eq("status", "UNLOADED");
-
-  if (p.mismatchOnly) q = q.neq("variance_sacks", 0);
-
-  const { data, error, count } = await q
-    .order("date_unloaded", { ascending: false, nullsFirst: false })
-    .range(from, to);
-
-  if (error) throw error;
-  return toPage(data as ContainerVarianceRow[], count, p.page, p.pageSize);
+  return apiRequest<Page<ContainerVarianceRow>>(
+    `/discrepancies/variance${queryString(params)}`,
+  );
 }
 
 export async function getOpenQuestions(
-  p: OpenQuestionParams,
+  params: OpenQuestionParams,
 ): Promise<Page<OpenQuestionRow>> {
-  const [from, to] = toRange(p.page, p.pageSize);
-
-  const { data, error, count } = await supabase
-    .from("v_open_questions")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
-  if (error) throw error;
-  return toPage(data as OpenQuestionRow[], count, p.page, p.pageSize);
+  return apiRequest<Page<OpenQuestionRow>>(
+    `/discrepancies/open-questions${queryString(params)}`,
+  );
 }
 
-/** Count only, for a badge — head: true skips the rows. */
 export async function getOpenQuestionCount(): Promise<number> {
-  const { count, error } = await supabase
-    .from("v_open_questions")
-    .select("*", { count: "exact", head: true });
-
-  if (error) throw error;
-  return count ?? 0;
+  const result = await apiRequest<{ count: number }>(
+    "/discrepancies/open-questions/count",
+  );
+  return result.count;
 }
 
 export interface UpdateStockInput {
@@ -332,20 +117,9 @@ export interface UpdateStockInput {
   remainingQty: number;
 }
 
-export async function updateStockStatus({
-  stockStatusId,
-  remainingQty,
-}: UpdateStockInput) {
-  const { data, error } = await supabase
-    .from("stock_status")
-    .update({
-      remaining_qty: remainingQty,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", stockStatusId)
-    .select("id, remaining_qty, updated_at")
-    .single();
-
-  if (error) throw error;
-  return data;
+export async function updateStockStatus(_input: UpdateStockInput): Promise<never> {
+  void _input;
+  throw new Error(
+    "Direct stock replacement is disabled. Create an audited stock adjustment instead.",
+  );
 }

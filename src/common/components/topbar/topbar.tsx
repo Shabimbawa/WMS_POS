@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/theme-context'
 import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
-import { supabase } from '../../../utils/supabase-client'
+import { logout } from '../../../queries/auth'
+import { queryClient } from '../../../utils/query-client'
 const { Header } = Layout
 const { Text } = Typography
 
@@ -17,13 +18,13 @@ export function Topbar({ onSignOut }: TopbarProps) {
   const { mode, toggleTheme } = useTheme()
   const { data: profile, email } = useCurrentProfile()
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    // Deliberately no cache clear here. This page is still mounted at this
-    // point, so clearing would make its observers refetch against the sessionps
-    // we just destroyed and cache that empty result. utils/query-client.ts
-    // clears on sign-in instead, where nothing is subscribed.
-    onSignOut?.()
-    navigate('/', { replace: true })
+    try {
+      await logout()
+    } finally {
+      queryClient.clear()
+      onSignOut?.()
+      navigate('/', { replace: true })
+    }
   }
 
   return (

@@ -1,18 +1,17 @@
 # WMS — Frontend
 
-> **Backend work is now in this repository.** The local Node.js/PostgreSQL
+> **The local backend is now connected.** The Node.js/PostgreSQL
 > architecture and phased rollout are documented in
 > **[BACKEND_PLAN.md](./BACKEND_PLAN.md)**. The runnable Fastify/Drizzle package
-> is under **[server/](./server/README.md)**. The frontend has not yet been cut
-> over, so the Supabase query layer remains in use during UI development.
+> is under **[server/](./server/README.md)**. The frontend now uses `/api/v1`;
+> Supabase and the POS mock store have been removed.
 
 Warehouse management for a rice importer, replacing the paper notebooks that
 track packing lists, container arrivals, unloading and stock.
 
-This is the React client. The database, RPCs, triggers, views and RLS are
-documented in **[SUPABASEREADME.md](./SUPABASEREADME.md)** — read that first
-for the domain model (shipment → container → items, declared vs counted,
-discrepancies). This file covers what the UI does with it.
+This is the React client. The local API and database are documented in
+**[BACKEND_PLAN.md](./BACKEND_PLAN.md)** and **[server/README.md](./server/README.md)**.
+`SUPABASEREADME.md` remains as history for the original MVP domain model.
 
 ---
 
@@ -23,7 +22,7 @@ discrepancies). This file covers what the UI does with it.
 | Build | Vite, TypeScript |
 | UI | React 19, antd 6, `@ant-design/icons` |
 | Tables | `@tanstack/react-table` rendered through antd `Table` (see `DataTable`) |
-| Data | `@tanstack/react-query` over `@supabase/supabase-js` |
+| Data | `@tanstack/react-query` over the local REST API |
 | Routing | `react-router-dom` 7 |
 
 ## Getting started
@@ -36,8 +35,7 @@ npm run dev
 
 | variable | |
 |---|---|
-| `VITE_SUPABASE_URL` | project URL |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | anon / publishable key — RLS is the real boundary |
+| `VITE_API_BASE_URL` | API prefix; defaults to `/api/v1` |
 
 You need a user with a `warehouse_admin` row in `profiles`. The first one has
 to be inserted from the SQL editor — see *Bootstrap* in the backend README.
@@ -45,7 +43,7 @@ to be inserted from the SQL editor — see *Bootstrap* in the backend README.
 | script | |
 |---|---|
 | `npm run dev` | dev server |
-| `npm run build` | `tsc -b && vite build` — currently fails on the type check, see [Housekeeping](#housekeeping) |
+| `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | eslint |
 
 ---
@@ -56,8 +54,8 @@ to be inserted from the SQL editor — see *Bootstrap* in the backend README.
 src/
   main.tsx                    routes
   queries/
-    types.ts                  row shapes, params, RPC inputs
-    warehouse.ts              plain async Supabase calls, no React
+    types.ts                  row shapes and API inputs
+    warehouse.ts / pos.ts     plain async REST calls, no React
     useHooks.ts               React Query hooks + query keys
   common/
     components/
@@ -84,8 +82,8 @@ src/
   `renderExpanded` for nested rows.
 - **Add/edit forms use `CommonModalForm`** (`common/items/modal/modal.tsx`),
   which brings its own trigger button, validation and discard-changes guard.
-- **Queries are layered**: `warehouse.ts` (Supabase) → `useHooks.ts`
-  (React Query) → pages. Pages never import `supabase` directly.
+- **Queries are layered**: `warehouse.ts` / `pos.ts` (REST) → `useHooks.ts`
+  (React Query) → pages. Pages never call `fetch` directly.
 - **Query keys are hierarchical** so one invalidation covers a family:
 
   | key prefix | covers |
@@ -94,7 +92,7 @@ src/
   | `["discrepancies"]` | variance, open questions, open-question count |
   | `["stock"]` | stock status |
 
-  Mutations only invalidate; all quantity logic lives in the RPCs.
+  Mutations only invalidate; all quantity logic lives in API transactions.
 - **One product label everywhere**: `fmtProduct` → `G · Ganador 50kg`, or
   `Brand Variety 50kg` when the product has no notebook code yet.
 
@@ -108,7 +106,7 @@ src/
   there is denied. Nested routes are claimed by prefix, so `/containers/...`
   all belong to the Shipments entry.
 - After login the user lands on the first nav item their role can see.
-- This is UX and defence in depth only. **RLS is the access control.**
+- This is UX and defence in depth only. **API role checks are the access control.**
 
 | route | page | role |
 |---|---|---|
@@ -234,14 +232,8 @@ A price on an unavailable product is shown dimmed and excluded from value —
 
 ### Features
 
-- **Dispatch / outbound.** Nothing records what leaves the warehouse — the
-  backend is inbound-only (see *Known gaps* in the backend README).
-- **Stock movement and ledger.** `unload_container` doesn't write
-  `stock_status`, so the Stock page won't change after an unload. The UI has
-  no way to adjust stock either (`useUpdateStockStatus` exists but is unused).
-  Blocked on a backend decision about a stock ledger.
-- **Closing open questions.** No `resolved_at` in the schema, so the list and
-  its badge only grow. There is no "re-log under a real reason" flow.
+- **Closing open questions in the UI.** The API supports resolution, but the
+  discrepancies page does not yet expose the action.
 - **Recount.** `unload_container`'s `p_allow_recount` isn't exposed; an
   unloaded container has no actions.
 - **Viewing past discrepancies per container.** Logged issues are only
@@ -251,32 +243,14 @@ A price on an unavailable product is shown dimmed and excluded from value —
   only be created, not edited or deleted after submit.
 - **Product and supplier management.** No screens for adding products,
   assigning notebook codes, setting selling prices or `is_available`, or
-  managing suppliers. Currently done in the Supabase dashboard.
-- **`pos_admin` role.** Exists in `ProfileRole` but has no pages; the
-  `pages/POS/` folder is empty.
-- **Port date.** `ARRIVED_AT_PORT` has no date column, so the UI can't
-  capture one.
+  managing suppliers. Currently done directly in the local database.
 - **Multiple issues per line.** Deliberately limited to one per product on
   the resolve page.
 
-### Diverges from the backend
-
-- **Status changes bypass the RPCs.** *Update status* patches the
-  `container` row directly (`updateContainerStatus` in `warehouse.ts`). The
-  backend provides `mark_container_at_port`, `mark_container_delivered` and
-  `cancel_container`, which carry the guards (e.g. can't cancel an unloaded
-  container, CHECK-safe dates). Should be switched over; the UI also allows
-  moving *back* to DOCUMENTED, which those RPCs don't model.
-- **Sorting across joins.** Stock sorted by brand, size or price only sorts
-  the embedded product, not the rows. `v_container_notebook` /
-  a similar flattened view would fix it; it isn't used.
-
 ### Housekeeping
 
-- `npm run build` fails at `tsc -b` on two errors unrelated to the WMS pages:
-  an unused `location` in `app-layout.tsx`, and `popconfirm.tsx` importing
-  `lucide-react`, which isn't installed. Because of the latter, the shared
-  `ConfirmDeleteButton` isn't used — pages use antd `Popconfirm` directly.
+- `npm run build` passes. Vite currently recommends route-level code splitting
+  because the main production bundle is large.
   `npx vite build` alone succeeds.
 - `npm run lint` reports `no-explicit-any` on the `ColumnDef<Row, any>`
   pattern and `react-refresh/only-export-components` on table files that

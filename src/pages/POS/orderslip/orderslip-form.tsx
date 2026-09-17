@@ -35,8 +35,7 @@ import {
   ProductPriceTable,
   type DraftOrderItem,
 } from "./create-orderslip-table";
-// TODO(backend): mock data. PRODUCTS becomes a products query hook.
-import { PRODUCTS } from "./orderslip-data";
+import { usePosProducts } from "../../../queries/useHooks";
 
 // ---- form value shapes -------------------------------------------
 
@@ -158,7 +157,23 @@ export function OrderSlipForm({
   const navigate = useNavigate();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
 
-  const products = PRODUCTS;
+  const { data: liveProducts = [] } = usePosProducts();
+  // While editing, add the slip's existing quantities back to the displayed
+  // availability. The backend does the same inside its locked transaction.
+  const existingQuantity = useMemo(() => {
+    const result = new Map<string, number>();
+    for (const item of initialItems) {
+      result.set(item.productId, (result.get(item.productId) ?? 0) + item.quantity);
+    }
+    return result;
+  }, [initialItems]);
+  const products = useMemo(
+    () => liveProducts.map((product) => ({
+      ...product,
+      quantity: product.quantity + (existingQuantity.get(product.id) ?? 0),
+    })),
+    [liveProducts, existingQuantity],
+  );
 
   const [form] = Form.useForm<OrderSlipHeaderValues>();
   const [items, setItems] = useState<DraftOrderItem[]>(initialItems);

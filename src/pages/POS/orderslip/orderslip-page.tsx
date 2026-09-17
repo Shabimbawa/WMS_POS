@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   DatePicker,
@@ -8,6 +9,7 @@ import {
   Input,
   Pagination,
   Segmented,
+  Skeleton,
   Space,
   Typography,
 } from "antd";
@@ -16,14 +18,10 @@ import { PlusOutlined, UndoOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import type { SortDir } from "../../../queries/posTypes";
+import { useOrderSlips } from "../../../queries/useHooks";
 import { OrderSlipTable } from "./orderslip-table";
-// TODO: mock data — move the filtering/sorting/paging below to the server
-// once this comes from a query hook.
-import { MOCK_SLIPS } from "./orderslip-data";
 
 const { RangePicker } = DatePicker;
-
-/** The last 90 days, ending today. */
 const defaultRange = (): [Dayjs, Dayjs] => [dayjs().subtract(90, "day"), dayjs()];
 
 export default function OrderSlipPage() {
@@ -34,33 +32,21 @@ export default function OrderSlipPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    // Compare as YYYY-MM-DD strings so the whole end day is included.
-    const from = range[0].format("YYYY-MM-DD");
-    const to = range[1].format("YYYY-MM-DD");
+  const params = useMemo(() => ({
+    search: search.trim() || undefined,
+    dateFrom: range[0].format("YYYY-MM-DD"),
+    dateTo: range[1].format("YYYY-MM-DD"),
+    sortDir,
+    page,
+    pageSize,
+  }), [search, range, sortDir, page, pageSize]);
 
-    return MOCK_SLIPS.filter(
-      (s) =>
-        s.date >= from &&
-        s.date <= to &&
-        (!q ||
-          s.orderBy.toLowerCase().includes(q) ||
-          String(s.slipNumber).includes(q)),
-    ).sort((a, b) => {
-      const byDate = a.date.localeCompare(b.date) || a.slipNumber - b.slipNumber;
-      return sortDir === "asc" ? byDate : -byDate;
-    });
-  }, [search, range, sortDir]);
+  const { data, isPending, isError, error, isPlaceholderData } = useOrderSlips(params);
 
-  const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-  const reset = <T,>(set: (v: T) => void) => (v: T) => {
-    set(v);
+  const reset = <T,>(set: (value: T) => void) => (value: T) => {
+    set(value);
     setPage(1);
   };
-
-  // Compared by day, so the reset stays disabled while the range is the default.
   const [defaultFrom, defaultTo] = defaultRange();
   const isDefaultRange =
     range[0].isSame(defaultFrom, "day") && range[1].isSame(defaultTo, "day");
@@ -68,14 +54,8 @@ export default function OrderSlipPage() {
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          Order slips
-        </Typography.Title>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate("/order-slip/new")}
-        >
+        <Typography.Title level={4} style={{ margin: 0 }}>Order slips</Typography.Title>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/order-slip/new")}>
           New Order Slip
         </Button>
       </Flex>
@@ -90,13 +70,12 @@ export default function OrderSlipPage() {
             placeholder="Search customer or slip no."
             style={{ width: 260 }}
             value={search}
-            onChange={(e) => reset(setSearch)(e.target.value)}
+            onChange={(event) => reset(setSearch)(event.target.value)}
           />
-
           <RangePicker
             value={range}
             allowClear={false}
-            onChange={(v) => v && reset(setRange)(v as [Dayjs, Dayjs])}
+            onChange={(value) => value && reset(setRange)(value as [Dayjs, Dayjs])}
             format="MMMM DD, YYYY"
           />
           <Button
@@ -104,36 +83,35 @@ export default function OrderSlipPage() {
             disabled={isDefaultRange}
             onClick={() => reset(setRange)(defaultRange())}
           />
-
           <Segmented
             value={sortDir}
-            onChange={(v) => reset(setSortDir)(v as SortDir)}
-            options={[
-              { label: "Newest", value: "desc" },
-              { label: "Oldest", value: "asc" },
-            ]}
+            onChange={(value) => reset(setSortDir)(value as SortDir)}
+            options={[{ label: "Newest", value: "desc" }, { label: "Oldest", value: "asc" }]}
           />
         </Flex>
       </Card>
 
-      {!filtered.length ? (
+      {isError ? (
+        <Alert type="error" showIcon message="Could not load order slips" description={(error as Error).message} />
+      ) : isPending ? (
+        <Skeleton active paragraph={{ rows: 6 }} />
+      ) : !data?.rows.length ? (
         <Empty description="No order slips in this date range" />
       ) : (
-        <div>
-          <OrderSlipTable data={rows} />
+        <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
+          <OrderSlipTable data={data.rows} />
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination
-              current={page}
-              pageSize={pageSize}
-              total={filtered.length}
+              current={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
               showSizeChanger
               pageSizeOptions={[10, 25, 50, 100]}
-              onChange={(p, ps) => {
-                // Changing page size can leave `page` past the end; start over.
-                setPage(ps !== pageSize ? 1 : p);
-                setPageSize(ps);
+              onChange={(nextPage, nextPageSize) => {
+                setPage(nextPageSize !== pageSize ? 1 : nextPage);
+                setPageSize(nextPageSize);
               }}
-              showTotal={(t, r) => `${r[0]}–${r[1]} of ${t}`}
+              showTotal={(total, bounds) => `${bounds[0]}–${bounds[1]} of ${total}`}
             />
           </Flex>
         </div>

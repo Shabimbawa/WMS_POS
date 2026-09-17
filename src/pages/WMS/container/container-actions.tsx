@@ -4,6 +4,7 @@ import {
   DatePicker,
   Flex,
   Form,
+  Input,
   Popconfirm,
   Select,
   Tooltip,
@@ -32,14 +33,26 @@ type ShipmentContainer = ShipmentRow["container"][number];
 type StatusValues = {
   status: UpdateContainerStatusInput["status"];
   date_delivered?: Dayjs;
+  date_arrived_at_port?: Dayjs;
+  cancellation_reason?: string;
 };
 
 // UNLOADED is deliberately absent — it only happens through the unload RPC.
-const STATUS_OPTIONS = (
-  ["DOCUMENTED", "ARRIVED_AT_PORT", "DELIVERED", "CANCELLED"] as const
-).map((s) => ({ label: STATUS_LABEL[s], value: s }));
+const STATUS_OPTIONS = {
+  DOCUMENTED: ["ARRIVED_AT_PORT", "DELIVERED", "CANCELLED"],
+  ARRIVED_AT_PORT: ["DELIVERED", "CANCELLED"],
+  DELIVERED: ["CANCELLED"],
+  CANCELLED: [],
+  UNLOADED: [],
+} satisfies Record<ContainerStatus, Array<UpdateContainerStatusInput["status"]>>;
 
-function StatusFields({ form }: { form: FormInstance<StatusValues> }) {
+function StatusFields({
+  form,
+  currentStatus,
+}: {
+  form: FormInstance<StatusValues>;
+  currentStatus: ContainerStatus;
+}) {
   const status = Form.useWatch("status", form);
   return (
     <>
@@ -48,8 +61,22 @@ function StatusFields({ form }: { form: FormInstance<StatusValues> }) {
         label="Status"
         rules={[{ required: true, message: "Pick a status" }]}
       >
-        <Select options={STATUS_OPTIONS} />
+        <Select
+          options={STATUS_OPTIONS[currentStatus].map((s) => ({
+            label: STATUS_LABEL[s],
+            value: s,
+          }))}
+        />
       </Form.Item>
+      {status === "ARRIVED_AT_PORT" && (
+        <Form.Item
+          name="date_arrived_at_port"
+          label="Date arrived at port"
+          rules={[{ required: true, message: "Pick the port arrival date" }]}
+        >
+          <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
+        </Form.Item>
+      )}
       {status === "DELIVERED" && (
         <Form.Item
           name="date_delivered"
@@ -57,6 +84,15 @@ function StatusFields({ form }: { form: FormInstance<StatusValues> }) {
           rules={[{ required: true, message: "Pick the delivery date" }]}
         >
           <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
+        </Form.Item>
+      )}
+      {status === "CANCELLED" && (
+        <Form.Item
+          name="cancellation_reason"
+          label="Cancellation reason"
+          rules={[{ required: true, whitespace: true, message: "Enter a reason" }]}
+        >
+          <Input.TextArea rows={3} />
         </Form.Item>
       )}
     </>
@@ -81,7 +117,7 @@ export function ContainerActions({
   const [unloadDate, setUnloadDate] = useState<Dayjs>(() => dayjs());
 
   // Once unloaded the counts are final; nothing left to act on here.
-  if (container.status === "UNLOADED") return null;
+  if (container.status === "UNLOADED" || container.status === "CANCELLED") return null;
 
   const canUnload = container.status === "DELIVERED";
 
@@ -91,6 +127,8 @@ export function ContainerActions({
         containerId: container.id,
         status: v.status,
         dateDelivered: v.date_delivered?.format("YYYY-MM-DD"),
+        dateArrivedAtPort: v.date_arrived_at_port?.format("YYYY-MM-DD"),
+        cancellationReason: v.cancellation_reason?.trim(),
       });
       msg.success(`Marked ${STATUS_LABEL[v.status as ContainerStatus]}`);
     } catch (e) {
@@ -124,12 +162,13 @@ export function ContainerActions({
         okText="Update"
         width={420}
         initialValues={{
-          status: container.status as StatusValues["status"],
+          status: STATUS_OPTIONS[container.status][0],
           date_delivered: deliveredOn ?? dayjs(),
+          date_arrived_at_port: dayjs(),
         }}
         onSave={saveStatus}
       >
-        {(form) => <StatusFields form={form} />}
+        {(form) => <StatusFields form={form} currentStatus={container.status} />}
       </CommonModalForm>
 
       <Tooltip title={canUnload ? undefined : "Mark as delivered first"}>
