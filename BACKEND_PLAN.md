@@ -1,12 +1,15 @@
-# Local Backend Plan
+# Backend Plan and Implementation Status
 
-This document is the implementation contract for replacing Supabase with a
-locally hosted Node.js API and PostgreSQL database. The React UI can continue
-to evolve against its current query-layer types while the backend is built.
+This document is the implementation contract and status tracker for replacing
+Supabase with a Node.js API and PostgreSQL database. The core backend and the
+frontend cutover are implemented. The remaining work is operational hardening,
+data migration, automated verification, and user acceptance testing.
 
 ## Goals
 
-- Run entirely on the office LAN; no cloud service is required.
+- Support an office-LAN deployment without depending on Supabase or another
+  managed application backend.
+- Support a temporary self-hosted Coolify deployment for team testing.
 - Preserve the existing warehouse workflow and response shapes where useful.
 - Add the POS/order-slip workflow already present in `src/pages/POS`.
 - Make every multi-row business event atomic.
@@ -15,6 +18,8 @@ to evolve against its current query-layer types while the backend is built.
   in the browser.
 
 ## Runtime topology
+
+### Intended LAN production topology
 
 ```text
 LAN browser
@@ -29,11 +34,32 @@ Node.js / Fastify
       PostgreSQL
 ```
 
-Development uses the Vite dev server and proxies `/api` to Fastify. Production
-uses one Fastify process bound to `0.0.0.0`; it serves the built frontend and
-the API from the same origin. PostgreSQL should listen only on the backend
-machine unless database administration from another trusted machine is
-explicitly needed.
+Development uses the Vite dev server and proxies `/api` to Fastify. The
+intended LAN production topology is one origin, with a reverse proxy serving
+the built frontend and forwarding `/api/*` to Fastify. PostgreSQL should listen
+only on the backend machine unless database administration from another
+trusted machine is explicitly needed.
+
+### Current team-test topology
+
+```text
+https://wms.redantech.com          static Vite build on Coolify/Nginx
+             |
+             | HTTPS + credentials
+             v
+https://wms-api.redantech.com      Fastify on Coolify, port 3000 internally
+             |
+             v
+       hosted PostgreSQL
+```
+
+The frontend build variable must be
+`VITE_API_BASE_URL=https://wms-api.redantech.com/api/v1`. The API must bind to
+`0.0.0.0`, allow the exact frontend origin, and use secure session cookies.
+With the current implementation, CORS is registered only outside production,
+so this test deployment temporarily uses `NODE_ENV=development`. Moving CORS
+configuration out of that condition is an operations task before declaring
+the hosted setup production-ready.
 
 LAN-only does not mean authentication-free. The application uses opaque,
 database-backed sessions in an `HttpOnly`, `SameSite=Lax` cookie. Passwords are
@@ -177,20 +203,38 @@ Errors use a stable machine code and a human-readable message:
 { "error": { "code": "INSUFFICIENT_STOCK", "message": "...", "details": {} } }
 ```
 
-## Delivery phases
+## Delivery status
 
-1. **Foundation**: schema, migrations, configuration, health endpoint, session
-   auth, bootstrap-admin command, structured errors and logging.
-2. **Inbound WMS**: reference data, shipment listing/creation, guarded status
-   transitions, unload transaction, variance and open-question queries.
-3. **Inventory and POS — complete**: balance/ledger endpoints and real
-   order-slip CRUD replace the POS mock data.
-4. **Frontend cutover — complete**: a single HTTP client replaces Supabase,
-   Vite proxies `/api`, and the POS mock store has been removed.
-5. **Operations**: seed/import script, backup/restore scripts, Windows service
-   or Docker Compose deployment, firewall rule limited to the private LAN.
-6. **Verification**: transaction/concurrency tests, role tests, restore drill,
-   and user acceptance testing against a copy of real data.
+- [x] **Foundation**: Drizzle schema and migrations, validated configuration,
+  health endpoint, database-backed sessions, password hashing, role checks,
+  bootstrap-admin command, structured errors, and Fastify logging.
+- [x] **Inbound WMS**: supplier/product reference data, shipment listing and
+  creation, guarded container transitions, atomic unload, discrepancy reports,
+  open-question count, and open-question resolution endpoint.
+- [x] **Inventory and POS**: ledger-backed stock balances, audited manual
+  adjustments, POS product list, and transactional order-slip list/detail,
+  create, and update endpoints.
+- [x] **Frontend cutover**: the shared HTTP client and React Query layer use
+  `/api/v1`; Supabase runtime calls and the POS mock store have been removed.
+- [x] **Initial database setup**: the PostgreSQL database has been created,
+  migrations have been applied, and `warehouse_admin` and `pos_admin` accounts
+  can be created with `npm run admin:create`.
+- [ ] **Temporary team-test deployment verification (in progress)**: frontend
+  and backend are configured as separate Coolify applications with HTTPS
+  domains. Complete the health, login, session-cookie, and role-flow checks
+  before marking this done.
+- [ ] **Production deployment hardening**: enable configurable CORS in
+  production (or use one-origin reverse proxying), use an application-specific
+  database role, rotate exposed credentials, and document automated deploys.
+- [ ] **Data migration tooling**: import verified supplier/product and legacy
+  transactional data, creating opening stock movements for imported balances.
+- [ ] **Backup and recovery**: automate PostgreSQL backups, copy them to a
+  second device, and complete a restore drill.
+- [ ] **Automated verification**: add transaction/concurrency, authorization,
+  route, and frontend tests. There is currently no automated test suite.
+- [ ] **Acceptance and LAN rollout**: complete user acceptance testing, then
+  configure the final LAN host, firewall, reserved address, monitoring, time
+  synchronization, and UPS-backed operation.
 
 ## Go-live gates
 

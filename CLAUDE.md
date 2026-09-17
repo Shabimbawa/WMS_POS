@@ -22,6 +22,20 @@ npm run lint                             # eslint
 - Frontend env: `VITE_API_BASE_URL=/api/v1`. Vite proxies `/api` to the local server on port 3000.
 - Backend env and setup are documented in `server/README.md`.
 
+## Deployment state
+
+- Local development uses Vite on port 5173 and Fastify on port 3000.
+- Temporary team testing uses a static Coolify frontend at
+  `https://wms.redantech.com` and a separate Coolify API at
+  `https://wms-api.redantech.com`.
+- The hosted frontend requires the build variable
+  `VITE_API_BASE_URL=https://wms-api.redantech.com/api/v1` and an Nginx
+  `try_files $uri $uri/ /index.html` SPA fallback.
+- The current backend enables CORS only when `NODE_ENV` is not `production`.
+  The temporary hosted setup therefore uses `NODE_ENV=development`; fixing
+  this configuration is required before calling the hosted deployment
+  production-ready.
+
 ## Architecture
 
 ### Data layer (`src/queries/`)

@@ -39,6 +39,10 @@ network. Set it to `true` when the API is served through local HTTPS.
 
 The health check is `GET http://127.0.0.1:3000/api/v1/health`.
 
+When using Command Prompt, run the same commands as `npm ...`; the `.cmd`
+suffix is only needed when PowerShell execution policy prevents its `npm.ps1`
+wrapper from running.
+
 ## Commands
 
 | Command | Purpose |
@@ -52,6 +56,53 @@ The health check is `GET http://127.0.0.1:3000/api/v1/health`.
 | `npm.cmd run admin:create -- <email> <password> [role]` | Create a local user |
 
 The allowed roles are `warehouse_admin` and `pos_admin`.
+
+## Temporary Coolify deployment
+
+Create a second Coolify application from the same repository with these
+settings:
+
+| Setting | Value |
+|---|---|
+| Build pack | Railpack |
+| Output type | Web application |
+| Base directory | `/server` |
+| Port | `3000` |
+| Install command | `npm ci` |
+| Build command | `npm run build` |
+| Start command | `npm run start` |
+
+For the current team-test domains, configure the backend with:
+
+```env
+NODE_ENV=development
+HOST=0.0.0.0
+PORT=3000
+DATABASE_URL=<secret hosted PostgreSQL URL>
+SESSION_COOKIE_NAME=wms_session
+SESSION_TTL_HOURS=12
+SESSION_COOKIE_SECURE=true
+VITE_DEV_ORIGIN=https://wms.redantech.com
+```
+
+Expose the application as `https://wms-api.redantech.com` and configure its
+health check as `/api/v1/health`. The frontend build variable must be:
+
+```env
+VITE_API_BASE_URL=https://wms-api.redantech.com/api/v1
+```
+
+The `https://` prefix is required; without it the browser treats the API host
+as a path under the frontend domain. Because Vite embeds environment variables
+at build time, rebuild the frontend after changing this value.
+
+`NODE_ENV=development` is a temporary deployment constraint: the current API
+registers cross-origin access only outside production. Before treating this as
+a production internet deployment, make allowed origins independently
+configurable and run the backend with `NODE_ENV=production`.
+
+Never expose `DATABASE_URL` to the frontend or commit it. Rotate any database
+credential that has appeared in logs, screenshots, chat, or source control.
 
 ## Current boundary
 

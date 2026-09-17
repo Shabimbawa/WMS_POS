@@ -28,7 +28,7 @@ This is the React client. The local API and database are documented in
 ## Getting started
 
 ```bash
-cp .env.example .env     # fill in the two values below
+cp .env.example .env     # optionally override the API URL
 npm install
 npm run dev
 ```
@@ -37,14 +37,53 @@ npm run dev
 |---|---|
 | `VITE_API_BASE_URL` | API prefix; defaults to `/api/v1` |
 
-You need a user with a `warehouse_admin` row in `profiles`. The first one has
-to be inserted from the SQL editor — see *Bootstrap* in the backend README.
+You need a local application user. After applying the backend migrations,
+create the first account with the backend's `admin:create` command; do not
+insert password records manually. See **[server/README.md](./server/README.md)**.
 
 | script | |
 |---|---|
 | `npm run dev` | dev server |
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | eslint |
+
+---
+
+## Team-test deployment
+
+The temporary Coolify deployment uses two applications from this repository:
+
+| Application | Base directory | Type | Domain |
+|---|---|---|---|
+| Frontend | `/` | Railpack static site, publish `/dist` | `https://wms.redantech.com` |
+| Backend | `/server` | Railpack web application, port `3000` | `https://wms-api.redantech.com` |
+
+The frontend must define this as a build-time variable and be rebuilt whenever
+it changes:
+
+```env
+VITE_API_BASE_URL=https://wms-api.redantech.com/api/v1
+```
+
+Its Nginx configuration must fall back to `index.html` for React Router:
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+Backend environment variables, health checks, and the current CORS limitation
+are documented in **[server/README.md](./server/README.md)**. Deployment is not
+considered verified until `/api/v1/health`, login, cookie persistence, and both
+role-specific flows pass on the hosted domains.
 
 ---
 
