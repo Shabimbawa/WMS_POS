@@ -12,6 +12,8 @@ import StockPage from './pages/WMS/stock/stock-page.tsx'
 import ContainerPage from './pages/WMS/container/container-page.tsx'
 import PosPage from './pages/POS/orderslip/orderslip-page.tsx'
 import OrderSlipDetailPage from './pages/POS/orderslip/orderslip-detail-page.tsx'
+import CreateOrderSlipPage from './pages/POS/orderslip/create-orderslip-page.tsx'
+import EditOrderSlipPage from './pages/POS/orderslip/edit-orderslip-page.tsx'
 import CreateShipmentPage from './pages/WMS/container/create-shipment-page.tsx'
 import ResolveDiscrepancyPage from './pages/WMS/container/resolve-discrepancy-page.tsx'
 import DiscrepanciesPage from './pages/WMS/container/discrepancies-page.tsx'
@@ -30,7 +32,9 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/containers/:containerId/unload" element={<ResolveDiscrepancyPage />} />
                 <Route path="/stock" element={<StockPage />} />
                 <Route path="/order-slip" element={<PosPage/>}/>
+                <Route path="/order-slip/new" element={<CreateOrderSlipPage />} />
                 <Route path="/order-slip/:id" element={<OrderSlipDetailPage />} />
+                <Route path="/order-slip/:id/edit" element={<EditOrderSlipPage />} />
               </Route>
           </Routes>
         </BrowserRouter>
