@@ -7,6 +7,7 @@ import {
   Flex,
   Result,
   Space,
+  Tag,
   Typography,
 } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
@@ -14,10 +15,17 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
 import type { OrderSlipItem } from "../../../queries/posTypes";
-import { fmtInt, fmtMoney } from "../../WMS/type-format/format";
+import {
+  fmtInt,
+  fmtMoney,
+  isOverdue,
+  PAYMENT_STATUS_COLOR,
+  PAYMENT_STATUS_LABEL,
+} from "../type-format/format";
 import { DateParser } from "../../../common/utils/util";
 // TODO: mock data — swap getOrderSlip for a query hook keyed by id.
 import { getOrderSlip, lineAmount } from "./orderslip-data";
+import { EditOrderSlipButton } from "./orderslip-actions";
 
 const itemColumns: ColumnDef<OrderSlipItem, any>[] = [
   {
@@ -81,7 +89,10 @@ export default function OrderSlipDetailPage() {
           Order slip{" "}
           <span style={{ fontFamily: "monospace" }}>#{slip.slipNumber}</span>
         </Typography.Title>
-        <BackToList />
+        <Flex gap={8}>
+          <BackToList />
+          <EditOrderSlipButton slip={slip} />
+        </Flex>
       </Flex>
 
       <Card size="small">
@@ -90,6 +101,17 @@ export default function OrderSlipDetailPage() {
           <Descriptions.Item label="Date">{DateParser(slip.date)}</Descriptions.Item>
           <Descriptions.Item label="Order by">{slip.orderBy}</Descriptions.Item>
           <Descriptions.Item label="Address">{slip.address || "—"}</Descriptions.Item>
+          <Descriptions.Item label="Payment">
+            <Tag color={PAYMENT_STATUS_COLOR[slip.status]} style={{ margin: 0 }}>
+              {PAYMENT_STATUS_LABEL[slip.status]}
+            </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="Payment due">
+            <Space size={8}>
+              {DateParser(slip.paymentDueDate)}
+              {isOverdue(slip) && <Tag color="error">Overdue</Tag>}
+            </Space>
+          </Descriptions.Item>
         </Descriptions>
       </Card>
 

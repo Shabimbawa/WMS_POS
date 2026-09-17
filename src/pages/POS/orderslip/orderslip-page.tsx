@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Button,
   Card,
   DatePicker,
   Empty,
@@ -11,8 +12,10 @@ import {
   Typography,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { PlusOutlined, UndoOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 
-import type { SortDir } from "../../../queries/types";
+import type { SortDir } from "../../../queries/posTypes";
 import { OrderSlipTable } from "./orderslip-table";
 // TODO: mock data — move the filtering/sorting/paging below to the server
 // once this comes from a query hook.
@@ -20,12 +23,13 @@ import { MOCK_SLIPS } from "./orderslip-data";
 
 const { RangePicker } = DatePicker;
 
+/** The last 90 days, ending today. */
+const defaultRange = (): [Dayjs, Dayjs] => [dayjs().subtract(90, "day"), dayjs()];
+
 export default function OrderSlipPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [range, setRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(90, "day"),
-    dayjs(),
-  ]);
+  const [range, setRange] = useState<[Dayjs, Dayjs]>(defaultRange);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -56,11 +60,25 @@ export default function OrderSlipPage() {
     setPage(1);
   };
 
+  // Compared by day, so the reset stays disabled while the range is the default.
+  const [defaultFrom, defaultTo] = defaultRange();
+  const isDefaultRange =
+    range[0].isSame(defaultFrom, "day") && range[1].isSame(defaultTo, "day");
+
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Typography.Title level={4} style={{ margin: 0 }}>
-        Order slips
-      </Typography.Title>
+      <Flex justify="space-between" align="center">
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Order slips
+        </Typography.Title>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => navigate("/order-slip/new")}
+        >
+          New Order Slip
+        </Button>
+      </Flex>
       <Typography.Text type="secondary">
         One row per order slip. Click a slip number to open it.
       </Typography.Text>
@@ -80,6 +98,11 @@ export default function OrderSlipPage() {
             allowClear={false}
             onChange={(v) => v && reset(setRange)(v as [Dayjs, Dayjs])}
             format="MMMM DD, YYYY"
+          />
+          <Button
+            icon={<UndoOutlined />}
+            disabled={isDefaultRange}
+            onClick={() => reset(setRange)(defaultRange())}
           />
 
           <Segmented
