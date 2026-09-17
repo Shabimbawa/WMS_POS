@@ -23,7 +23,10 @@ export async function buildApp() {
     });
   }
 
-  await app.register(authPlugin);
+  // Install this hook on the root instance. Registering it as a normal Fastify
+  // plugin would encapsulate it, so sibling route plugins would never receive
+  // the authenticated currentUser.
+  await authPlugin(app);
   await app.register(healthRoutes, { prefix: "/api/v1" });
   await app.register(authRoutes, { prefix: "/api/v1/auth" });
   await app.register(referenceRoutes, { prefix: "/api/v1" });
