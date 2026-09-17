@@ -7,6 +7,7 @@ import { supabase } from '../../utils/supabase-client';
 import { ErrorNotificationPopup } from '../../common/items/notification/errror-notif';
 import { fetchProfile, profileQueryKey } from './auth-useQuery';
 import { getLandingPath } from '../../common/components/sidebar/nav-items';
+import { AUTH_BYPASS } from '../../utils/dev-auth-bypass'; // DEV AUTH BYPASS
 
 export interface LoginCredentials {
   email: string;
@@ -44,6 +45,7 @@ export default function LoginPage() {
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (AUTH_BYPASS) { navigate('/containers', { replace: true }); return; } // DEV AUTH BYPASS
 
     setIsSubmitting(true);
     try {
