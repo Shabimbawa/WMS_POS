@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  DatePicker,
   Empty,
   Flex,
   Pagination,
@@ -14,14 +15,18 @@ import {
   Switch,
   Typography,
 } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import { useNavigate } from "react-router-dom";
 
-import { useProductCategories, useStock } from "../../../queries/useHooks";
+import { useProductCategories, useStockStatus } from "../../../queries/useHooks";
 import type { SortDir, StockSortField } from "../../../queries/types";
 import { StockTable } from "./stock-table";
 import { fmtInt } from "../type-format/format";
 
+const { RangePicker } = DatePicker;
+
 const SORT_FIELDS: { label: string; value: StockSortField }[] = [
+  { label: "Updated", value: "updated_at" },
   { label: "Brand", value: "brand" },
   { label: "Size", value: "size_kg" },
   { label: "On hand", value: "remaining_qty" },
@@ -35,6 +40,10 @@ export default function StockPage() {
   const [brand, setBrand] = useState<string | undefined>();
   const [inStockOnly, setInStockOnly] = useState(false);
   const [availableOnly, setAvailableOnly] = useState(false);
+  const [range, setRange] = useState<[Dayjs, Dayjs]>([
+    dayjs().subtract(365, "day"),
+    dayjs(),
+  ]);
   const [sortBy, setSortBy] = useState<StockSortField>("brand");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
@@ -46,8 +55,19 @@ export default function StockPage() {
   );
 
   const params = useMemo(
-    () => ({ brand, inStockOnly, availableOnly, page, pageSize, sortBy, sortDir }),
-    [brand, inStockOnly, availableOnly, page, pageSize, sortBy, sortDir],
+    () => ({
+      brand,
+      inStockOnly,
+      availableOnly,
+      page,
+      pageSize,
+      dateField: "updated_at" as const,
+      dateFrom: range[0].format("YYYY-MM-DD"),
+      dateTo: range[1].format("YYYY-MM-DD"),
+      sortBy,
+      sortDir,
+    }),
+    [brand, inStockOnly, availableOnly, page, pageSize, range, sortBy, sortDir],
   );
 
   const {
@@ -58,7 +78,7 @@ export default function StockPage() {
     isPlaceholderData,
     isFetching,
     refetch,
-  } = useStock(params);
+  } = useStockStatus(params);
 
   const reset = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
@@ -115,6 +135,13 @@ export default function StockPage() {
             />
             <Typography.Text>Available only</Typography.Text>
           </Flex>
+
+          <RangePicker
+            value={range}
+            allowClear={false}
+            onChange={(v) => v && reset(setRange)(v as [Dayjs, Dayjs])}
+            format="MMMM DD, YYYY"
+          />
 
           <Select
             style={{ minWidth: 150 }}

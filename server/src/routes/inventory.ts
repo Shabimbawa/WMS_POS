@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { and, asc, count, desc, eq, gt, gte, ilike, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, ilike, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
   containerDiscrepancies,
   containerItems,
   containers,
+  orderSlips,
   productCategories,
   shipments,
   stockBalances,
@@ -29,6 +30,18 @@ const stockQuery = z.object({
   inStockOnly: z.stringbool().optional().default(false),
   availableOnly: z.stringbool().optional().default(false),
   sortBy: z.enum(["brand", "size_kg", "remaining_qty", "selling_price", "updated_at"]).default("updated_at"),
+  sortDir: z.enum(["asc", "desc"]).default("desc"),
+});
+
+const movementQuery = z.object({
+  ...pagination,
+  dateFrom: z.iso.date(),
+  dateTo: z.iso.date(),
+  productCategoryId: z.uuid().optional(),
+  movementType: z
+    .enum(["OPENING_BALANCE", "INBOUND_UNLOAD", "OUTBOUND_ORDER", "ORDER_REVERSAL", "MANUAL_ADJUSTMENT"])
+    .optional(),
+  direction: z.enum(["IN", "OUT"]).optional(),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
 
@@ -158,6 +171,73 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
         return { movementId: movement!.id, remainingQty: next };
       });
       return reply.code(201).send(result);
+    },
+  );
+
+  app.get(
+    "/stock/movements",
+    { preHandler: requireRole("warehouse_admin") },
+    async (request) => {
+      const query = movementQuery.parse(request.query);
+      if (query.dateFrom > query.dateTo) {
+        throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
+      }
+      const filters = [
+        gte(stockMovements.occurredAt, new Date(`${query.dateFrom}T00:00:00Z`)),
+        lte(stockMovements.occurredAt, new Date(`${query.dateTo}T23:59:59.999Z`)),
+        ...(query.productCategoryId
+          ? [eq(stockMovements.productCategoryId, query.productCategoryId)]
+          : []),
+        ...(query.movementType ? [eq(stockMovements.movementType, query.movementType)] : []),
+        ...(query.direction === "IN" ? [gt(stockMovements.quantityDelta, 0)] : []),
+        ...(query.direction === "OUT" ? [lt(stockMovements.quantityDelta, 0)] : []),
+      ];
+      const where = and(...filters);
+
+      const [countRow] = await db
+        .select({ value: count() })
+        .from(stockMovements)
+        .where(where);
+
+      const direction = sql<"IN" | "OUT">`case when ${stockMovements.quantityDelta} > 0 then 'IN' else 'OUT' end`;
+      const order = query.sortDir === "asc" ? asc : desc;
+
+      const rows = await db
+        .select({
+          id: stockMovements.id,
+          occurred_at: stockMovements.occurredAt,
+          created_at: stockMovements.createdAt,
+          movement_type: stockMovements.movementType,
+          direction,
+          quantity_delta: stockMovements.quantityDelta,
+          balance_after: stockMovements.balanceAfter,
+          note: stockMovements.note,
+          product_category_id: stockMovements.productCategoryId,
+          brand: productCategories.brand,
+          variety: productCategories.variety,
+          code: productCategories.code,
+          size_kg: productCategories.sizeKg,
+          container_id: stockMovements.containerId,
+          container_no: containers.containerNo,
+          supplier: suppliers.name,
+          order_slip_id: stockMovements.orderSlipId,
+          order_slip_number: orderSlips.slipNumber,
+          order_revision: stockMovements.orderRevision,
+        })
+        .from(stockMovements)
+        .innerJoin(productCategories, eq(stockMovements.productCategoryId, productCategories.id))
+        // every source is optional on a movement, so these stay left joins
+        .leftJoin(containers, eq(stockMovements.containerId, containers.id))
+        .leftJoin(shipments, eq(containers.shipmentId, shipments.id))
+        .leftJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+        .leftJoin(orderSlips, eq(stockMovements.orderSlipId, orderSlips.id))
+        .where(where)
+        // created_at breaks ties so one unload batch keeps its insert order
+        .orderBy(order(stockMovements.occurredAt), order(stockMovements.createdAt))
+        .limit(query.pageSize)
+        .offset((query.page - 1) * query.pageSize);
+
+      return pageResult(rows, countRow?.value ?? 0, query.page, query.pageSize);
     },
   );
 

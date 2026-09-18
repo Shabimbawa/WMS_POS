@@ -17,8 +17,9 @@ import {
   getOpenQuestions,
   getProductCategories,
   getShippingContainerNotebook,
-  getStock,
   getStockLog,
+  getStockStatus,
+  updateStockStatus,
   getSuppliers,
   unloadContainer,
   updateContainerStatus,
@@ -36,7 +37,7 @@ import type {
   ProductCategoryParams,
   ShippingContainerNotebookParams,
   StockLogParams,
-  StockParams,
+  StockStatusParams,
   VarianceParams,
 } from "./types.ts";
 import type { OrderSlipListParams } from "./posTypes.ts";
@@ -68,6 +69,7 @@ export const qk = {
 
   stock: ["stock"] as const,
   stockStatus: (p: StockStatusParams) => ["stock", "status", p] as const,
+  stockLog: (p: StockLogParams) => ["stock", "log", p] as const,
 
   posProducts: ["pos", "products"] as const,
   orderSlips: ["order-slips"] as const,
@@ -162,10 +164,10 @@ export function useStockLog(params: StockLogParams, enabled = true) {
   });
 }
 
-export function useStock(params: StockParams, enabled = true) {
+export function useStockStatus(params: StockStatusParams, enabled = true) {
   return useQuery({
-    queryKey: qk.stockList(params),
-    queryFn: () => getStock(params),
+    queryKey: qk.stockStatus(params),
+    queryFn: () => getStockStatus(params),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: STALE_TIME,

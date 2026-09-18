@@ -19,13 +19,27 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import { useProductCategories, useStockLog } from "../../../queries/useHooks";
-import type { SortDir, StockDirection } from "../../../queries/types";
+import type {
+  SortDir,
+  StockDirection,
+  StockMovementType,
+} from "../../../queries/types";
 import { StockLogTable } from "./stock-log-table";
-import { fmtInt, fmtProduct } from "../type-format/format";
+import { MOVEMENT_LABEL, fmtInt, fmtProduct } from "../type-format/format";
 
 const { RangePicker } = DatePicker;
 
 type DirectionFilter = "all" | StockDirection;
+
+const MOVEMENT_OPTIONS = (
+  [
+    "INBOUND_UNLOAD",
+    "OUTBOUND_ORDER",
+    "ORDER_REVERSAL",
+    "MANUAL_ADJUSTMENT",
+    "OPENING_BALANCE",
+  ] as const
+).map((t) => ({ label: MOVEMENT_LABEL[t], value: t }));
 
 export default function StockLogPage() {
   const navigate = useNavigate();
@@ -35,6 +49,7 @@ export default function StockLogPage() {
     string | undefined
   >();
   const [direction, setDirection] = useState<DirectionFilter>("all");
+  const [movementType, setMovementType] = useState<StockMovementType | undefined>();
   const [range, setRange] = useState<[Dayjs, Dayjs]>([
     dayjs().subtract(90, "day"),
     dayjs(),
@@ -47,13 +62,14 @@ export default function StockLogPage() {
     () => ({
       productCategoryId,
       direction: direction === "all" ? undefined : direction,
+      movementType,
       page,
       pageSize,
       dateFrom: range[0].format("YYYY-MM-DD"),
       dateTo: range[1].format("YYYY-MM-DD"),
       sortDir,
     }),
-    [productCategoryId, direction, page, pageSize, range, sortDir],
+    [productCategoryId, direction, movementType, page, pageSize, range, sortDir],
   );
 
   const {
@@ -72,7 +88,7 @@ export default function StockLogPage() {
   };
 
   // Net of this page only — the ledger is paged server-side.
-  const pageDelta = data?.rows.reduce((n, r) => n + r.qty_delta, 0) ?? 0;
+  const pageDelta = data?.rows.reduce((n, r) => n + r.quantity_delta, 0) ?? 0;
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
@@ -110,6 +126,15 @@ export default function StockLogPage() {
               label: fmtProduct(p),
               value: p.id,
             }))}
+          />
+
+          <Select
+            allowClear
+            placeholder="All movements"
+            style={{ minWidth: 180 }}
+            value={movementType}
+            onChange={reset(setMovementType)}
+            options={MOVEMENT_OPTIONS}
           />
 
           <Segmented

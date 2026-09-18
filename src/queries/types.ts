@@ -30,7 +30,8 @@ export type StockSortField =
   | "brand"
   | "size_kg"
   | "remaining_qty"
-  | "selling_price";
+  | "selling_price"
+  | "updated_at";
 
 /**
  * `dateField` picks which column the range filters on.
@@ -71,8 +72,6 @@ export interface ProductCategory {
   /** The only availability signal — a price on an unavailable product is a leftover. */
   is_available: boolean;
   selling_price: number | null;
-  /** On-hand sacks. Moved here from the old stock_status table. */
-  remaining_qty: number;
 }
 
 /** The product fields every embed needs to render a label. */
@@ -110,30 +109,49 @@ export interface ShipmentRow {
   }>;
 }
 
+/** GET /stock — one row per product balance, from the stock_balance table. */
+export interface StockStatusRow {
+  id: string;
+  remaining_qty: number;
+  updated_at: string;
+  product_category: ProductLabel &
+    Pick<ProductCategory, "selling_price" | "is_available">;
+}
+
+export type StockMovementType =
+  | "OPENING_BALANCE"
+  | "INBOUND_UNLOAD"
+  | "OUTBOUND_ORDER"
+  | "ORDER_REVERSAL"
+  | "MANUAL_ADJUSTMENT";
+
 /**
- * v_stock_log — one row per stock movement, newest first. The view pre-joins
- * the product and the container it came from. Postgres numerics arrive as
- * strings, so size_kg is widened here. The view's own tonnage column is
- * unused: weights are shown in kg, derived from qty_sacks x size_kg.
+ * GET /stock/movements — the append-only ledger behind every balance.
+ * `direction` is derived server-side from the sign of quantity_delta.
+ * The source columns are exclusive: a movement carries a container, an
+ * order slip, or neither.
  */
 export interface StockLogRow {
   id: string;
-  occurred_on: string;
+  occurred_at: string;
   created_at: string;
-  /** UNLOAD, and whatever else the backend logs. */
-  movement_type: string;
+  movement_type: StockMovementType;
   direction: StockDirection;
   /** Signed: negative for OUT. */
-  qty_delta: number;
-  qty_sacks: number;
+  quantity_delta: number;
   balance_after: number;
+  note: string | null;
   product_category_id: string;
+  brand: string;
+  variety: string | null;
   code: string | null;
-  product_name: string;
-  size_kg: number | string;
+  size_kg: number;
+  container_id: string | null;
   container_no: string | null;
   supplier: string | null;
-  notes: string | null;
+  order_slip_id: string | null;
+  order_slip_number: number | null;
+  order_revision: number | null;
 }
 
 export type StockDirection = "IN" | "OUT";
@@ -146,20 +164,19 @@ export interface ShippingContainerNotebookParams
   supplierId?: string;
 }
 
-export interface StockParams extends Pagination {
+export interface StockStatusParams
+  extends ListParams<"updated_at", StockSortField> {
   brand?: string;
   /** Hide rows sitting at zero. */
   inStockOnly?: boolean;
   /** Hide products that aren't currently sold. */
   availableOnly?: boolean;
-  sortBy?: StockSortField;
-  sortDir?: SortDir;
 }
 
 export interface StockLogParams extends Pagination, DateRange {
   productCategoryId?: string;
   direction?: StockDirection;
-  movementType?: string;
+  movementType?: StockMovementType;
   sortDir?: SortDir;
 }
 

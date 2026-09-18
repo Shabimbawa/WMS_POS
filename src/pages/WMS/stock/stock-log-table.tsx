@@ -1,43 +1,68 @@
-import { Tag } from "antd";
+import { Tag, Tooltip } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
+import dayjs from "dayjs";
 
 import { DataTable } from "../../../common/items/table/table";
-import { DateParser } from "../../../common/utils/util";
 import type { StockLogRow } from "../../../queries/types";
-import { fmtInt, fmtKg, toNum } from "../type-format/format";
+import {
+  MOVEMENT_COLOR,
+  MOVEMENT_LABEL,
+  fmtInt,
+  fmtKg,
+  fmtProduct,
+} from "../type-format/format";
 
 const dash = <span style={{ opacity: 0.45 }}>—</span>;
 
-/** v_stock_log — every movement behind a product's on-hand figure. */
+/** GET /stock/movements — every change to a balance, newest first. */
 export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
   {
-    id: "occurred_on",
+    id: "occurred_at",
     header: "Date",
-    accessorFn: (r) => r.occurred_on,
+    accessorFn: (r) => r.occurred_at,
     size: 130,
     meta: { fixed: "left" },
-    cell: (c) => DateParser(c.getValue<string>()),
+    // occurred_at is when it happened; created_at is when it was recorded
+    cell: (c) => (
+      <Tooltip
+        title={`Recorded ${dayjs(c.row.original.created_at).format("MMM DD, YYYY h:mm A")}`}
+      >
+        {dayjs(c.getValue<string>()).format("MMM DD, YYYY")}
+      </Tooltip>
+    ),
   },
   {
     id: "product",
     header: "Product",
-    // the view ships a ready-made name; the code is the notebook shorthand
-    accessorFn: (r) => (r.code ? `${r.code} · ${r.product_name}` : r.product_name),
+    accessorFn: (r) =>
+      fmtProduct({
+        code: r.code,
+        brand: r.brand,
+        variety: r.variety,
+        size_kg: r.size_kg,
+      }),
     size: 220,
   },
   {
     id: "movement_type",
     header: "Movement",
     accessorFn: (r) => r.movement_type,
-    size: 130,
-    cell: (c) => <Tag style={{ margin: 0 }}>{c.getValue<string>()}</Tag>,
+    size: 150,
+    cell: (c) => {
+      const t = c.row.original.movement_type;
+      return (
+        <Tag color={MOVEMENT_COLOR[t]} style={{ margin: 0 }}>
+          {MOVEMENT_LABEL[t]}
+        </Tag>
+      );
+    },
   },
   {
-    id: "qty_delta",
+    id: "quantity_delta",
     header: "Change",
-    accessorFn: (r) => r.qty_delta,
+    accessorFn: (r) => r.quantity_delta,
     size: 120,
-    // signed: IN adds, OUT subtracts
+    // signed by the server: IN adds, OUT subtracts
     cell: (c) => {
       const v = c.getValue<number>();
       return (
@@ -57,19 +82,36 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
   {
     id: "weight_kg",
     header: "Weight",
-    // sacks moved x sack size; the view's own tonnage column is ignored
-    accessorFn: (r) => r.qty_sacks * toNum(r.size_kg),
+    accessorFn: (r) => Math.abs(r.quantity_delta) * r.size_kg,
     size: 120,
     cell: (c) => fmtKg(c.getValue<number>()),
   },
   {
-    id: "container_no",
-    header: "Container",
-    accessorFn: (r) => r.container_no,
-    size: 150,
+    id: "source",
+    header: "Source",
+    // exclusive by CHECK: a container, an order slip, or neither
+    accessorFn: (r) => r.container_no ?? r.order_slip_number,
+    size: 200,
     cell: (c) => {
-      const v = c.getValue<string | null>();
-      return v ? <span style={{ fontFamily: "monospace" }}>{v}</span> : dash;
+      const r = c.row.original;
+      if (r.container_id) {
+        return (
+          <span style={{ fontFamily: "monospace" }}>
+            {r.container_no ?? "no box"}
+          </span>
+        );
+      }
+      if (r.order_slip_id) {
+        return (
+          <span>
+            Slip #{r.order_slip_number ?? "?"}
+            {r.order_revision && r.order_revision > 1
+              ? ` (rev ${r.order_revision})`
+              : ""}
+          </span>
+        );
+      }
+      return dash;
     },
   },
   {
@@ -80,9 +122,9 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
     cell: (c) => c.getValue<string | null>() ?? dash,
   },
   {
-    id: "notes",
-    header: "Notes",
-    accessorFn: (r) => r.notes,
+    id: "note",
+    header: "Note",
+    accessorFn: (r) => r.note,
     size: 260,
     cell: (c) => (
       <span style={{ whiteSpace: "normal" }}>

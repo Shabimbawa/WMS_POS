@@ -4,6 +4,7 @@ import type {
   ContainerStatus,
   DiscrepancyReason,
   ProductLabel,
+  StockMovementType,
 } from "../../../queries/types";
 
 const php = new Intl.NumberFormat("en-PH", {
@@ -40,6 +41,22 @@ export const toNum = (v: number | string | null | undefined) =>
 
 export const fmtKg = (v: number | string | null | undefined) =>
   `${int.format(Math.round(toNum(v)))} kg`;
+
+export const MOVEMENT_LABEL: Record<StockMovementType, string> = {
+  OPENING_BALANCE: "Opening",
+  INBOUND_UNLOAD: "Unload",
+  OUTBOUND_ORDER: "Order",
+  ORDER_REVERSAL: "Reversal",
+  MANUAL_ADJUSTMENT: "Adjustment",
+};
+
+export const MOVEMENT_COLOR: Record<StockMovementType, string> = {
+  OPENING_BALANCE: "default",
+  INBOUND_UNLOAD: "success",
+  OUTBOUND_ORDER: "processing",
+  ORDER_REVERSAL: "warning",
+  MANUAL_ADJUSTMENT: "purple",
+};
 
 export const STATUS_LABEL: Record<ContainerStatus, string> = {
   DOCUMENTED: "Documented",

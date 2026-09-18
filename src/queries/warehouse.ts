@@ -12,7 +12,8 @@ import type {
   ShippingContainerNotebookParams,
   StockLogParams,
   StockLogRow,
-  StockParams,
+  StockStatusParams,
+  StockStatusRow,
   Supplier,
   UnloadContainerInput,
   UpdateContainerStatusInput,
@@ -38,6 +39,13 @@ export async function getStockStatus(
   params: StockStatusParams,
 ): Promise<Page<StockStatusRow>> {
   return apiRequest<Page<StockStatusRow>>(`/stock${queryString(params)}`);
+}
+
+/** The append-only ledger behind every balance. */
+export async function getStockLog(
+  params: StockLogParams,
+): Promise<Page<StockLogRow>> {
+  return apiRequest<Page<StockLogRow>>(`/stock/movements${queryString(params)}`);
 }
 
 export async function createShipment(input: CreateShipmentInput): Promise<string> {
