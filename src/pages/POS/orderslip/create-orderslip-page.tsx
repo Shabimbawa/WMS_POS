@@ -1,13 +1,9 @@
 import { message } from "antd";
-import { useMutation } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import type { CreateOrderSlipInput } from "../../../queries/posTypes";
-// TODO(backend): mock insert. Replace with a useCreateOrderSlip() mutation
-// hook in queries/useHooks.ts; see the TODO on createOrderSlip in
-// orderslip-data.ts.
-import { createOrderSlip } from "./orderslip-data";
+import { useCreateOrderSlip } from "../../../queries/useHooks";
 import { OrderSlipForm } from "./orderslip-form";
 
 /** Default payment terms for a new slip, in days from the slip date. */
@@ -17,9 +13,7 @@ export default function CreateOrderSlipPage() {
   const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
 
-  // TODO(backend): replace with useCreateOrderSlip() from queries/useHooks.ts,
-  // which should also invalidate the order slip list on success.
-  const create = useMutation({ mutationFn: createOrderSlip });
+  const create = useCreateOrderSlip();
 
   const submit = async (input: CreateOrderSlipInput) => {
     const id = await create.mutateAsync(input);

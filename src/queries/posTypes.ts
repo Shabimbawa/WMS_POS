@@ -56,3 +56,12 @@ export interface CreateOrderSlipInput {
 export interface UpdateOrderSlipInput extends CreateOrderSlipInput {
     id: string;
 }
+
+export interface OrderSlipListParams {
+    page: number;
+    pageSize: number;
+    dateFrom: string;
+    dateTo: string;
+    search?: string;
+    sortDir?: SortDir;
+}

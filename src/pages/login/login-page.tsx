@@ -3,11 +3,10 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { containerStyle, rightHalfStyle, cardStyle } from './login-page.style';
-import { supabase } from '../../utils/supabase-client';
 import { ErrorNotificationPopup } from '../../common/items/notification/errror-notif';
-import { fetchProfile, profileQueryKey } from './auth-useQuery';
+import { currentUserQueryKey } from './auth-useQuery';
 import { getLandingPath } from '../../common/components/sidebar/nav-items';
-import { AUTH_BYPASS } from '../../utils/dev-auth-bypass'; // DEV AUTH BYPASS
+import { login } from '../../queries/auth';
 
 export interface LoginCredentials {
   email: string;
@@ -45,41 +44,14 @@ export default function LoginPage() {
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (AUTH_BYPASS) { navigate('/containers', { replace: true }); return; } // DEV AUTH BYPASS
-
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: credentials.email,
-        password: credentials.password,
-      });
-
-      if (error) {
-        showError(error, 'Login Failed');
-        return;
-      }
-
-      // Where a user lands depends on their role — /users is admin-only, so
-      // sending everyone there dropped approvers and employees on a page they
-      // can't read. Resolve the profile first, then land on the first page
-      // their role actually has.
-      let landingPath = '/containers';
-      const userId = data.user?.id;
-
-      if (userId) {
-        try {
-          const profile = await fetchProfile(userId);
-          // Prime the cache useCurrentProfile reads, so the sidebar and route
-          // guard on the next page resolve without a second round-trip.
-          queryClient.setQueryData(profileQueryKey(userId), profile);
-          landingPath = getLandingPath(profile.roles);
-        } catch {
-          // A failed profile lookup shouldn't block a valid login. /leaves is
-          // readable by every role, so it's the safe fallback.
-        }
-      }
-
-      navigate(landingPath, { replace: true });
+      const user = await login(credentials.email, credentials.password);
+      queryClient.clear();
+      queryClient.setQueryData(currentUserQueryKey, user);
+      navigate(getLandingPath(user.role), { replace: true });
+    } catch (error) {
+      showError(error, 'Login Failed');
     } finally {
       setIsSubmitting(false);
     }

@@ -194,6 +194,10 @@ export interface UpdateContainerStatusInput {
   status: Exclude<ContainerStatus, "UNLOADED">;
   /** Required when status is DELIVERED, ignored otherwise. */
   dateDelivered?: string;
+  /** Required when status is ARRIVED_AT_PORT. */
+  dateArrivedAtPort?: string;
+  /** Required when status is CANCELLED. */
+  cancellationReason?: string;
 }
 
 // ---- discrepancies ----------------------------------------------

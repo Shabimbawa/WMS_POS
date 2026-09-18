@@ -24,8 +24,8 @@ export type NavItem = {
  * Order is meaningful — it's both the sidebar order and the priority order
  * `getLandingPath` walks to pick where a role lands after login.
  *
- * These roles mirror the Supabase RLS policies; they do not replace them. The
- * guard built on this config is client-side UX and defense-in-depth only.
+ * These roles mirror the backend authorization checks; they do not replace
+ * them. The guard built on this config is client-side UX and defense-in-depth.
  */
 export const NAV_ITEMS: NavItem[] = [
   // /containers/items (register shipment) is owned by this entry via prefix match.

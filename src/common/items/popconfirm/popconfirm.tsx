@@ -1,5 +1,5 @@
 import { Button, Popconfirm, type ButtonProps } from 'antd'
-import { Trash2 } from 'lucide-react'
+import { DeleteOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
 interface ConfirmDeleteButtonProps {
@@ -41,7 +41,7 @@ export function ConfirmDeleteButton({
       onConfirm={onConfirm}
       disabled={disabled}
     >
-      <Button size={size} danger loading={loading} disabled={disabled} icon={children ? undefined : <Trash2 size={14} />}>
+      <Button size={size} danger loading={loading} disabled={disabled} icon={children ? undefined : <DeleteOutlined />}>
         {children ?? 'Delete'}
       </Button>
     </Popconfirm>
