@@ -9,6 +9,7 @@ import LoginPage from './pages/login/login-page.tsx'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './utils/query-client.ts'
 import StockPage from './pages/WMS/stock/stock-page.tsx'
+import StockLogPage from './pages/WMS/stock/stock-log-page.tsx'
 import ContainerPage from './pages/WMS/container/container-page.tsx'
 import PosPage from './pages/POS/orderslip/orderslip-page.tsx'
 import OrderSlipDetailPage from './pages/POS/orderslip/orderslip-detail-page.tsx'
@@ -31,6 +32,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/containers/discrepancies" element={<DiscrepanciesPage />} />
                 <Route path="/containers/:containerId/unload" element={<ResolveDiscrepancyPage />} />
                 <Route path="/stock" element={<StockPage />} />
+                <Route path="/stock/logs" element={<StockLogPage />} />
                 <Route path="/order-slip" element={<PosPage/>}/>
                 <Route path="/order-slip/new" element={<CreateOrderSlipPage />} />
                 <Route path="/order-slip/:id" element={<OrderSlipDetailPage />} />

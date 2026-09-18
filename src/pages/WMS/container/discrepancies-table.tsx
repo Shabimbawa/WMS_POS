@@ -5,12 +5,23 @@ import dayjs from "dayjs";
 import { DataTable } from "../../../common/items/table/table";
 import { DateParser } from "../../../common/utils/util";
 import type {
+  ContainerVarianceItem,
   ContainerVarianceRow,
   OpenQuestionRow,
 } from "../../../queries/types";
-import { fmtInt, fmtProduct } from "../type-format/format";
+import {
+  REASON_COLOR,
+  REASON_LABEL,
+  fmtInt,
+  fmtMoney,
+  fmtProduct,
+  toNum,
+} from "../type-format/format";
 
 const dash = <span style={{ opacity: 0.45 }}>—</span>;
+
+const signedSacks = (v: number) =>
+  v > 0 ? `+${fmtInt(v)}` : fmtInt(v);
 
 const containerNoCell = (v: string | null) => (
   <span style={{ fontFamily: "monospace" }}>{v ?? "no box"}</span>
@@ -86,7 +97,7 @@ const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
       if (v === 0) return fmtInt(0);
       return (
         <Tag color={v < 0 ? "error" : "processing"} style={{ margin: 0 }}>
-          {v > 0 ? `+${fmtInt(v)}` : fmtInt(v)}
+          {signedSacks(v)}
         </Tag>
       );
     },
@@ -94,14 +105,103 @@ const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
   {
     id: "discrepancy_count",
     header: "Issues",
-    accessorFn: (r) => r.discrepancy_count,
+    // container_items is null only for a container with no lines at all;
+    // a matched line comes back with an empty discrepancies array.
+    accessorFn: (r) =>
+      (r.container_items ?? []).reduce(
+        (n, i) => n + (i.discrepancies?.length ?? 0),
+        0,
+      ),
     size: 90,
     cell: (c) => fmtInt(c.getValue<number>()),
   },
 ];
 
+/** The lines of one container, shown when its row is expanded. */
+const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
+  {
+    id: "product",
+    header: "Product",
+    accessorFn: (r) => (r.code ? `${r.code} · ${r.product_name}` : r.product_name),
+    size: 220,
+  },
+  {
+    id: "declared_qty",
+    header: "Declared",
+    accessorFn: (r) => r.declared_qty,
+    size: 100,
+    cell: (c) => fmtInt(c.getValue<number>()),
+  },
+  {
+    id: "actual_qty",
+    header: "Actual",
+    accessorFn: (r) => r.actual_qty,
+    size: 100,
+    cell: (c) => fmtInt(c.getValue<number>()),
+  },
+  {
+    id: "variance",
+    header: "Variance",
+    accessorFn: (r) => r.variance,
+    size: 110,
+    cell: (c) => {
+      const v = c.getValue<number>();
+      if (v === 0) return fmtInt(0);
+      return (
+        <Tag color={v < 0 ? "error" : "processing"} style={{ margin: 0 }}>
+          {signedSacks(v)}
+        </Tag>
+      );
+    },
+  },
+  {
+    id: "price_per_sack",
+    header: "Price / sack",
+    // numeric over PostgREST, and absent on lines with no price recorded
+    accessorFn: (r) =>
+      r.price_per_sack === null || r.price_per_sack === undefined
+        ? null
+        : toNum(r.price_per_sack),
+    size: 130,
+    cell: (c) => fmtMoney(c.getValue<number | null>()),
+  },
+  {
+    id: "discrepancies",
+    header: "Issues",
+    accessorFn: (r) => r.discrepancies?.length ?? 0,
+    size: 320,
+    cell: (c) => {
+      const list = c.row.original.discrepancies ?? [];
+      if (!list.length) return <Tag color="success">Matched</Tag>;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {list.map((d) => (
+            <div key={d.id} style={{ display: "flex", gap: 8 }}>
+              <Tag color={REASON_COLOR[d.reason]} style={{ margin: 0 }}>
+                {REASON_LABEL[d.reason]}
+                {d.actual_qty === null ? "" : ` ${fmtInt(d.actual_qty)}`}
+              </Tag>
+              <span style={{ whiteSpace: "normal" }}>{d.note ?? dash}</span>
+            </div>
+          ))}
+        </div>
+      );
+    },
+  },
+];
+
 export function VarianceTable({ data }: { data: ContainerVarianceRow[] }) {
-  return <DataTable data={data} columns={varianceColumns} />;
+  return (
+    <DataTable
+      data={data}
+      columns={varianceColumns}
+      renderExpanded={(row) =>
+        row.container_items?.length ? (
+          <DataTable data={row.container_items} columns={varianceItemColumns} />
+        ) : null
+      }
+    />
+  );
 }
 
 // ---- v_open_questions --------------------------------------------

@@ -17,8 +17,9 @@ import type {
   ProductCategoryParams,
   ShipmentRow,
   ShippingContainerNotebookParams,
-  StockStatusParams,
-  StockStatusRow,
+  StockLogParams,
+  StockLogRow,
+  StockParams,
   Supplier,
   UnloadContainerInput,
   UpdateContainerStatusInput,
@@ -79,7 +80,9 @@ export async function getProductCategories(
 ): Promise<ProductCategory[]> {
   let q = supabase
     .from("product_category")
-    .select(`${PRODUCT_LABEL_COLS}, is_available, selling_price`);
+    .select(
+      `${PRODUCT_LABEL_COLS}, is_available, selling_price, remaining_qty`,
+    );
 
   if (p.availableOnly) q = q.eq("is_available", true);
 
@@ -137,55 +140,60 @@ export async function getShippingContainerNotebook(
   return toPage(data as unknown as ShipmentRow[], count, p.page, p.pageSize);
 }
 
-// ---- stock status -----------------------------------------------
+// ---- stock ------------------------------------------------------
+//
+// remaining_qty lives on product_category now — the stock_status table is
+// gone, so this is a plain product query and every sort is a real sort.
 
-export async function getStockStatus(
-  p: StockStatusParams,
-): Promise<Page<StockStatusRow>> {
+export async function getStock(p: StockParams): Promise<Page<ProductCategory>> {
   const [from, to] = toRange(p.page, p.pageSize);
-  const sortBy = p.sortBy ?? "updated_at";
+  const sortBy = p.sortBy ?? "brand";
+  const ascending = (p.sortDir ?? "asc") === "asc";
+
+  let q = supabase
+    .from("product_category")
+    .select(`${PRODUCT_LABEL_COLS}, is_available, selling_price, remaining_qty`, {
+      count: "exact",
+    });
+
+  if (p.brand) q = q.eq("brand", p.brand);
+  if (p.inStockOnly) q = q.gt("remaining_qty", 0);
+  if (p.availableOnly) q = q.eq("is_available", true);
+
+  const { data, error, count } = await q
+    .order(sortBy, { ascending, nullsFirst: false })
+    .order("size_kg", { ascending: true })
+    .range(from, to);
+
+  if (error) throw error;
+  return toPage(data as ProductCategory[], count, p.page, p.pageSize);
+}
+
+/** v_stock_log — the movement ledger behind remaining_qty. */
+export async function getStockLog(
+  p: StockLogParams,
+): Promise<Page<StockLogRow>> {
+  const [from, to] = toRange(p.page, p.pageSize);
   const ascending = (p.sortDir ?? "desc") === "asc";
 
   let q = supabase
-    .from("stock_status")
-    .select(
-      `
-        id,
-        remaining_qty,
-        updated_at,
-        product_category!inner (
-          ${PRODUCT_LABEL_COLS},
-          selling_price,
-          is_available
-        )
-      `,
-      { count: "exact" },
-    )
-    .gte("updated_at", p.dateFrom)
-    .lte("updated_at", p.dateTo);
+    .from("v_stock_log")
+    .select("*", { count: "exact" })
+    .gte("occurred_on", p.dateFrom)
+    .lte("occurred_on", p.dateTo);
 
-  if (p.brand) q = q.eq("product_category.brand", p.brand);
-  if (p.inStockOnly) q = q.gt("remaining_qty", 0);
-  if (p.availableOnly) q = q.eq("product_category.is_available", true);
+  if (p.productCategoryId) q = q.eq("product_category_id", p.productCategoryId);
+  if (p.direction) q = q.eq("direction", p.direction);
+  if (p.movementType) q = q.eq("movement_type", p.movementType);
 
-  // NOTE: brand, size and price all live on product_category now.
-  // PostgREST can't order parent rows by a referenced table's column —
-  // this only sorts the embed, so those three won't reorder the rows.
-  // Needs a flattened view if that sort matters.
-  if (
-    sortBy === "brand" ||
-    sortBy === "size_kg" ||
-    sortBy === "selling_price"
-  ) {
-    q = q.order(sortBy, { referencedTable: "product_category", ascending });
-  } else {
-    q = q.order(sortBy, { ascending });
-  }
+  const { data, error, count } = await q
+    .order("occurred_on", { ascending })
+    // same-day rows keep insert order
+    .order("created_at", { ascending })
+    .range(from, to);
 
-  const { data, error, count } = await q.range(from, to);
   if (error) throw error;
-
-  return toPage(data as unknown as StockStatusRow[], count, p.page, p.pageSize);
+  return toPage(data as StockLogRow[], count, p.page, p.pageSize);
 }
 
 // ---- mutations --------------------------------------------------
@@ -288,7 +296,9 @@ export async function getContainerVariance(
   // Only unloaded containers: before unload actual_qty_sacks is NULL, the
   // view coalesces it to 0, and every pending container reads as a total loss.
   let q = supabase
-    .from("v_container_variance")
+    // v_container_detail: same figures as v_container_variance, plus the
+    // lines and their discrepancies for the expanded row.
+    .from("v_container_detail")
     .select("*", { count: "exact" })
     .eq("status", "UNLOADED");
 
@@ -327,25 +337,5 @@ export async function getOpenQuestionCount(): Promise<number> {
   return count ?? 0;
 }
 
-export interface UpdateStockInput {
-  stockStatusId: string;
-  remainingQty: number;
-}
-
-export async function updateStockStatus({
-  stockStatusId,
-  remainingQty,
-}: UpdateStockInput) {
-  const { data, error } = await supabase
-    .from("stock_status")
-    .update({
-      remaining_qty: remainingQty,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", stockStatusId)
-    .select("id, remaining_qty, updated_at")
-    .single();
-
-  if (error) throw error;
-  return data;
-}
+// Stock is never written from the client: unload_container and the
+// stock_logs ledger own remaining_qty.

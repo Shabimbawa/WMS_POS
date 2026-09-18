@@ -215,7 +215,7 @@ Toggle between the two backend views:
 
 ### 6. Stock — `/stock`
 
-Read-only on-hand quantities per product: availability, sacks, tonnage,
+Read-only on-hand quantities per product: availability, sacks, weight in kg,
 selling price, value, last updated. Filters: brand, hide zero stock,
 available only, updated date range, sort.
 

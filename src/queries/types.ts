@@ -30,8 +30,7 @@ export type StockSortField =
   | "brand"
   | "size_kg"
   | "remaining_qty"
-  | "selling_price"
-  | "updated_at";
+  | "selling_price";
 
 /**
  * `dateField` picks which column the range filters on.
@@ -72,6 +71,8 @@ export interface ProductCategory {
   /** The only availability signal — a price on an unavailable product is a leftover. */
   is_available: boolean;
   selling_price: number | null;
+  /** On-hand sacks. Moved here from the old stock_status table. */
+  remaining_qty: number;
 }
 
 /** The product fields every embed needs to render a label. */
@@ -109,13 +110,33 @@ export interface ShipmentRow {
   }>;
 }
 
-export interface StockStatusRow {
+/**
+ * v_stock_log — one row per stock movement, newest first. The view pre-joins
+ * the product and the container it came from. Postgres numerics arrive as
+ * strings, so size_kg is widened here. The view's own tonnage column is
+ * unused: weights are shown in kg, derived from qty_sacks x size_kg.
+ */
+export interface StockLogRow {
   id: string;
-  remaining_qty: number;
-  updated_at: string;
-  product_category: ProductLabel &
-    Pick<ProductCategory, "selling_price" | "is_available">;
+  occurred_on: string;
+  created_at: string;
+  /** UNLOAD, and whatever else the backend logs. */
+  movement_type: string;
+  direction: StockDirection;
+  /** Signed: negative for OUT. */
+  qty_delta: number;
+  qty_sacks: number;
+  balance_after: number;
+  product_category_id: string;
+  code: string | null;
+  product_name: string;
+  size_kg: number | string;
+  container_no: string | null;
+  supplier: string | null;
+  notes: string | null;
 }
+
+export type StockDirection = "IN" | "OUT";
 
 // ---- params -----------------------------------------------------
 
@@ -125,13 +146,21 @@ export interface ShippingContainerNotebookParams
   supplierId?: string;
 }
 
-export interface StockStatusParams
-  extends ListParams<"updated_at", StockSortField> {
+export interface StockParams extends Pagination {
   brand?: string;
   /** Hide rows sitting at zero. */
   inStockOnly?: boolean;
   /** Hide products that aren't currently sold. */
   availableOnly?: boolean;
+  sortBy?: StockSortField;
+  sortDir?: SortDir;
+}
+
+export interface StockLogParams extends Pagination, DateRange {
+  productCategoryId?: string;
+  direction?: StockDirection;
+  movementType?: string;
+  sortDir?: SortDir;
 }
 
 export interface ProductCategoryParams {
@@ -214,20 +243,55 @@ export interface ContainerDetail {
   container_item: ContainerItemRow[];
 }
 
-/** v_container_variance — declared vs counted, per container. */
+/** A discrepancy as v_container_detail nests it under its line. */
+export interface VarianceDiscrepancy {
+  id: string;
+  reason: DiscrepancyReason;
+  /** Absent for OTHER, which writes no quantity. */
+  actual_qty: number | null;
+  note: string | null;
+  created_at: string;
+}
+
+/** A container line inside v_container_detail. Numerics arrive as numbers here. */
+export interface ContainerVarianceItem {
+  container_item_id: string;
+  product_category_id: string;
+  code: string | null;
+  product_name: string;
+  size_kg: number | string;
+  declared_qty: number;
+  actual_qty: number;
+  /** actual − declared; negative is a shortfall. */
+  variance: number;
+  price_per_sack: number | string | null;
+  /** Empty array when the line matched. */
+  discrepancies: VarianceDiscrepancy[];
+}
+
+/**
+ * v_container_detail — one container with its lines and their discrepancies.
+ * The variance report reads this; v_container_variance is the flat version
+ * with a discrepancy_count and no lines.
+ */
 export interface ContainerVarianceRow {
   container_id: string;
   container_no: string | null;
   status: ContainerStatus;
   items_match: boolean | null;
+  is_company_truck: boolean;
+  date_delivered: string | null;
   date_unloaded: string | null;
-  supplier: string;
+  shipment_id: string;
   date_list_received: string;
+  reference: string | null;
+  supplier_id: string;
+  supplier: string;
   declared_sacks: number;
   actual_sacks: number;
   /** actual − declared; negative is a shortfall. */
   variance_sacks: number;
-  discrepancy_count: number;
+  container_items: ContainerVarianceItem[] | null;
 }
 
 /** v_open_questions — every OTHER discrepancy. */

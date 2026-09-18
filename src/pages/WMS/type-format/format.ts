@@ -34,6 +34,13 @@ export const fmtProduct = ({
   return code ? `${code} · ${name}` : name;
 };
 
+/** Postgres numerics arrive as strings over PostgREST. */
+export const toNum = (v: number | string | null | undefined) =>
+  v === null || v === undefined ? 0 : typeof v === "number" ? v : Number(v);
+
+export const fmtKg = (v: number | string | null | undefined) =>
+  `${int.format(Math.round(toNum(v)))} kg`;
+
 export const STATUS_LABEL: Record<ContainerStatus, string> = {
   DOCUMENTED: "Documented",
   ARRIVED_AT_PORT: "At port",

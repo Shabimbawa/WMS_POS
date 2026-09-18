@@ -17,18 +17,19 @@ import {
   getOpenQuestions,
   getProductCategories,
   getShippingContainerNotebook,
-  getStockStatus,
+  getStock,
+  getStockLog,
   getSuppliers,
   unloadContainer,
   updateContainerStatus,
-  updateStockStatus,
 } from "./warehouse.ts";
 
 import type {
   OpenQuestionParams,
   ProductCategoryParams,
   ShippingContainerNotebookParams,
-  StockStatusParams,
+  StockLogParams,
+  StockParams,
   VarianceParams,
 } from "./types.ts";
 
@@ -58,7 +59,8 @@ export const qk = {
   openQuestionCount: ["discrepancies", "open-questions", "count"] as const,
 
   stock: ["stock"] as const,
-  stockStatus: (p: StockStatusParams) => ["stock", "status", p] as const,
+  stockList: (p: StockParams) => ["stock", "list", p] as const,
+  stockLog: (p: StockLogParams) => ["stock", "log", p] as const,
 };
 
 // ---- reference data ---------------------------------------------
@@ -138,10 +140,20 @@ export function useOpenQuestionCount() {
   });
 }
 
-export function useStockStatus(params: StockStatusParams, enabled = true) {
+export function useStockLog(params: StockLogParams, enabled = true) {
   return useQuery({
-    queryKey: qk.stockStatus(params),
-    queryFn: () => getStockStatus(params),
+    queryKey: qk.stockLog(params),
+    queryFn: () => getStockLog(params),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
+  });
+}
+
+export function useStock(params: StockParams, enabled = true) {
+  return useQuery({
+    queryKey: qk.stockList(params),
+    queryFn: () => getStock(params),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: STALE_TIME,
@@ -179,16 +191,6 @@ export function useUnloadContainer() {
       qc.invalidateQueries({ queryKey: qk.notebooks });
       qc.invalidateQueries({ queryKey: qk.stock });
       qc.invalidateQueries({ queryKey: qk.discrepancies });
-    },
-  });
-}
-
-export function useUpdateStockStatus() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: updateStockStatus,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.stock });
     },
   });
 }
