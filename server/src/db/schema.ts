@@ -268,12 +268,39 @@ export const containerDiscrepancies = pgTable(
   ],
 );
 
+/**
+ * People an order slip is assigned to. Plain records, not logins: a
+ * pos_admin picks one per slip. Deactivated rather than deleted, so old
+ * slips keep their cashier.
+ */
+export const cashiers = pgTable(
+  "cashier",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    ...auditTimestamps,
+  },
+  (table) => [
+    uniqueIndex("cashier_name_lower_uq").on(sql`lower(${table.name})`),
+    check("cashier_name_nonempty", sql`length(trim(${table.name})) > 0`),
+  ],
+);
+
 export const orderSlips = pgTable(
   "order_slip",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    slipNumber: integer("slip_number").generatedAlwaysAsIdentity(),
+    /**
+     * Restarts at 1 each day, per `date` (Philippine time — the date is
+     * a calendar day, not a timestamp). Assigned by the API under an
+     * advisory lock; unique together with `date`, not on its own.
+     */
+    slipNumber: integer("slip_number").notNull(),
     date: date("date", { mode: "string" }).notNull(),
+    cashierId: uuid("cashier_id")
+      .notNull()
+      .references(() => cashiers.id, { onDelete: "restrict" }),
     orderBy: text("order_by").notNull(),
     address: text("address").notNull().default(""),
     status: paymentStatus("status").notNull(),
@@ -285,8 +312,9 @@ export const orderSlips = pgTable(
     ...auditTimestamps,
   },
   (table) => [
-    uniqueIndex("order_slip_number_uq").on(table.slipNumber),
-    index("order_slip_date_idx").on(table.date),
+    uniqueIndex("order_slip_date_number_uq").on(table.date, table.slipNumber),
+    index("order_slip_cashier_date_idx").on(table.cashierId, table.date),
+    check("order_slip_number_positive", sql`${table.slipNumber} > 0`),
     check("order_slip_total_nonnegative", sql`${table.totalAmount} >= 0`),
     check("order_slip_due_date_ck", sql`${table.paymentDueDate} >= ${table.date}`),
     check("order_slip_order_by_nonempty", sql`length(trim(${table.orderBy})) > 0`),
@@ -382,6 +410,7 @@ export const schema = {
   containers,
   containerItems,
   containerDiscrepancies,
+  cashiers,
   orderSlips,
   orderSlipItems,
   stockBalances,
