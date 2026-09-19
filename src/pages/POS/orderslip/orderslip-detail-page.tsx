@@ -19,6 +19,7 @@ import type { OrderSlipItem } from "../../../queries/posTypes";
 import {
   fmtInt,
   fmtMoney,
+  fmtSlipNumber,
   isOverdue,
   PAYMENT_STATUS_COLOR,
   PAYMENT_STATUS_LABEL,
@@ -90,7 +91,7 @@ export default function OrderSlipDetailPage() {
       <Flex justify="space-between" align="center" wrap gap={12}>
         <Typography.Title level={4} style={{ margin: 0 }}>
           Order slip{" "}
-          <span style={{ fontFamily: "monospace" }}>#{slip.slipNumber}</span>
+          <span style={{ fontFamily: "monospace" }}>{fmtSlipNumber(slip)}</span>
         </Typography.Title>
         <Flex gap={8}>
           <BackToList />
@@ -100,9 +101,15 @@ export default function OrderSlipDetailPage() {
 
       <Card size="small">
         <Descriptions column={{ xs: 1, sm: 2 }} size="small">
-          <Descriptions.Item label="Slip no.">{slip.slipNumber}</Descriptions.Item>
+          <Descriptions.Item label="Slip no.">#{slip.slipNumber}</Descriptions.Item>
           <Descriptions.Item label="Date">{DateParser(slip.date)}</Descriptions.Item>
           <Descriptions.Item label="Order by">{slip.orderBy}</Descriptions.Item>
+          <Descriptions.Item label="Cashier">
+            {slip.cashier.name}
+            {!slip.cashier.isActive && (
+              <Typography.Text type="secondary"> (inactive)</Typography.Text>
+            )}
+          </Descriptions.Item>
           <Descriptions.Item label="Address">{slip.address || "—"}</Descriptions.Item>
           <Descriptions.Item label="Payment">
             <Tag color={PAYMENT_STATUS_COLOR[slip.status]} style={{ margin: 0 }}>

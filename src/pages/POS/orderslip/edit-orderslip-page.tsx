@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import { useNavigate, useParams } from "react-router-dom";
 
 import type { CreateOrderSlipInput } from "../../../queries/posTypes";
-import { canEditOrderSlip } from "../type-format/format";
+import { canEditOrderSlip, fmtSlipNumber } from "../type-format/format";
 import { useOrderSlip, useUpdateOrderSlip } from "../../../queries/useHooks";
 import { OrderSlipForm } from "./orderslip-form";
 
@@ -37,7 +37,7 @@ export default function EditOrderSlipPage() {
       <Result
         status="warning"
         title="This order slip can't be edited"
-        subTitle={`Order slip #${slip.slipNumber} is already paid. Only unpaid or partially paid slips can be changed.`}
+        subTitle={`Order slip ${fmtSlipNumber(slip)} is already paid. Only unpaid or partially paid slips can be changed.`}
         extra={<Button onClick={() => navigate(detailPath)}>View order slip</Button>}
       />
     );
@@ -56,7 +56,7 @@ export default function EditOrderSlipPage() {
         title={
           <>
             Edit order slip{" "}
-            <span style={{ fontFamily: "monospace" }}>#{slip.slipNumber}</span>
+            <span style={{ fontFamily: "monospace" }}>{fmtSlipNumber(slip)}</span>
           </>
         }
         initialValues={{
@@ -65,7 +65,9 @@ export default function EditOrderSlipPage() {
           address: slip.address,
           status: slip.status,
           paymentDueDate: dayjs(slip.paymentDueDate),
+          cashierId: slip.cashier.id,
         }}
+        currentCashier={slip.cashier}
         initialItems={slip.items.map((i) => ({
           key: crypto.randomUUID(),
           productId: i.article.id,

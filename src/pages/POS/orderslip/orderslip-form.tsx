@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import type {
+  Cashier,
   CreateOrderSlipInput,
   PaymentStatus,
   Product,
@@ -35,7 +36,7 @@ import {
   ProductPriceTable,
   type DraftOrderItem,
 } from "./create-orderslip-table";
-import { usePosProducts } from "../../../queries/useHooks";
+import { useCashiers, usePosProducts } from "../../../queries/useHooks";
 
 // ---- form value shapes -------------------------------------------
 
@@ -45,6 +46,7 @@ export type OrderSlipHeaderValues = {
   address?: string;
   status: PaymentStatus;
   paymentDueDate: Dayjs;
+  cashierId: string;
 };
 
 type ItemValues = {
@@ -129,6 +131,8 @@ interface OrderSlipFormProps {
   title: ReactNode;
   initialValues: Partial<OrderSlipHeaderValues>;
   initialItems?: DraftOrderItem[];
+  /** The slip's cashier when editing, kept selectable even if deactivated. */
+  currentCashier?: Cashier;
   submitLabel: string;
   submitting: boolean;
   /** Error notification title when onSubmit throws. */
@@ -148,6 +152,7 @@ export function OrderSlipForm({
   title,
   initialValues,
   initialItems = [],
+  currentCashier,
   submitLabel,
   submitting,
   errorTitle,
@@ -156,6 +161,20 @@ export function OrderSlipForm({
 }: OrderSlipFormProps) {
   const navigate = useNavigate();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
+
+  const { data: activeCashiers = [], isPending: loadingCashiers } = useCashiers();
+  // Only active cashiers can be picked, but a slip already assigned to one
+  // who's since been deactivated keeps showing them.
+  const cashierOptions = useMemo(() => {
+    const list = [...activeCashiers];
+    if (currentCashier && !list.some((c) => c.id === currentCashier.id)) {
+      list.push(currentCashier);
+    }
+    return list.map((c) => ({
+      value: c.id,
+      label: c.isActive ? c.name : `${c.name} (inactive)`,
+    }));
+  }, [activeCashiers, currentCashier]);
 
   const { data: liveProducts = [] } = usePosProducts();
   // While editing, add the slip's existing quantities back to the displayed
@@ -247,6 +266,7 @@ export function OrderSlipForm({
         address: header.address?.trim() ?? "",
         status: header.status,
         paymentDueDate: header.paymentDueDate.format("YYYY-MM-DD"),
+        cashierId: header.cashierId,
         // client-side keys stay behind
         items: items.map((i) => ({
           productId: i.productId,
@@ -318,9 +338,32 @@ export function OrderSlipForm({
                 />
               </Form.Item>
             </Flex>
-            <Form.Item name="address" label="Address">
-              <Input placeholder="Delivery address (optional)" />
-            </Form.Item>
+            <Flex wrap gap={12}>
+              <Form.Item
+                name="address"
+                label="Address"
+                style={{ flex: 1, minWidth: 220 }}
+              >
+                <Input placeholder="Delivery address (optional)" />
+              </Form.Item>
+              <Form.Item
+                name="cashierId"
+                label="Cashier"
+                rules={[{ required: true, message: "Assign a cashier" }]}
+                style={{ minWidth: 200 }}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Select cashier"
+                  loading={loadingCashiers}
+                  options={cashierOptions}
+                  notFoundContent={
+                    loadingCashiers ? undefined : "No active cashiers — add one on the Cashiers page"
+                  }
+                />
+              </Form.Item>
+            </Flex>
             <Flex wrap gap={12}>
               <Form.Item
                 name="status"
