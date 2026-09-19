@@ -104,7 +104,11 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
       if (r.order_slip_id) {
         return (
           <span>
-            Slip #{r.order_slip_number ?? "?"}
+            Slip{" "}
+            {r.order_slip_date
+              ? `${dayjs(r.order_slip_date).format("MMM D")} · `
+              : ""}
+            #{r.order_slip_number ?? "?"}
             {r.order_revision && r.order_revision > 1
               ? ` (rev ${r.order_revision})`
               : ""}
