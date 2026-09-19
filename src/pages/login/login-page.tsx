@@ -62,9 +62,6 @@ export default function LoginPage() {
     return(
         <Flex style={containerStyle} component="form" onSubmit={handleLogin}>
             {contextHolder}
-            {/* <Flex style={imageHalfStyle}>
-                <Title level={1} style={{textAlign: 'center', marginTop: 24, color: '#ffffff', fontFamily: "Georgia, serif"}}>Maryville Payroll System</Title>
-            </Flex> */}
 
             <Flex style={rightHalfStyle}>
                 <Flex style={cardStyle} className='loginContainer'>
