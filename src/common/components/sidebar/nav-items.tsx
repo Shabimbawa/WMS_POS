@@ -1,5 +1,11 @@
 import type { ReactNode } from 'react'
-import { ContainerOutlined, DatabaseOutlined, FileDoneOutlined } from '@ant-design/icons'
+import {
+  BarChartOutlined,
+  ContainerOutlined,
+  DatabaseOutlined,
+  FileDoneOutlined,
+  TeamOutlined,
+} from '@ant-design/icons'
 import type { ProfileRole } from '../../../pages/login/auth-useQuery'
 
 export type NavItem = {
@@ -32,6 +38,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'containers', path: '/containers', label: 'Shipments', icon: <ContainerOutlined />, roles: ['warehouse_admin'] },
   { key: 'stock',      path: '/stock',      label: 'Stock',     icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
   { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['pos_admin'] },
+  { key: 'order-summary', path: '/order-summary', label: 'Daily Summary', icon: <BarChartOutlined />, roles: ['pos_admin'] },
+  { key: 'cashiers', path: '/cashiers', label: 'Cashiers', icon: <TeamOutlined />, roles: ['pos_admin'] },
 ]
 
 /** True when `pathname` is `prefix` itself or a route nested under it. */
