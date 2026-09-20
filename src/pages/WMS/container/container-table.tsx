@@ -159,6 +159,17 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
     cell: (c) => fmtInt(c.getValue<number>()),
   },
   {
+    id: "date_arrived_at_port",
+    header: "At port",
+    // Skippable: containers are often only noticed once already delivered.
+    accessorFn: (r) => r.date_arrived_at_port,
+    size: 130,
+    cell: (c) => {
+      const v = c.getValue<string | null>();
+      return v ? DateParser(v) : dash;
+    },
+  },
+  {
     id: "date_delivered",
     header: "Delivered",
     accessorFn: (r) => r.date_delivered,

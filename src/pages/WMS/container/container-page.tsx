@@ -1,10 +1,8 @@
 import { useMemo, useState } from "react";
 import {
   Alert,
-  Badge,
   Button,
   Card,
-  DatePicker,
   Empty,
   Flex,
   Pagination,
@@ -14,30 +12,28 @@ import {
   Space,
   Typography,
 } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import {
-  useOpenQuestionCount,
   useShippingContainerNotebook,
   useSuppliers,
 } from "../../../queries/useHooks";
 import type { SortDir } from "../../../queries/types";
 import { ContainerTable } from "./container-table";
-
-const { RangePicker } = DatePicker;
+import {
+  MonthRangePicker,
+  lastMonths,
+  monthRangeParams,
+  type MonthRange,
+} from "../../../common/items/date-range/month-range";
 
 export default function ContainerPage() {
   const navigate = useNavigate();
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers();
-  const { data: openQuestionCount } = useOpenQuestionCount();
 
   // undefined = all suppliers
   const [supplierId, setSupplierId] = useState<string | undefined>();
-  const [range, setRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(90, "day"),
-    dayjs(),
-  ]);
+  const [range, setRange] = useState<MonthRange>(() => lastMonths(3));
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -48,8 +44,7 @@ export default function ContainerPage() {
       page,
       pageSize,
       dateField: "date_list_received" as const,
-      dateFrom: range[0].format("YYYY-MM-DD"),
-      dateTo: range[1].format("YYYY-MM-DD"),
+      ...monthRangeParams(range),
       sortDir,
     }),
     [supplierId, page, pageSize, range, sortDir],
@@ -82,11 +77,6 @@ export default function ContainerPage() {
           <Button onClick={() => refetch()} loading={isFetching}>
             Refresh
           </Button>
-          <Badge count={openQuestionCount} size="small">
-            <Button onClick={() => navigate("/containers/discrepancies")}>
-              View discrepancies
-            </Button>
-          </Badge>
           <Button type="primary" onClick={() => navigate("/containers/items")}>
             Register Shipment
           </Button>
@@ -111,12 +101,7 @@ export default function ContainerPage() {
             optionFilterProp="label"
           />
 
-          <RangePicker
-            value={range}
-            allowClear={false}
-            onChange={(v) => v && reset(setRange)(v as [Dayjs, Dayjs])}
-            format="MMMM DD, YYYY"
-          />
+          <MonthRangePicker value={range} onChange={reset(setRange)} />
 
           <Segmented
             value={sortDir}

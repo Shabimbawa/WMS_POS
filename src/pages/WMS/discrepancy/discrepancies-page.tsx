@@ -13,8 +13,6 @@ import {
   Switch,
   Typography,
 } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
 
 import {
   useContainerVariance,
@@ -26,7 +24,6 @@ import { OpenQuestionsTable, VarianceTable } from "./discrepancies-table";
 type View = "variance" | "questions";
 
 export default function DiscrepanciesPage() {
-  const navigate = useNavigate();
 
   const [view, setView] = useState<View>("variance");
   const [mismatchOnly, setMismatchOnly] = useState(true);
@@ -50,16 +47,9 @@ export default function DiscrepanciesPage() {
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
-        <Flex align="center" gap={8}>
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/containers")}
-          />
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Discrepancies
-          </Typography.Title>
-        </Flex>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Discrepancies
+        </Typography.Title>
         <Button onClick={() => active.refetch()} loading={active.isFetching}>
           Refresh
         </Button>

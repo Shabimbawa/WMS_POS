@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Card,
-  DatePicker,
   Empty,
   Flex,
   Pagination,
@@ -14,9 +13,6 @@ import {
   Statistic,
   Typography,
 } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
-import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
 
 import { useProductCategories, useStockLog } from "../../../queries/useHooks";
 import type {
@@ -25,9 +21,13 @@ import type {
   StockMovementType,
 } from "../../../queries/types";
 import { StockLogTable } from "./stock-log-table";
+import {
+  MonthRangePicker,
+  lastMonths,
+  monthRangeParams,
+  type MonthRange,
+} from "../../../common/items/date-range/month-range";
 import { MOVEMENT_LABEL, fmtInt, fmtProduct } from "../type-format/format";
-
-const { RangePicker } = DatePicker;
 
 type DirectionFilter = "all" | StockDirection;
 
@@ -42,7 +42,6 @@ const MOVEMENT_OPTIONS = (
 ).map((t) => ({ label: MOVEMENT_LABEL[t], value: t }));
 
 export default function StockLogPage() {
-  const navigate = useNavigate();
   const { data: products = [] } = useProductCategories();
 
   const [productCategoryId, setProductCategoryId] = useState<
@@ -50,10 +49,7 @@ export default function StockLogPage() {
   >();
   const [direction, setDirection] = useState<DirectionFilter>("all");
   const [movementType, setMovementType] = useState<StockMovementType | undefined>();
-  const [range, setRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(90, "day"),
-    dayjs(),
-  ]);
+  const [range, setRange] = useState<MonthRange>(() => lastMonths(3));
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -65,8 +61,7 @@ export default function StockLogPage() {
       movementType,
       page,
       pageSize,
-      dateFrom: range[0].format("YYYY-MM-DD"),
-      dateTo: range[1].format("YYYY-MM-DD"),
+      ...monthRangeParams(range),
       sortDir,
     }),
     [productCategoryId, direction, movementType, page, pageSize, range, sortDir],
@@ -93,16 +88,9 @@ export default function StockLogPage() {
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
-        <Flex align="center" gap={8}>
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/stock")}
-          />
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Stock logs
-          </Typography.Title>
-        </Flex>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Inventory
+        </Typography.Title>
         <Button onClick={() => refetch()} loading={isFetching}>
           Refresh
         </Button>
@@ -147,12 +135,7 @@ export default function StockLogPage() {
             ]}
           />
 
-          <RangePicker
-            value={range}
-            allowClear={false}
-            onChange={(v) => v && reset(setRange)(v as [Dayjs, Dayjs])}
-            format="MMMM DD, YYYY"
-          />
+          <MonthRangePicker value={range} onChange={reset(setRange)} />
 
           <Segmented
             value={sortDir}

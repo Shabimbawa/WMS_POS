@@ -20,22 +20,26 @@ import { useNavigate } from "react-router-dom";
 import type { SortDir } from "../../../queries/posTypes";
 import { useOrderSlips } from "../../../queries/useHooks";
 import { OrderSlipTable } from "./orderslip-table";
+import {
+  MonthRangePicker,
+  lastMonths,
+  monthRangeParams,
+  type MonthRange,
+} from "../../../common/items/date-range/month-range";
 
-const { RangePicker } = DatePicker;
-const defaultRange = (): [Dayjs, Dayjs] => [dayjs().subtract(90, "day"), dayjs()];
+const defaultRange = (): MonthRange => lastMonths(3);
 
 export default function OrderSlipPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [range, setRange] = useState<[Dayjs, Dayjs]>(defaultRange);
+  const [range, setRange] = useState<MonthRange>(defaultRange);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
   const params = useMemo(() => ({
     search: search.trim() || undefined,
-    dateFrom: range[0].format("YYYY-MM-DD"),
-    dateTo: range[1].format("YYYY-MM-DD"),
+    ...monthRangeParams(range),
     sortDir,
     page,
     pageSize,
@@ -49,7 +53,7 @@ export default function OrderSlipPage() {
   };
   const [defaultFrom, defaultTo] = defaultRange();
   const isDefaultRange =
-    range[0].isSame(defaultFrom, "day") && range[1].isSame(defaultTo, "day");
+    range[0].isSame(defaultFrom, "month") && range[1].isSame(defaultTo, "month");
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
@@ -72,12 +76,7 @@ export default function OrderSlipPage() {
             value={search}
             onChange={(event) => reset(setSearch)(event.target.value)}
           />
-          <RangePicker
-            value={range}
-            allowClear={false}
-            onChange={(value) => value && reset(setRange)(value as [Dayjs, Dayjs])}
-            format="MMMM DD, YYYY"
-          />
+          <MonthRangePicker value={range} onChange={reset(setRange)} />
           <Button
             icon={<UndoOutlined />}
             disabled={isDefaultRange}

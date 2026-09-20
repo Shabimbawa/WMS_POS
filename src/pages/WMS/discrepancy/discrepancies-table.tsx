@@ -15,7 +15,6 @@ import {
   fmtInt,
   fmtMoney,
   fmtProduct,
-  toNum,
 } from "../type-format/format";
 
 const dash = <span style={{ opacity: 0.45 }}>—</span>;
@@ -105,13 +104,7 @@ const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
   {
     id: "discrepancy_count",
     header: "Issues",
-    // container_items is null only for a container with no lines at all;
-    // a matched line comes back with an empty discrepancies array.
-    accessorFn: (r) =>
-      (r.container_items ?? []).reduce(
-        (n, i) => n + (i.discrepancies?.length ?? 0),
-        0,
-      ),
+    accessorFn: (r) => r.discrepancy_count,
     size: 90,
     cell: (c) => fmtInt(c.getValue<number>()),
   },
@@ -122,7 +115,13 @@ const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
   {
     id: "product",
     header: "Product",
-    accessorFn: (r) => (r.code ? `${r.code} · ${r.product_name}` : r.product_name),
+    accessorFn: (r) =>
+      fmtProduct({
+        code: r.code,
+        brand: r.brand,
+        variety: r.variety,
+        size_kg: r.size_kg,
+      }),
     size: 220,
   },
   {
@@ -137,7 +136,7 @@ const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
     header: "Actual",
     accessorFn: (r) => r.actual_qty,
     size: 100,
-    cell: (c) => fmtInt(c.getValue<number>()),
+    cell: (c) => fmtInt(c.getValue<number | null>()),
   },
   {
     id: "variance",
@@ -157,11 +156,7 @@ const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
   {
     id: "price_per_sack",
     header: "Price / sack",
-    // numeric over PostgREST, and absent on lines with no price recorded
-    accessorFn: (r) =>
-      r.price_per_sack === null || r.price_per_sack === undefined
-        ? null
-        : toNum(r.price_per_sack),
+    accessorFn: (r) => r.price_per_sack,
     size: 130,
     cell: (c) => fmtMoney(c.getValue<number | null>()),
   },
@@ -176,12 +171,17 @@ const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {list.map((d) => (
-            <div key={d.id} style={{ display: "flex", gap: 8 }}>
+            // A resolved issue still happened, so it stays listed — just dimmed.
+            <div
+              key={d.id}
+              style={{ display: "flex", gap: 8, opacity: d.resolved_at ? 0.5 : 1 }}
+            >
               <Tag color={REASON_COLOR[d.reason]} style={{ margin: 0 }}>
                 {REASON_LABEL[d.reason]}
                 {d.actual_qty === null ? "" : ` ${fmtInt(d.actual_qty)}`}
               </Tag>
               <span style={{ whiteSpace: "normal" }}>{d.note ?? dash}</span>
+              {d.resolved_at && <Tag style={{ margin: 0 }}>resolved</Tag>}
             </div>
           ))}
         </div>

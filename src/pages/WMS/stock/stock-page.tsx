@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Card,
-  DatePicker,
   Empty,
   Flex,
   Pagination,
@@ -15,15 +14,11 @@ import {
   Switch,
   Typography,
 } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
 
 import { useProductCategories, useStockStatus } from "../../../queries/useHooks";
 import type { SortDir, StockSortField } from "../../../queries/types";
 import { StockTable } from "./stock-table";
 import { fmtInt } from "../type-format/format";
-
-const { RangePicker } = DatePicker;
 
 const SORT_FIELDS: { label: string; value: StockSortField }[] = [
   { label: "Updated", value: "updated_at" },
@@ -34,16 +29,11 @@ const SORT_FIELDS: { label: string; value: StockSortField }[] = [
 ];
 
 export default function StockPage() {
-  const navigate = useNavigate();
   const { data: categories } = useProductCategories();
 
   const [brand, setBrand] = useState<string | undefined>();
   const [inStockOnly, setInStockOnly] = useState(false);
   const [availableOnly, setAvailableOnly] = useState(false);
-  const [range, setRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(365, "day"),
-    dayjs(),
-  ]);
   const [sortBy, setSortBy] = useState<StockSortField>("brand");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
@@ -55,19 +45,9 @@ export default function StockPage() {
   );
 
   const params = useMemo(
-    () => ({
-      brand,
-      inStockOnly,
-      availableOnly,
-      page,
-      pageSize,
-      dateField: "updated_at" as const,
-      dateFrom: range[0].format("YYYY-MM-DD"),
-      dateTo: range[1].format("YYYY-MM-DD"),
-      sortBy,
-      sortDir,
-    }),
-    [brand, inStockOnly, availableOnly, page, pageSize, range, sortBy, sortDir],
+    // No date range: this lists what is on hand, not what changed recently.
+    () => ({ brand, inStockOnly, availableOnly, page, pageSize, sortBy, sortDir }),
+    [brand, inStockOnly, availableOnly, page, pageSize, sortBy, sortDir],
   );
 
   const {
@@ -93,14 +73,9 @@ export default function StockPage() {
         <Typography.Title level={4} style={{ margin: 0 }}>
           Stock status
         </Typography.Title>
-        <Flex gap={8}>
-          <Button onClick={() => refetch()} loading={isFetching}>
-            Refresh
-          </Button>
-          <Button type="primary" onClick={() => navigate("/stock/logs")}>
-            View Stock Logs
-          </Button>
-        </Flex>
+        <Button onClick={() => refetch()} loading={isFetching}>
+          Refresh
+        </Button>
       </Flex>
       <Typography.Text type="secondary">
         On-hand sacks per product. Quantities are written by the stock ledger,
@@ -135,13 +110,6 @@ export default function StockPage() {
             />
             <Typography.Text>Available only</Typography.Text>
           </Flex>
-
-          <RangePicker
-            value={range}
-            allowClear={false}
-            onChange={(v) => v && reset(setRange)(v as [Dayjs, Dayjs])}
-            format="MMMM DD, YYYY"
-          />
 
           <Select
             style={{ minWidth: 150 }}

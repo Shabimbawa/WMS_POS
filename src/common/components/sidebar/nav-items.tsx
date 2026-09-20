@@ -1,5 +1,11 @@
 import type { ReactNode } from 'react'
-import { ContainerOutlined, DatabaseOutlined, FileDoneOutlined } from '@ant-design/icons'
+import {
+  ContainerOutlined,
+  DatabaseOutlined,
+  FileDoneOutlined,
+  HistoryOutlined,
+  IssuesCloseOutlined,
+} from '@ant-design/icons'
 import type { ProfileRole } from '../../../pages/login/auth-useQuery'
 
 export type NavItem = {
@@ -30,7 +36,9 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   // /containers/items (register shipment) is owned by this entry via prefix match.
   { key: 'containers', path: '/containers', label: 'Shipments', icon: <ContainerOutlined />, roles: ['warehouse_admin'] },
+  { key: 'discrepancies', path: '/discrepancies', label: 'Discrepancies', icon: <IssuesCloseOutlined />, roles: ['warehouse_admin'] },
   { key: 'stock',      path: '/stock',      label: 'Stock',     icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
+  { key: 'inventory',  path: '/inventory',  label: 'Inventory', icon: <HistoryOutlined />,   roles: ['warehouse_admin'] },
   { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['pos_admin'] },
 ]
 

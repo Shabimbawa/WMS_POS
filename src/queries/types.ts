@@ -101,6 +101,7 @@ export interface ShipmentRow {
     container_no: string | null;
     is_company_truck: boolean;
     status: ContainerStatus;
+    date_arrived_at_port: string | null;
     date_delivered: string | null;
     date_unloaded: string | null;
     /** NULL until unloaded. */
@@ -164,13 +165,15 @@ export interface ShippingContainerNotebookParams
   supplierId?: string;
 }
 
-export interface StockStatusParams
-  extends ListParams<"updated_at", StockSortField> {
+export interface StockStatusParams extends Pagination {
   brand?: string;
-  /** Hide rows sitting at zero. */
   inStockOnly?: boolean;
-  /** Hide products that aren't currently sold. */
   availableOnly?: boolean;
+  /** Optional: narrows to balances last changed in this window. */
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: StockSortField;
+  sortDir?: SortDir;
 }
 
 export interface StockLogParams extends Pagination, DateRange {
@@ -252,6 +255,7 @@ export interface ContainerDetail {
   container_no: string | null;
   is_company_truck: boolean;
   status: ContainerStatus;
+  date_arrived_at_port: string | null;
   date_delivered: string | null;
   date_unloaded: string | null;
   items_match: boolean | null;
@@ -264,58 +268,55 @@ export interface ContainerDetail {
   container_item: ContainerItemRow[];
 }
 
-/** A discrepancy as v_container_detail nests it under its line. */
+/** A discrepancy nested under its line in the variance response. */
 export interface VarianceDiscrepancy {
   id: string;
   reason: DiscrepancyReason;
-  /** Absent for OTHER, which writes no quantity. */
+  declared_qty: number | null;
+  /** Null for OTHER, which writes no quantity. */
   actual_qty: number | null;
   note: string | null;
   created_at: string;
+  /** Set once an OTHER has been re-logged or closed. */
+  resolved_at: string | null;
 }
 
-/** A container line inside v_container_detail. Numerics arrive as numbers here. */
+/** A container line inside the variance response. */
 export interface ContainerVarianceItem {
   container_item_id: string;
   product_category_id: string;
+  brand: string;
+  variety: string | null;
   code: string | null;
-  product_name: string;
-  size_kg: number | string;
+  size_kg: number;
   declared_qty: number;
-  actual_qty: number;
+  /** Null only before unload; this report is unloaded containers only. */
+  actual_qty: number | null;
   /** actual − declared; negative is a shortfall. */
   variance: number;
-  price_per_sack: number | string | null;
+  price_per_sack: number | null;
   /** Empty array when the line matched. */
   discrepancies: VarianceDiscrepancy[];
 }
 
-/**
- * v_container_detail — one container with its lines and their discrepancies.
- * The variance report reads this; v_container_variance is the flat version
- * with a discrepancy_count and no lines.
- */
 export interface ContainerVarianceRow {
   container_id: string;
   container_no: string | null;
   status: ContainerStatus;
   items_match: boolean | null;
-  is_company_truck: boolean;
-  date_delivered: string | null;
   date_unloaded: string | null;
-  shipment_id: string;
   date_list_received: string;
-  reference: string | null;
-  supplier_id: string;
   supplier: string;
   declared_sacks: number;
   actual_sacks: number;
-  /** actual − declared; negative is a shortfall. */
+
   variance_sacks: number;
+  discrepancy_count: number;
+
   container_items: ContainerVarianceItem[] | null;
 }
 
-/** v_open_questions — every OTHER discrepancy. */
+
 export interface OpenQuestionRow {
   id: string;
   created_at: string;
@@ -328,7 +329,7 @@ export interface OpenQuestionRow {
 }
 
 export interface VarianceParams extends Pagination {
-  /** Hide containers whose count matched the packing list. */
+
   mismatchOnly?: boolean;
 }
 
