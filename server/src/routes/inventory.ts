@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { and, asc, count, desc, eq, gt, gte, ilike, lt, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, ilike, inArray, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
@@ -24,8 +24,8 @@ const pagination = {
 
 const stockQuery = z.object({
   ...pagination,
-  dateFrom: z.iso.date(),
-  dateTo: z.iso.date(),
+  dateFrom: z.iso.date().optional(),
+  dateTo: z.iso.date().optional(),
   brand: z.string().trim().min(1).optional(),
   inStockOnly: z.stringbool().optional().default(false),
   availableOnly: z.stringbool().optional().default(false),
@@ -63,6 +63,31 @@ function pageResult<T>(rows: T[], total: number, page: number, pageSize: number)
   return { rows, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
+function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
+  const grouped = new Map<K, T[]>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    const current = grouped.get(key);
+    if (current) current.push(row);
+    else grouped.set(key, [row]);
+  }
+  return grouped;
+}
+
+type VarianceRow = {
+  container_id: string;
+  container_no: string | null;
+  status: string;
+  items_match: boolean | null;
+  date_unloaded: string | null;
+  date_list_received: string;
+  supplier: string;
+  declared_sacks: number;
+  actual_sacks: number;
+  variance_sacks: number;
+  discrepancy_count: number;
+};
+
 const stockSortColumns = {
   brand: productCategories.brand,
   size_kg: productCategories.sizeKg,
@@ -77,13 +102,17 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireRole("warehouse_admin", "pos_admin") },
     async (request) => {
       const query = stockQuery.parse(request.query);
-      if (query.dateFrom > query.dateTo) {
+      if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
         throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
       }
 
       const filters = [
-        gte(stockBalances.updatedAt, new Date(`${query.dateFrom}T00:00:00Z`)),
-        lte(stockBalances.updatedAt, new Date(`${query.dateTo}T23:59:59.999Z`)),
+        ...(query.dateFrom
+          ? [gte(stockBalances.updatedAt, new Date(`${query.dateFrom}T00:00:00Z`))]
+          : []),
+        ...(query.dateTo
+          ? [lte(stockBalances.updatedAt, new Date(`${query.dateTo}T23:59:59.999Z`))]
+          : []),
         ...(query.brand ? [ilike(productCategories.brand, query.brand)] : []),
         ...(query.inStockOnly ? [gt(stockBalances.remainingQty, 0)] : []),
         ...(query.availableOnly ? [eq(productCategories.isAvailable, true)] : []),
@@ -281,7 +310,74 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
         order by date_unloaded desc nulls last
         limit ${query.pageSize} offset ${(query.page - 1) * query.pageSize}
       `);
-      return pageResult(Array.from(result), total, query.page, query.pageSize);
+      const rows = Array.from(result) as VarianceRow[];
+      if (!rows.length) return pageResult(rows, total, query.page, query.pageSize);
+
+      const containerIds = rows.map((row) => row.container_id);
+
+      const lineRows = await db
+        .select({
+          container_id: containerItems.containerId,
+          container_item_id: containerItems.id,
+          product_category_id: containerItems.productCategoryId,
+          brand: productCategories.brand,
+          variety: productCategories.variety,
+          code: productCategories.code,
+          size_kg: productCategories.sizeKg,
+          declared_qty: containerItems.qtySacks,
+          actual_qty: containerItems.actualQtySacks,
+          price_per_sack: containerItems.pricePerSack,
+        })
+        .from(containerItems)
+        .innerJoin(productCategories, eq(containerItems.productCategoryId, productCategories.id))
+        .where(inArray(containerItems.containerId, containerIds))
+        .orderBy(asc(containerItems.createdAt));
+
+
+      const issueRows = await db
+        .select({
+          id: containerDiscrepancies.id,
+          container_id: containerDiscrepancies.containerId,
+          container_item_id: containerDiscrepancies.containerItemId,
+          product_category_id: containerDiscrepancies.productCategoryId,
+          reason: containerDiscrepancies.reason,
+          declared_qty: containerDiscrepancies.declaredQty,
+          actual_qty: containerDiscrepancies.actualQty,
+          note: containerDiscrepancies.note,
+          created_at: containerDiscrepancies.createdAt,
+          resolved_at: containerDiscrepancies.resolvedAt,
+        })
+        .from(containerDiscrepancies)
+        .where(inArray(containerDiscrepancies.containerId, containerIds))
+        .orderBy(asc(containerDiscrepancies.createdAt));
+
+
+      const issueKey = (row: { container_item_id: string | null; container_id: string; product_category_id: string }) =>
+        row.container_item_id ?? `${row.container_id}:${row.product_category_id}`;
+      const issuesByLine = groupBy(issueRows, issueKey);
+      const linesByContainer = groupBy(lineRows, (row) => row.container_id);
+
+      const withItems = rows.map((row) => ({
+        ...row,
+        container_items: (linesByContainer.get(row.container_id) ?? []).map((line) => {
+          const { container_id: _containerId, ...rest } = line;
+          return {
+            ...rest,
+            variance: (line.actual_qty ?? 0) - line.declared_qty,
+            discrepancies: (issuesByLine.get(issueKey(line)) ?? []).map((issue) => ({
+              id: issue.id,
+              reason: issue.reason,
+              declared_qty: issue.declared_qty,
+              actual_qty: issue.actual_qty,
+              note: issue.note,
+              created_at: issue.created_at,
+              resolved_at: issue.resolved_at,
+            })),
+          };
+        }),
+      }));
+
+      return pageResult(withItems, total, query.page, query.pageSize);
     },
   );
 
