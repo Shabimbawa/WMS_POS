@@ -5,7 +5,11 @@ import {
   FileDoneOutlined,
   HistoryOutlined,
   IssuesCloseOutlined,
+  BarChartOutlined,
+
+  TeamOutlined,
 } from '@ant-design/icons'
+
 import type { ProfileRole } from '../../../pages/login/auth-useQuery'
 
 export type NavItem = {
@@ -40,6 +44,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'stock',      path: '/stock',      label: 'Stock',     icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
   { key: 'inventory',  path: '/inventory',  label: 'Inventory', icon: <HistoryOutlined />,   roles: ['warehouse_admin'] },
   { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['pos_admin'] },
+  { key: 'order-summary', path: '/order-summary', label: 'Daily Summary', icon: <BarChartOutlined />, roles: ['pos_admin'] },
+  { key: 'cashiers', path: '/cashiers', label: 'Cashiers', icon: <TeamOutlined />, roles: ['pos_admin'] },
 ]
 
 /** True when `pathname` is `prefix` itself or a route nested under it. */

@@ -2,6 +2,23 @@ export type PaymentStatus = "paid" | "unpaid" | "partial";
 
 export type SortDir = "asc" | "desc";
 
+/** A person an order slip is assigned to. Not a login; deactivated, never deleted. */
+export interface Cashier {
+    id: string;
+    name: string;
+    isActive: boolean;
+}
+
+export interface CreateCashierInput {
+    name: string;
+}
+
+export interface UpdateCashierInput {
+    id: string;
+    name?: string;
+    isActive?: boolean;
+}
+
 export interface Product {
     id: string;
     brand: string;
@@ -18,8 +35,10 @@ export interface OrderSlipItem {
 
 export interface OrderSlip {
     id: string;
+    /** Restarts at 1 each day; only unique together with `date`. */
     slipNumber: number;
     date: string;
+    cashier: Cashier;
     orderBy: string;
     address: string;
     items: OrderSlipItem[];
@@ -45,6 +64,7 @@ export interface CreateOrderSlipInput {
     address: string;
     status: PaymentStatus;
     paymentDueDate: string;
+    cashierId: string;
     items: CreateOrderSlipItem[];
 }
 
@@ -62,6 +82,32 @@ export interface OrderSlipListParams {
     pageSize: number;
     dateFrom: string;
     dateTo: string;
+    /** Matches customer, cashier name or slip number. */
     search?: string;
     sortDir?: SortDir;
+    cashierId?: string;
+}
+
+// ---- daily summary ----------------------------------------------
+
+export interface OrderSlipSummaryParams {
+    dateFrom: string;
+    dateTo: string;
+}
+
+/** One cashier's slips on one day. */
+export interface CashierDaySummary {
+    date: string;
+    cashier: Cashier;
+    slipCount: number;
+    statusCounts: Record<PaymentStatus, number>;
+    totalAmount: number;
+    /** Fully paid slips only; partial payments aren't recorded as amounts. */
+    paidAmount: number;
+    products: {
+        productId: string;
+        brand: string;
+        variant: string;
+        sacks: number;
+    }[];
 }

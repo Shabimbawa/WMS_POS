@@ -152,6 +152,8 @@ export interface StockLogRow {
   supplier: string | null;
   order_slip_id: string | null;
   order_slip_number: number | null;
+  /** Slip numbers restart daily; show them with this date. */
+  order_slip_date: string | null;
   order_revision: number | null;
 }
 

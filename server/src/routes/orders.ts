@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "dr
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
+  cashiers,
   orderSlipItems,
   orderSlips,
   productCategories,
@@ -21,6 +22,12 @@ const orderQuery = z.object({
   dateTo: z.iso.date(),
   search: z.string().trim().max(200).optional(),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
+  cashierId: z.uuid().optional(),
+});
+
+const summaryQuery = z.object({
+  dateFrom: z.iso.date(),
+  dateTo: z.iso.date(),
 });
 
 const orderBody = z.object({
@@ -29,6 +36,7 @@ const orderBody = z.object({
   address: z.string().trim().max(2_000).default(""),
   status: z.enum(["paid", "unpaid", "partial"]),
   paymentDueDate: z.iso.date(),
+  cashierId: z.uuid(),
   items: z.array(z.object({
     productId: z.uuid(),
     quantity: z.number().int().positive(),
@@ -86,6 +94,42 @@ function assertOrderInput(input: z.infer<typeof orderBody>): void {
   }
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Next slip number for `date`. Numbers restart at 1 each day.
+ *
+ * The advisory lock serializes numbering per day until the transaction ends,
+ * so two slips saved at once can't both read the same max. Callers take it
+ * after their stock_balance row locks, in the same order everywhere, so the
+ * two kinds of lock can't deadlock each other. The (date, slip_number)
+ * unique index is the backstop.
+ */
+async function nextSlipNumber(tx: Tx, date: string): Promise<number> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`order_slip_number:${date}`}))`);
+  const [row] = await tx
+    .select({ value: sql<number>`coalesce(max(${orderSlips.slipNumber}), 0)::int` })
+    .from(orderSlips)
+    .where(eq(orderSlips.date, date));
+  return (row?.value ?? 0) + 1;
+}
+
+/**
+ * The slip's cashier must exist, and must be active unless the slip already
+ * had them (so editing an old slip doesn't force a reassignment).
+ */
+async function assertCashier(tx: Tx, cashierId: string, currentCashierId?: string): Promise<void> {
+  const [cashier] = await tx
+    .select({ isActive: cashiers.isActive })
+    .from(cashiers)
+    .where(eq(cashiers.id, cashierId))
+    .limit(1);
+  if (!cashier) throw new ApiError(400, "UNKNOWN_CASHIER", "Cashier does not exist");
+  if (!cashier.isActive && cashierId !== currentCashierId) {
+    throw new ApiError(409, "CASHIER_INACTIVE", "That cashier is no longer active");
+  }
+}
+
 function money(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -109,6 +153,28 @@ async function getItemRows(orderSlipIds: string[]): Promise<OrderItemRow[]> {
     .innerJoin(stockBalances, eq(stockBalances.productCategoryId, productCategories.id))
     .where(inArray(orderSlipItems.orderSlipId, orderSlipIds))
     .orderBy(asc(orderSlipItems.createdAt));
+}
+
+const slipColumns = {
+  id: orderSlips.id,
+  slipNumber: orderSlips.slipNumber,
+  date: orderSlips.date,
+  orderBy: orderSlips.orderBy,
+  address: orderSlips.address,
+  status: orderSlips.status,
+  paymentDueDate: orderSlips.paymentDueDate,
+  totalAmount: orderSlips.totalAmount,
+  cashierId: cashiers.id,
+  cashierName: cashiers.name,
+  cashierActive: cashiers.isActive,
+};
+
+type SlipRow = {
+  [K in keyof typeof slipColumns]: (typeof slipColumns)[K]["_"]["data"];
+};
+
+function toApiSlip({ cashierId, cashierName, cashierActive, ...slip }: SlipRow) {
+  return { ...slip, cashier: { id: cashierId, name: cashierName, isActive: cashierActive } };
 }
 
 export async function orderRoutes(app: FastifyInstance): Promise<void> {
@@ -145,38 +211,39 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     if (query.dateFrom > query.dateTo) {
       throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
     }
-    const searchFilter = query.search
+    const pattern = query.search ? `%${query.search}%` : undefined;
+    const searchFilter = pattern
       ? or(
-        ilike(orderSlips.orderBy, `%${query.search}%`),
-        sql`${orderSlips.slipNumber}::text ilike ${`%${query.search}%`}`,
+        ilike(orderSlips.orderBy, pattern),
+        ilike(cashiers.name, pattern),
+        sql`${orderSlips.slipNumber}::text ilike ${pattern}`,
       )
       : undefined;
     const where = and(
       gte(orderSlips.date, query.dateFrom),
       lte(orderSlips.date, query.dateTo),
+      query.cashierId ? eq(orderSlips.cashierId, query.cashierId) : undefined,
       searchFilter,
     );
-    const [countRow] = await db.select({ value: count() }).from(orderSlips).where(where);
-    const slips = await db
-      .select({
-        id: orderSlips.id,
-        slipNumber: orderSlips.slipNumber,
-        date: orderSlips.date,
-        orderBy: orderSlips.orderBy,
-        address: orderSlips.address,
-        status: orderSlips.status,
-        paymentDueDate: orderSlips.paymentDueDate,
-        totalAmount: orderSlips.totalAmount,
-      })
+    const [countRow] = await db
+      .select({ value: count() })
       .from(orderSlips)
+      .innerJoin(cashiers, eq(orderSlips.cashierId, cashiers.id))
+      .where(where);
+    const order = query.sortDir === "asc" ? asc : desc;
+    const slips = await db
+      .select(slipColumns)
+      .from(orderSlips)
+      .innerJoin(cashiers, eq(orderSlips.cashierId, cashiers.id))
       .where(where)
-      .orderBy(query.sortDir === "asc" ? asc(orderSlips.date) : desc(orderSlips.date), desc(orderSlips.slipNumber))
+      // Numbers restart daily, so they only order slips within one date.
+      .orderBy(order(orderSlips.date), order(orderSlips.slipNumber))
       .limit(query.pageSize)
       .offset((query.page - 1) * query.pageSize);
     const itemsBySlip = groupBy(await getItemRows(slips.map((row) => row.id)), (row) => row.orderSlipId);
     return {
       rows: slips.map((slip) => ({
-        ...slip,
+        ...toApiSlip(slip),
         items: (itemsBySlip.get(slip.id) ?? []).map(toApiItem),
       })),
       total: countRow?.value ?? 0,
@@ -186,30 +253,90 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
+  /**
+   * One group per (slip date, cashier) with at least one slip in the range.
+   * `paidAmount` sums fully paid slips only: partial slips don't record how
+   * much has been paid, so they count toward `totalAmount` but not here.
+   */
+  app.get("/order-slips/summary", posOnly, async (request) => {
+    const query = summaryQuery.parse(request.query);
+    if (query.dateFrom > query.dateTo) {
+      throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
+    }
+    const inRange = and(gte(orderSlips.date, query.dateFrom), lte(orderSlips.date, query.dateTo));
+    const statusCount = (status: "paid" | "partial" | "unpaid") =>
+      sql<number>`(count(*) filter (where ${orderSlips.status} = ${status}))::int`;
+
+    const groups = await db
+      .select({
+        date: orderSlips.date,
+        cashierId: cashiers.id,
+        cashierName: cashiers.name,
+        cashierActive: cashiers.isActive,
+        slipCount: sql<number>`count(*)::int`,
+        paid: statusCount("paid"),
+        partial: statusCount("partial"),
+        unpaid: statusCount("unpaid"),
+        totalAmount: sql<number>`coalesce(sum(${orderSlips.totalAmount}), 0)::float8`,
+        paidAmount: sql<number>`coalesce(sum(${orderSlips.totalAmount}) filter (where ${orderSlips.status} = 'paid'), 0)::float8`,
+      })
+      .from(orderSlips)
+      .innerJoin(cashiers, eq(orderSlips.cashierId, cashiers.id))
+      .where(inRange)
+      .groupBy(orderSlips.date, cashiers.id)
+      .orderBy(asc(orderSlips.date), asc(cashiers.name));
+
+    const productRows = await db
+      .select({
+        date: orderSlips.date,
+        cashierId: orderSlips.cashierId,
+        productId: productCategories.id,
+        brand: productCategories.brand,
+        variety: productCategories.variety,
+        sizeKg: productCategories.sizeKg,
+        sacks: sql<number>`sum(${orderSlipItems.quantity})::int`,
+      })
+      .from(orderSlipItems)
+      .innerJoin(orderSlips, eq(orderSlipItems.orderSlipId, orderSlips.id))
+      .innerJoin(productCategories, eq(orderSlipItems.productCategoryId, productCategories.id))
+      .where(inRange)
+      .groupBy(orderSlips.date, orderSlips.cashierId, productCategories.id)
+      .orderBy(asc(productCategories.brand), asc(productCategories.variety), asc(productCategories.sizeKg));
+    const productsByGroup = groupBy(productRows, (row) => `${row.date}|${row.cashierId}`);
+
+    return groups.map((group) => ({
+      date: group.date,
+      cashier: { id: group.cashierId, name: group.cashierName, isActive: group.cashierActive },
+      slipCount: group.slipCount,
+      statusCounts: { paid: group.paid, partial: group.partial, unpaid: group.unpaid },
+      totalAmount: group.totalAmount,
+      paidAmount: group.paidAmount,
+      products: (productsByGroup.get(`${group.date}|${group.cashierId}`) ?? []).map((row) => ({
+        productId: row.productId,
+        brand: row.brand,
+        variant: variant(row.variety, row.sizeKg),
+        sacks: row.sacks,
+      })),
+    }));
+  });
+
   app.get("/order-slips/:id", posOnly, async (request) => {
     const { id } = idParams.parse(request.params);
     const [slip] = await db
-      .select({
-        id: orderSlips.id,
-        slipNumber: orderSlips.slipNumber,
-        date: orderSlips.date,
-        orderBy: orderSlips.orderBy,
-        address: orderSlips.address,
-        status: orderSlips.status,
-        paymentDueDate: orderSlips.paymentDueDate,
-        totalAmount: orderSlips.totalAmount,
-      })
+      .select(slipColumns)
       .from(orderSlips)
+      .innerJoin(cashiers, eq(orderSlips.cashierId, cashiers.id))
       .where(eq(orderSlips.id, id))
       .limit(1);
     if (!slip) throw new ApiError(404, "ORDER_SLIP_NOT_FOUND", "Order slip was not found");
-    return { ...slip, items: (await getItemRows([id])).map(toApiItem) };
+    return { ...toApiSlip(slip), items: (await getItemRows([id])).map(toApiItem) };
   });
 
   app.post("/order-slips", posOnly, async (request, reply) => {
     const input = orderBody.parse(request.body);
     assertOrderInput(input);
     const orderId = await db.transaction(async (tx) => {
+      await assertCashier(tx, input.cashierId);
       const productIds = [...input.items.map((item) => item.productId)].sort();
       const products = await tx
         .select({
@@ -245,9 +372,12 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
         totalAmount = money(totalAmount + money(item.quantity * product.sellingPrice));
       }
 
+      const slipNumber = await nextSlipNumber(tx, input.date);
       const [created] = await tx
         .insert(orderSlips)
         .values({
+          slipNumber,
+          cashierId: input.cashierId,
           date: input.date,
           orderBy: input.orderBy,
           address: input.address,
@@ -300,11 +430,18 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     await db.transaction(async (tx) => {
       await tx.execute(sql`select id from ${orderSlips} where ${orderSlips.id} = ${id} for update`);
       const [current] = await tx
-        .select({ status: orderSlips.status, revision: orderSlips.revision })
+        .select({
+          status: orderSlips.status,
+          revision: orderSlips.revision,
+          date: orderSlips.date,
+          slipNumber: orderSlips.slipNumber,
+          cashierId: orderSlips.cashierId,
+        })
         .from(orderSlips)
         .where(eq(orderSlips.id, id));
       if (!current) throw new ApiError(404, "ORDER_SLIP_NOT_FOUND", "Order slip was not found");
       if (current.status === "paid") throw new ApiError(409, "PAID_ORDER_IMMUTABLE", "Paid order slips cannot be edited");
+      await assertCashier(tx, input.cashierId, current.cashierId);
 
       const oldItems = await tx
         .select({ productId: orderSlipItems.productCategoryId, quantity: orderSlipItems.quantity })
@@ -331,6 +468,12 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
         .for("update");
       const available = new Map(balances.map((row) => [row.productId, row.quantity]));
       for (const item of oldItems) available.set(item.productId, (available.get(item.productId) ?? 0) + item.quantity);
+
+      // Moving a slip to another day renumbers it within that day. Its old
+      // number is left as a gap rather than shifting that day's other slips.
+      const slipNumber = input.date === current.date
+        ? current.slipNumber
+        : await nextSlipNumber(tx, input.date);
 
       const productById = new Map(products.map((product) => [product.id, product]));
       let totalAmount = 0;
@@ -401,6 +544,8 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
       await tx
         .update(orderSlips)
         .set({
+          slipNumber,
+          cashierId: input.cashierId,
           date: input.date,
           orderBy: input.orderBy,
           address: input.address,

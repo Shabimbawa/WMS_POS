@@ -25,10 +25,14 @@ import {
   updateContainerStatus,
 } from "./warehouse.ts";
 import {
+  createCashier,
   createOrderSlip,
+  getCashiers,
   getOrderSlip,
   getOrderSlips,
+  getOrderSlipSummary,
   getPosProducts,
+  updateCashier,
   updateOrderSlip,
 } from "./pos.ts";
 
@@ -40,7 +44,10 @@ import type {
   StockStatusParams,
   VarianceParams,
 } from "./types.ts";
-import type { OrderSlipListParams } from "./posTypes.ts";
+import type {
+  OrderSlipListParams,
+  OrderSlipSummaryParams,
+} from "./posTypes.ts";
 
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 
@@ -75,6 +82,13 @@ export const qk = {
   orderSlips: ["order-slips"] as const,
   orderSlipList: (p: OrderSlipListParams) => ["order-slips", "list", p] as const,
   orderSlip: (id: string) => ["order-slips", "detail", id] as const,
+  // Under "order-slips" so creating or editing a slip refreshes the summary.
+  orderSlipSummary: (p: OrderSlipSummaryParams) =>
+    ["order-slips", "summary", p] as const,
+
+  cashiers: ["pos", "cashiers"] as const,
+  cashierList: (includeInactive: boolean) =>
+    ["pos", "cashiers", { includeInactive }] as const,
 };
 
 // ---- reference data ---------------------------------------------
@@ -182,10 +196,11 @@ export function usePosProducts() {
   });
 }
 
-export function useOrderSlips(params: OrderSlipListParams) {
+export function useOrderSlips(params: OrderSlipListParams, enabled = true) {
   return useQuery({
     queryKey: qk.orderSlipList(params),
     queryFn: () => getOrderSlips(params),
+    enabled,
     placeholderData: keepPreviousData,
   });
 }
@@ -195,6 +210,22 @@ export function useOrderSlip(id: string | undefined) {
     queryKey: qk.orderSlip(id ?? ""),
     queryFn: () => getOrderSlip(id!),
     enabled: Boolean(id),
+  });
+}
+
+export function useOrderSlipSummary(params: OrderSlipSummaryParams) {
+  return useQuery({
+    queryKey: qk.orderSlipSummary(params),
+    queryFn: () => getOrderSlipSummary(params),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useCashiers(includeInactive = false) {
+  return useQuery({
+    queryKey: qk.cashierList(includeInactive),
+    queryFn: () => getCashiers(includeInactive),
+    staleTime: STALE_TIME,
   });
 }
 
@@ -251,6 +282,28 @@ export function useCreateOrderSlip() {
       qc.invalidateQueries({ queryKey: qk.orderSlips });
       qc.invalidateQueries({ queryKey: qk.posProducts });
       qc.invalidateQueries({ queryKey: qk.stock });
+    },
+  });
+}
+
+export function useCreateCashier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createCashier,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.cashiers });
+    },
+  });
+}
+
+export function useUpdateCashier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateCashier,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.cashiers });
+      // Slips and the summary show the cashier's name and active flag.
+      qc.invalidateQueries({ queryKey: qk.orderSlips });
     },
   });
 }

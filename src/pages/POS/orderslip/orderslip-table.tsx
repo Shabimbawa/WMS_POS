@@ -31,12 +31,13 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
     header: "Slip no.",
     accessorFn: (r) => r.slipNumber,
     size: 100,
+    // Numbers restart daily; the Date column beside this one says which day.
     cell: (c) => (
       <Link
         to={`/order-slip/${c.row.original.id}`}
         style={{ fontFamily: "monospace" }}
       >
-        {c.getValue<number>()}
+        #{c.getValue<number>()}
       </Link>
     ),
   },
@@ -45,6 +46,12 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
     header: "Order by",
     accessorFn: (r) => r.orderBy,
     size: 160,
+  },
+  {
+    id: "cashier",
+    header: "Cashier",
+    accessorFn: (r) => r.cashier.name,
+    size: 140,
   },
   {
     id: "address",

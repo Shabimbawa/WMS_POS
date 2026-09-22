@@ -1,9 +1,9 @@
 import { message } from "antd";
-import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import type { CreateOrderSlipInput } from "../../../queries/posTypes";
 import { useCreateOrderSlip } from "../../../queries/useHooks";
+import { posToday } from "../type-format/format";
 import { OrderSlipForm } from "./orderslip-form";
 
 /** Default payment terms for a new slip, in days from the slip date. */
@@ -27,9 +27,9 @@ export default function CreateOrderSlipPage() {
       <OrderSlipForm
         title="New order slip"
         initialValues={{
-          date: dayjs(),
+          date: posToday(),
           status: "unpaid",
-          paymentDueDate: dayjs().add(DEFAULT_TERM_DAYS, "day"),
+          paymentDueDate: posToday().add(DEFAULT_TERM_DAYS, "day"),
         }}
         submitLabel="Create order slip"
         submitting={create.isPending}

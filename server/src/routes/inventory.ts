@@ -251,6 +251,8 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
           supplier: suppliers.name,
           order_slip_id: stockMovements.orderSlipId,
           order_slip_number: orderSlips.slipNumber,
+          // Slip numbers restart daily, so the number alone is ambiguous.
+          order_slip_date: orderSlips.date,
           order_revision: stockMovements.orderRevision,
         })
         .from(stockMovements)

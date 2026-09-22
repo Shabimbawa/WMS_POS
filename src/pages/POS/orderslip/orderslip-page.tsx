@@ -13,21 +13,17 @@ import {
   Space,
   Typography,
 } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
+import { type Dayjs } from "dayjs";
 import { PlusOutlined, UndoOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import type { SortDir } from "../../../queries/posTypes";
 import { useOrderSlips } from "../../../queries/useHooks";
+import { posToday } from "../type-format/format";
 import { OrderSlipTable } from "./orderslip-table";
-import {
-  MonthRangePicker,
-  lastMonths,
-  monthRangeParams,
-  type MonthRange,
-} from "../../../common/items/date-range/month-range";
 
-const defaultRange = (): MonthRange => lastMonths(3);
+const { RangePicker } = DatePicker;
+const defaultRange = (): [Dayjs, Dayjs] => [posToday().subtract(90, "day"), posToday()];
 
 export default function OrderSlipPage() {
   const navigate = useNavigate();
@@ -71,8 +67,8 @@ export default function OrderSlipPage() {
         <Flex wrap gap={12} align="center">
           <Input.Search
             allowClear
-            placeholder="Search customer or slip no."
-            style={{ width: 260 }}
+            placeholder="Search customer, cashier or slip no."
+            style={{ width: 300 }}
             value={search}
             onChange={(event) => reset(setSearch)(event.target.value)}
           />
