@@ -28,14 +28,15 @@ const defaultRange = (): [Dayjs, Dayjs] => [posToday().subtract(90, "day"), posT
 export default function OrderSlipPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [range, setRange] = useState<MonthRange>(defaultRange);
+  const [range, setRange] = useState<[Dayjs, Dayjs]>(defaultRange);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
   const params = useMemo(() => ({
     search: search.trim() || undefined,
-    ...monthRangeParams(range),
+    dateFrom: range[0].format("YYYY-MM-DD"),
+    dateTo: range[1].format("YYYY-MM-DD"),
     sortDir,
     page,
     pageSize,
@@ -49,7 +50,7 @@ export default function OrderSlipPage() {
   };
   const [defaultFrom, defaultTo] = defaultRange();
   const isDefaultRange =
-    range[0].isSame(defaultFrom, "month") && range[1].isSame(defaultTo, "month");
+    range[0].isSame(defaultFrom, "day") && range[1].isSame(defaultTo, "day");
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
@@ -72,7 +73,12 @@ export default function OrderSlipPage() {
             value={search}
             onChange={(event) => reset(setSearch)(event.target.value)}
           />
-          <MonthRangePicker value={range} onChange={reset(setRange)} />
+          <RangePicker
+            value={range}
+            allowClear={false}
+            onChange={(value) => value && reset(setRange)(value as [Dayjs, Dayjs])}
+            format="MMMM DD, YYYY"
+          />
           <Button
             icon={<UndoOutlined />}
             disabled={isDefaultRange}
