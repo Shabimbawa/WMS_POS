@@ -20,6 +20,7 @@ import {
 } from "../../../queries/useHooks";
 import type { SortDir } from "../../../queries/types";
 import { ContainerTable } from "./container-table";
+import { StatusLegend } from "./status-legend";
 import {
   MonthRangePicker,
   lastMonths,
@@ -111,6 +112,8 @@ export default function ContainerPage() {
               { label: "Oldest", value: "asc" },
             ]}
           />
+
+          <StatusLegend />
         </Flex>
       </Card>
 
