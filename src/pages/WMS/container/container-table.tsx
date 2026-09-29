@@ -132,21 +132,44 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
     id: "items",
     header: "Brands",
     accessorFn: (r) => r.container_item.length,
-    size: 260,
+    size: 300,
+    // Sacks per brand. The declared figure, plus the counted one after unload
+    // when the two disagree — the Sacks column holds the container total.
     cell: (c) => {
       const items = c.row.original.container_item;
       if (!items.length) return dash;
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {items.map((i) => (
-            <div
-              key={i.id}
-              style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
-            >
-              <span>{fmtProduct(i.product_category)}</span>
-
-            </div>
-          ))}
+          {items.map((i) => {
+            const counted =
+              i.actual_qty_sacks !== null && i.actual_qty_sacks !== i.qty_sacks
+                ? i.actual_qty_sacks
+                : null;
+            return (
+              <div
+                key={i.id}
+                style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+              >
+                <span>{fmtProduct(i.product_category)}</span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {fmtInt(i.qty_sacks)}
+                  {counted !== null && (
+                    <span
+                      style={{
+                        color:
+                          counted < i.qty_sacks
+                            ? "var(--ant-color-error, #ff4d4f)"
+                            : "var(--ant-color-success, #52c41a)",
+                      }}
+                    >
+                      {" → "}
+                      {fmtInt(counted)}
+                    </span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
         </div>
       );
     },
