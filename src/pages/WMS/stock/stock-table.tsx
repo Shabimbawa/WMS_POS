@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../../../common/items/table/table";
 import type { StockStatusRow } from "../../../queries/types";
 import { fmtInt, fmtKg, fmtMoney, fmtProduct } from "../type-format/format";
+import { ProductActions } from "./product-actions";
 
 /** GET /stock rows: a stock_balance joined to its product. */
 export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
@@ -66,7 +67,15 @@ export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
         ? "—"
         : fmtMoney(c.getValue<number>());
     },
-  } 
+  },
+  {
+    id: "actions",
+    header: "",
+    accessorFn: (r) => r.id,
+    size: 80,
+    meta: { fixed: "right" },
+    cell: (c) => <ProductActions row={c.row.original} />,
+  },
 ];
 
 export function StockTable({ data }: { data: StockStatusRow[] }) {

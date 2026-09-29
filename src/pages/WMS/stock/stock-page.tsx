@@ -13,11 +13,20 @@ import {
   Statistic,
   Switch,
   Typography,
+  message,
 } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
 
-import { useProductCategories, useStockStatus } from "../../../queries/useHooks";
+import {
+  useCreateProduct,
+  useProductCategories,
+  useStockStatus,
+} from "../../../queries/useHooks";
 import type { SortDir, StockSortField } from "../../../queries/types";
+import CommonModalForm from "../../../common/items/modal/modal";
+import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import { StockTable } from "./stock-table";
+import { ProductFields, type ProductValues } from "./product-actions";
 import { fmtInt } from "../type-format/format";
 
 const SORT_FIELDS: { label: string; value: StockSortField }[] = [
@@ -29,7 +38,10 @@ const SORT_FIELDS: { label: string; value: StockSortField }[] = [
 ];
 
 export default function StockPage() {
+  const [msg, msgHolder] = message.useMessage();
+  const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
   const { data: categories } = useProductCategories();
+  const create = useCreateProduct();
 
   const [brand, setBrand] = useState<string | undefined>();
   const [inStockOnly, setInStockOnly] = useState(false);
@@ -67,15 +79,52 @@ export default function StockPage() {
 
   const pageSacks = data?.rows.reduce((n, r) => n + r.remaining_qty, 0) ?? 0;
 
+  // The product_category trigger creates the stock_balance row, so a new
+  // product lands in this table at zero without any stock being moved.
+  const addProduct = async (v: ProductValues) => {
+    try {
+      await create.mutateAsync({
+        brand: v.brand.trim(),
+        variety: v.variety?.trim() || null,
+        code: v.code?.trim() || null,
+        sizeKg: v.sizeKg,
+        isAvailable: v.isAvailable,
+        sellingPrice: v.sellingPrice ?? null,
+      });
+      msg.success("Product added");
+    } catch (e) {
+      showError(e, "Could not add product");
+      throw e; // keeps the modal open
+    }
+  };
+
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      {msgHolder}
+      {errorHolder}
+
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
           Stock status
         </Typography.Title>
-        <Button onClick={() => refetch()} loading={isFetching}>
-          Refresh
-        </Button>
+        <Flex gap={8}>
+          <Button onClick={() => refetch()} loading={isFetching}>
+            Refresh
+          </Button>
+          <CommonModalForm<ProductValues>
+            title="Add product"
+            triggerLabel={
+              <>
+                <PlusOutlined /> Add Product
+              </>
+            }
+            okText="Add"
+            width={520}
+            onSave={addProduct}
+          >
+            <ProductFields />
+          </CommonModalForm>
+        </Flex>
       </Flex>
       <Typography.Text type="secondary">
         On-hand sacks per product. Quantities are written by the stock ledger,

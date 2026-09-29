@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  createProduct,
   createShipment,
   getContainer,
   getContainerVariance,
@@ -23,6 +24,7 @@ import {
   getSuppliers,
   unloadContainer,
   updateContainerStatus,
+  updateProduct,
 } from "./warehouse.ts";
 import {
   createCashier,
@@ -237,6 +239,31 @@ export function useCreateShipment() {
     mutationFn: createShipment,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
+    },
+  });
+}
+
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createProduct,
+    onSuccess: () => {
+      // Dropdowns read the catalogue; the stock list joins through it.
+      qc.invalidateQueries({ queryKey: ["product-categories"] });
+      qc.invalidateQueries({ queryKey: qk.stock });
+    },
+  });
+}
+
+export function useUpdateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateProduct,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["product-categories"] });
+      qc.invalidateQueries({ queryKey: qk.stock });
+      // POS reads price and availability off the same row.
+      qc.invalidateQueries({ queryKey: qk.posProducts });
     },
   });
 }

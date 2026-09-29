@@ -191,6 +191,28 @@ export interface ProductCategoryParams {
 
 // ---- mutation inputs --------------------------------------------
 
+export interface CreateProductInput {
+  brand: string;
+  variety: string | null;
+  sizeKg: number;
+  code: string | null;
+  isAvailable: boolean;
+  sellingPrice: number | null;
+}
+
+/**
+ * Absent means "leave alone", explicit null means "clear it". sizeKg is not
+ * editable — it is the product's identity and the weight of its history.
+ */
+export interface UpdateProductInput {
+  id: string;
+  brand?: string;
+  variety?: string | null;
+  code?: string | null;
+  isAvailable?: boolean;
+  sellingPrice?: number | null;
+}
+
 export interface CreateShipmentItem {
   product_category_id: string;
   qty_sacks: number;

@@ -1,6 +1,7 @@
 import { apiRequest, queryString } from "../utils/api-client";
 import type {
   ContainerDetail,
+  CreateProductInput,
   ContainerVarianceRow,
   CreateShipmentInput,
   OpenQuestionParams,
@@ -15,6 +16,7 @@ import type {
   StockStatusParams,
   StockStatusRow,
   Supplier,
+  UpdateProductInput,
   UnloadContainerInput,
   UpdateContainerStatusInput,
   VarianceParams,
@@ -27,6 +29,25 @@ export async function getProductCategories(
   params: ProductCategoryParams = {},
 ): Promise<ProductCategory[]> {
   return apiRequest<ProductCategory[]>(`/products${queryString(params)}`);
+}
+
+export async function createProduct(
+  input: CreateProductInput,
+): Promise<ProductCategory> {
+  return apiRequest<ProductCategory>("/products", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateProduct({
+  id,
+  ...patch
+}: UpdateProductInput): Promise<ProductCategory> {
+  return apiRequest<ProductCategory>(`/products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
 export async function getShippingContainerNotebook(
