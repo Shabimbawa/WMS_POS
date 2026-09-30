@@ -1,10 +1,14 @@
 import type { FastifyInstance } from "fastify";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import { productCategories, suppliers } from "../db/schema.js";
 import { ApiError } from "../lib/api-error.js";
 import { requireRole } from "../plugins/auth.js";
+
+const supplierQuery = z.object({
+  kind: z.enum(["INTERNATIONAL", "LOCAL"]).optional(),
+});
 
 const productQuery = z.object({
   availableOnly: z.stringbool().optional().default(false),
@@ -67,16 +71,24 @@ export async function referenceRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     "/suppliers",
     { preHandler: requireRole("warehouse_admin") },
-    async () => db
-      .select({
-        id: suppliers.id,
-        name: suppliers.name,
-        code: suppliers.code,
-        is_active: suppliers.isActive,
-      })
-      .from(suppliers)
-      .where(eq(suppliers.isActive, true))
-      .orderBy(asc(suppliers.name)),
+    async (request) => {
+      const query = supplierQuery.parse(request.query);
+      return db
+        .select({
+          id: suppliers.id,
+          name: suppliers.name,
+          code: suppliers.code,
+          kind: suppliers.kind,
+          is_active: suppliers.isActive,
+        })
+        .from(suppliers)
+        .where(
+          query.kind
+            ? and(eq(suppliers.isActive, true), eq(suppliers.kind, query.kind))
+            : eq(suppliers.isActive, true),
+        )
+        .orderBy(asc(suppliers.name));
+    },
   );
 
   app.get(

@@ -221,11 +221,18 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
 
     const shipmentId = await db.transaction(async (tx) => {
       const [supplier] = await tx
-        .select({ id: suppliers.id })
+        .select({ kind: suppliers.kind })
         .from(suppliers)
         .where(and(eq(suppliers.id, input.supplierId), eq(suppliers.isActive, true)))
         .limit(1);
       if (!supplier) throw new ApiError(400, "UNKNOWN_SUPPLIER", "Supplier does not exist or is inactive");
+      if (supplier.kind !== "INTERNATIONAL") {
+        throw new ApiError(
+          400,
+          "SUPPLIER_NOT_INTERNATIONAL",
+          "Local suppliers are logged as deliveries, not packing lists",
+        );
+      }
 
       const productIds = [...new Set(input.containers.flatMap((c) => c.items.map((i) => i.product_category_id)))];
       const products = await tx

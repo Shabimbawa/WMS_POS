@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { and, asc, count, desc, eq, gt, gte, ilike, inArray, lt, lte, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
   containerDiscrepancies,
   containerItems,
   containers,
+  localDeliveries,
   orderSlips,
   productCategories,
   shipments,
@@ -87,6 +89,10 @@ type VarianceRow = {
   variance_sacks: number;
   discrepancy_count: number;
 };
+
+/** suppliers is already joined through the container, so the delivery's
+ *  supplier needs its own alias. */
+const localSupplier = alias(suppliers, "local_supplier");
 
 const stockSortColumns = {
   brand: productCategories.brand,
@@ -248,7 +254,10 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
           size_kg: productCategories.sizeKg,
           container_id: stockMovements.containerId,
           container_no: containers.containerNo,
-          supplier: suppliers.name,
+          // Whichever inbound route this movement came from, if either.
+          supplier: sql<string | null>`coalesce(${suppliers.name}, ${localSupplier.name})`,
+          local_delivery_id: stockMovements.localDeliveryId,
+          delivery_reference: localDeliveries.reference,
           order_slip_id: stockMovements.orderSlipId,
           order_slip_number: orderSlips.slipNumber,
           // Slip numbers restart daily, so the number alone is ambiguous.
@@ -262,6 +271,8 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
         .leftJoin(shipments, eq(containers.shipmentId, shipments.id))
         .leftJoin(suppliers, eq(shipments.supplierId, suppliers.id))
         .leftJoin(orderSlips, eq(stockMovements.orderSlipId, orderSlips.id))
+        .leftJoin(localDeliveries, eq(stockMovements.localDeliveryId, localDeliveries.id))
+        .leftJoin(localSupplier, eq(localDeliveries.supplierId, localSupplier.id))
         .where(where)
         // created_at breaks ties so one unload batch keeps its insert order
         .orderBy(order(stockMovements.occurredAt), order(stockMovements.createdAt))

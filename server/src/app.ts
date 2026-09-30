@@ -7,6 +7,7 @@ import { ApiError } from "./lib/api-error.js";
 import { authPlugin } from "./plugins/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { cashierRoutes } from "./routes/cashiers.js";
+import { deliveryRoutes } from "./routes/deliveries.js";
 import { healthRoutes } from "./routes/health.js";
 import { inventoryRoutes } from "./routes/inventory.js";
 import { orderRoutes } from "./routes/orders.js";
@@ -70,6 +71,7 @@ export async function buildApp() {
   await app.register(inventoryRoutes, { prefix: "/api/v1" });
   await app.register(orderRoutes, { prefix: "/api/v1" });
   await app.register(cashierRoutes, { prefix: "/api/v1" });
+  await app.register(deliveryRoutes, { prefix: "/api/v1" });
 
   return app;
 }
