@@ -4,6 +4,7 @@ import {
   DatabaseOutlined,
   FileDoneOutlined,
   HistoryOutlined,
+  TruckOutlined,
   IssuesCloseOutlined,
   BarChartOutlined,
 
@@ -40,6 +41,8 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   // /containers/items (register shipment) is owned by this entry via prefix match.
   { key: 'containers', path: '/containers', label: 'Shipments', icon: <ContainerOutlined />, roles: ['warehouse_admin'] },
+  // /deliveries/new is owned by this entry via prefix match.
+  { key: 'deliveries', path: '/deliveries', label: 'Local Deliveries', icon: <TruckOutlined />, roles: ['warehouse_admin'] },
   { key: 'discrepancies', path: '/discrepancies', label: 'Discrepancies', icon: <IssuesCloseOutlined />, roles: ['warehouse_admin'] },
   { key: 'stock',      path: '/stock',      label: 'Stock',     icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
   { key: 'inventory',  path: '/inventory',  label: 'Inventory', icon: <HistoryOutlined />,   roles: ['warehouse_admin'] },

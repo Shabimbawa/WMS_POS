@@ -10,30 +10,30 @@ import {
   Select,
   Skeleton,
   Space,
+  Switch,
   Typography,
 } from "antd";
 import { useNavigate } from "react-router-dom";
 
-import {
-  useShippingContainerNotebook,
-  useSuppliers,
-} from "../../../queries/useHooks";
+import { useDeliveries, useSuppliers } from "../../../queries/useHooks";
 import type { SortDir } from "../../../queries/types";
-import { ContainerTable } from "./container-table";
-import { StatusLegend } from "./status-legend";
 import {
   MonthRangePicker,
   lastMonths,
   monthRangeParams,
   type MonthRange,
 } from "../../../common/items/date-range/month-range";
+import { DeliveryTable } from "./delivery-table";
 
-export default function ContainerPage() {
+export default function DeliveryPage() {
   const navigate = useNavigate();
-  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind: "INTERNATIONAL" });
+  // Only local suppliers deliver this way.
+  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({
+    kind: "LOCAL",
+  });
 
-  // undefined = all suppliers
   const [supplierId, setSupplierId] = useState<string | undefined>();
+  const [includeVoided, setIncludeVoided] = useState(false);
   const [range, setRange] = useState<MonthRange>(() => lastMonths(3));
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
@@ -42,13 +42,13 @@ export default function ContainerPage() {
   const params = useMemo(
     () => ({
       supplierId,
+      includeVoided,
       page,
       pageSize,
-      dateField: "date_list_received" as const,
       ...monthRangeParams(range),
       sortDir,
     }),
-    [supplierId, page, pageSize, range, sortDir],
+    [supplierId, includeVoided, page, pageSize, range, sortDir],
   );
 
   const {
@@ -59,9 +59,7 @@ export default function ContainerPage() {
     isPlaceholderData,
     isFetching,
     refetch,
-  } = useShippingContainerNotebook(params);
-
-  console.log("container data", data);
+  } = useDeliveries(params);
 
   const reset = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
@@ -72,27 +70,28 @@ export default function ContainerPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Shipments
+          Local deliveries
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
             Refresh
           </Button>
-          <Button type="primary" onClick={() => navigate("/containers/items")}>
-            Register Shipment
+          <Button type="primary" onClick={() => navigate("/deliveries/new")}>
+            Log Delivery
           </Button>
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        Packing lists with their containers. Only one date applies here, since
-        rows are lists rather than boxes.
+        Truck loads from local suppliers, counted as they arrive. There is no
+        packing list to compare against, so stock moves the moment one is
+        logged — a wrong count is corrected by voiding it.
       </Typography.Text>
 
       <Card size="small">
         <Flex wrap gap={12} align="center">
           <Select
             allowClear
-            placeholder="All suppliers"
+            placeholder="All local suppliers"
             style={{ minWidth: 220 }}
             loading={loadingSuppliers}
             value={supplierId}
@@ -113,7 +112,14 @@ export default function ContainerPage() {
             ]}
           />
 
-          <StatusLegend />
+          <Flex align="center" gap={8}>
+            <Switch
+              size="small"
+              checked={includeVoided}
+              onChange={reset(setIncludeVoided)}
+            />
+            <Typography.Text>Show voided</Typography.Text>
+          </Flex>
         </Flex>
       </Card>
 
@@ -121,16 +127,16 @@ export default function ContainerPage() {
         <Alert
           type="error"
           showIcon
-          message="Could not load packing lists"
+          message="Could not load deliveries"
           description={(error as Error)?.message}
         />
       ) : isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !data?.rows.length ? (
-        <Empty description="No packing lists in this date range" />
+        <Empty description="No deliveries in this date range" />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
-          <ContainerTable data={data.rows} />
+          <DeliveryTable data={data.rows} />
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination
               current={data.page}

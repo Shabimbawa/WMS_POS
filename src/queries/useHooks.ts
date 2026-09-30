@@ -11,12 +11,14 @@ import {
 
 import {
   adjustStock,
+  createDelivery,
   createProduct,
   createShipment,
   getContainer,
   getContainerVariance,
   getOpenQuestionCount,
   getOpenQuestions,
+  getDeliveries,
   getProductCategories,
   getShippingContainerNotebook,
   getStockLog,
@@ -26,6 +28,7 @@ import {
   unloadContainer,
   updateContainerStatus,
   updateProduct,
+  voidDelivery,
 } from "./warehouse.ts";
 import {
   createCashier,
@@ -40,9 +43,11 @@ import {
 } from "./pos.ts";
 
 import type {
+  LocalDeliveryParams,
   OpenQuestionParams,
   ProductCategoryParams,
   ShippingContainerNotebookParams,
+  SupplierParams,
   StockLogParams,
   StockStatusParams,
   VarianceParams,
@@ -61,7 +66,10 @@ const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 // invalidating ['notebook'] clears every shipment list at once.
 
 export const qk = {
-  suppliers: ["suppliers"] as const,
+  suppliers: (p: SupplierParams = {}) => ["suppliers", p] as const,
+
+  deliveries: ["deliveries"] as const,
+  deliveryList: (p: LocalDeliveryParams) => ["deliveries", "list", p] as const,
   productCategories: (p: ProductCategoryParams = {}) =>
     ["product-categories", p] as const,
 
@@ -99,10 +107,10 @@ export const qk = {
 // Suppliers and categories change rarely — long staleTime so dropdowns
 // don't refetch on every mount.
 
-export function useSuppliers() {
+export function useSuppliers(params: SupplierParams = {}) {
   return useQuery({
-    queryKey: qk.suppliers,
-    queryFn: getSuppliers,
+    queryKey: qk.suppliers(params),
+    queryFn: () => getSuppliers(params),
     staleTime: STALE_TIME,
   });
 }
@@ -138,6 +146,16 @@ export function useContainer(id: string | undefined) {
     queryKey: qk.container(id ?? ""),
     queryFn: () => getContainer(id!),
     enabled: Boolean(id),
+  });
+}
+
+export function useDeliveries(params: LocalDeliveryParams, enabled = true) {
+  return useQuery({
+    queryKey: qk.deliveryList(params),
+    queryFn: () => getDeliveries(params),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
   });
 }
 
@@ -241,6 +259,29 @@ export function useCreateShipment() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
     },
+  });
+}
+
+/** Logging or voiding a delivery moves stock, so every stock view is stale. */
+function deliveryInvalidation(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: qk.deliveries });
+  qc.invalidateQueries({ queryKey: qk.stock });
+  qc.invalidateQueries({ queryKey: qk.posProducts });
+}
+
+export function useCreateDelivery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createDelivery,
+    onSuccess: () => deliveryInvalidation(qc),
+  });
+}
+
+export function useVoidDelivery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: voidDelivery,
+    onSuccess: () => deliveryInvalidation(qc),
   });
 }
 

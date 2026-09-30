@@ -3,7 +3,10 @@ import type {
   AdjustStockInput,
   AdjustStockResult,
   ContainerDetail,
+  CreateLocalDeliveryInput,
   CreateProductInput,
+  LocalDeliveryParams,
+  LocalDeliveryRow,
   ContainerVarianceRow,
   CreateShipmentInput,
   OpenQuestionParams,
@@ -18,14 +21,18 @@ import type {
   StockStatusParams,
   StockStatusRow,
   Supplier,
+  SupplierParams,
   UpdateProductInput,
+  VoidDeliveryInput,
   UnloadContainerInput,
   UpdateContainerStatusInput,
   VarianceParams,
 } from "./types";
 
-export async function getSuppliers(): Promise<Supplier[]> {
-  return apiRequest<Supplier[]>("/suppliers");
+export async function getSuppliers(
+  params: SupplierParams = {},
+): Promise<Supplier[]> {
+  return apiRequest<Supplier[]>(`/suppliers${queryString(params)}`);
 }
 export async function getProductCategories(
   params: ProductCategoryParams = {},
@@ -40,6 +47,36 @@ export async function adjustStock(
   return apiRequest<AdjustStockResult>("/stock/adjustments", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+// ---- local deliveries -------------------------------------------
+
+export async function getDeliveries(
+  params: LocalDeliveryParams,
+): Promise<Page<LocalDeliveryRow>> {
+  return apiRequest<Page<LocalDeliveryRow>>(`/deliveries${queryString(params)}`);
+}
+
+/** Logs the delivery and moves its stock in one transaction. */
+export async function createDelivery(
+  input: CreateLocalDeliveryInput,
+): Promise<string> {
+  const result = await apiRequest<{ id: string }>("/deliveries", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return result.id;
+}
+
+/** Reverses the stock the delivery added. Refused if those sacks are gone. */
+export async function voidDelivery({
+  id,
+  reason,
+}: VoidDeliveryInput): Promise<void> {
+  await apiRequest(`/deliveries/${id}/void`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
   });
 }
 

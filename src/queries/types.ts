@@ -55,11 +55,19 @@ export interface Page<T> {
 
 // ---- row shapes -------------------------------------------------
 
+export type SupplierKind = "INTERNATIONAL" | "LOCAL";
+
 export interface Supplier {
   id: string;
   name: string;
   code: string | null;
+  /** Which inbound route: containers by sea, or a local truck delivery. */
+  kind: SupplierKind;
   is_active: boolean;
+}
+
+export interface SupplierParams {
+  kind?: SupplierKind;
 }
 
 export interface ProductCategory {
@@ -124,7 +132,9 @@ export type StockMovementType =
   | "INBOUND_UNLOAD"
   | "OUTBOUND_ORDER"
   | "ORDER_REVERSAL"
-  | "MANUAL_ADJUSTMENT";
+  | "MANUAL_ADJUSTMENT"
+  | "INBOUND_LOCAL"
+  | "LOCAL_REVERSAL";
 
 /**
  * GET /stock/movements — the append-only ledger behind every balance.
@@ -150,6 +160,8 @@ export interface StockLogRow {
   container_id: string | null;
   container_no: string | null;
   supplier: string | null;
+  local_delivery_id: string | null;
+  delivery_reference: string | null;
   order_slip_id: string | null;
   order_slip_number: number | null;
   /** Slip numbers restart daily; show them with this date. */
@@ -258,6 +270,55 @@ export interface UpdateContainerStatusInput {
   dateArrivedAtPort?: string;
   /** Required when status is CANCELLED. */
   cancellationReason?: string;
+}
+
+// ---- local deliveries -------------------------------------------
+
+export interface LocalDeliveryItemRow {
+  id: string;
+  qty_sacks: number;
+  price_per_sack: number | null;
+  product_category: ProductLabel;
+}
+
+/**
+ * GET /deliveries. A local supplier's truck load: one date, no lifecycle and
+ * no declared-versus-counted step. Corrections are voids, not edits.
+ */
+export interface LocalDeliveryRow {
+  id: string;
+  date_received: string;
+  reference: string | null;
+  notes: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  supplier: Pick<Supplier, "id" | "name" | "code">;
+  items: LocalDeliveryItemRow[];
+}
+
+export interface LocalDeliveryParams extends Pagination, DateRange {
+  supplierId?: string;
+  includeVoided?: boolean;
+  sortDir?: SortDir;
+}
+
+export interface CreateLocalDeliveryItem {
+  product_category_id: string;
+  qty_sacks: number;
+  price_per_sack: number | null;
+}
+
+export interface CreateLocalDeliveryInput {
+  supplierId: string;
+  dateReceived: string;
+  reference: string | null;
+  notes?: string | null;
+  items: CreateLocalDeliveryItem[];
+}
+
+export interface VoidDeliveryInput {
+  id: string;
+  reason: string;
 }
 
 // ---- discrepancies ----------------------------------------------

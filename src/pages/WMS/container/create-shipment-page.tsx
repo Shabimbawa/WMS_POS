@@ -154,7 +154,7 @@ export default function CreateShipmentPage() {
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
 
-  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers();
+  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind: "INTERNATIONAL" });
   const { data: products = [], isPending: loadingProducts } =
     useProductCategories();
   const createShipment = useCreateShipment();
