@@ -36,6 +36,27 @@
       "when": 1790746438640,
       "tag": "0004_optional-order-by",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790778433434,
+      "tag": "0005_local_delivery_enums",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790778433435,
+      "tag": "0006_local_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790786422603,
+      "tag": "0007_talented_sasquatch",
+      "breakpoints": true
     }
   ]
 }
