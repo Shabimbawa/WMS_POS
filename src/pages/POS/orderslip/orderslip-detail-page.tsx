@@ -103,7 +103,7 @@ export default function OrderSlipDetailPage() {
         <Descriptions column={{ xs: 1, sm: 2 }} size="small">
           <Descriptions.Item label="Slip no.">#{slip.slipNumber}</Descriptions.Item>
           <Descriptions.Item label="Date">{DateParser(slip.date)}</Descriptions.Item>
-          <Descriptions.Item label="Order by">{slip.orderBy}</Descriptions.Item>
+          <Descriptions.Item label="Order by">{slip.orderBy || "—"}</Descriptions.Item>
           <Descriptions.Item label="Cashier">
             {slip.cashier.name}
             {!slip.cashier.isActive && (

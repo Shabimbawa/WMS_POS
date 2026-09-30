@@ -32,7 +32,7 @@ const summaryQuery = z.object({
 
 const orderBody = z.object({
   date: z.iso.date(),
-  orderBy: z.string().trim().min(1).max(500),
+  orderBy: z.string().trim().max(500).default(""),
   address: z.string().trim().max(2_000).default(""),
   status: z.enum(["paid", "unpaid", "partial"]),
   paymentDueDate: z.iso.date(),

@@ -42,7 +42,7 @@ import { useCashiers, usePosProducts } from "../../../queries/useHooks";
 
 export type OrderSlipHeaderValues = {
   date: Dayjs;
-  orderBy: string;
+  orderBy?: string;
   address?: string;
   status: PaymentStatus;
   paymentDueDate: Dayjs;
@@ -262,7 +262,7 @@ export function OrderSlipForm({
     try {
       await onSubmit({
         date: header.date.format("YYYY-MM-DD"),
-        orderBy: header.orderBy.trim(),
+        orderBy: header.orderBy?.trim() ?? "",
         address: header.address?.trim() ?? "",
         status: header.status,
         paymentDueDate: header.paymentDueDate.format("YYYY-MM-DD"),
@@ -314,16 +314,9 @@ export function OrderSlipForm({
               <Form.Item
                 name="orderBy"
                 label="Order by"
-                rules={[
-                  {
-                    required: true,
-                    whitespace: true,
-                    message: "Enter the customer",
-                  },
-                ]}
                 style={{ flex: 1, minWidth: 220 }}
               >
-                <Input placeholder="Customer name" />
+                <Input placeholder="Customer name (optional)" />
               </Form.Item>
               <Form.Item
                 name="date"

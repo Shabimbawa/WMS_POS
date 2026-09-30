@@ -46,6 +46,7 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
     header: "Order by",
     accessorFn: (r) => r.orderBy,
     size: 160,
+    cell: (c) => c.getValue<string>() || "—",
   },
   {
     id: "cashier",
