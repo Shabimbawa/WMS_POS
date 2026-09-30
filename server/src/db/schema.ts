@@ -301,7 +301,8 @@ export const orderSlips = pgTable(
     cashierId: uuid("cashier_id")
       .notNull()
       .references(() => cashiers.id, { onDelete: "restrict" }),
-    orderBy: text("order_by").notNull(),
+    // Optional, like address: a walk-in slip may have no customer name.
+    orderBy: text("order_by").notNull().default(""),
     address: text("address").notNull().default(""),
     status: paymentStatus("status").notNull(),
     paymentDueDate: date("payment_due_date", { mode: "string" }).notNull(),
@@ -317,7 +318,6 @@ export const orderSlips = pgTable(
     check("order_slip_number_positive", sql`${table.slipNumber} > 0`),
     check("order_slip_total_nonnegative", sql`${table.totalAmount} >= 0`),
     check("order_slip_due_date_ck", sql`${table.paymentDueDate} >= ${table.date}`),
-    check("order_slip_order_by_nonempty", sql`length(trim(${table.orderBy})) > 0`),
   ],
 );
 
