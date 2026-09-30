@@ -31,11 +31,14 @@ import { MOVEMENT_LABEL, fmtInt, fmtProduct } from "../type-format/format";
 
 type DirectionFilter = "all" | StockDirection;
 
+// Inbound first, then outbound, then the corrections.
 const MOVEMENT_OPTIONS = (
   [
     "INBOUND_UNLOAD",
+    "INBOUND_LOCAL",
     "OUTBOUND_ORDER",
     "ORDER_REVERSAL",
+    "LOCAL_REVERSAL",
     "MANUAL_ADJUSTMENT",
     "OPENING_BALANCE",
   ] as const

@@ -41,7 +41,15 @@ const movementQuery = z.object({
   dateTo: z.iso.date(),
   productCategoryId: z.uuid().optional(),
   movementType: z
-    .enum(["OPENING_BALANCE", "INBOUND_UNLOAD", "OUTBOUND_ORDER", "ORDER_REVERSAL", "MANUAL_ADJUSTMENT"])
+    .enum([
+      "OPENING_BALANCE",
+      "INBOUND_UNLOAD",
+      "OUTBOUND_ORDER",
+      "ORDER_REVERSAL",
+      "MANUAL_ADJUSTMENT",
+      "INBOUND_LOCAL",
+      "LOCAL_REVERSAL",
+    ])
     .optional(),
   direction: z.enum(["IN", "OUT"]).optional(),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
