@@ -29,6 +29,13 @@
       "when": 1789810140435,
       "tag": "0003_cashiers-daily-slip-numbers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790746438640,
+      "tag": "0004_optional-order-by",
+      "breakpoints": true
     }
   ]
 }
