@@ -3,12 +3,14 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   numeric,
   pgEnum,
   pgTable,
   text,
+  unique,
   timestamp,
   uniqueIndex,
   uuid,
@@ -42,12 +44,20 @@ export const paymentStatus = pgEnum("payment_status", [
   "partial",
 ]);
 
+export const supplierKind = pgEnum("supplier_kind", [
+  "INTERNATIONAL",
+  "LOCAL",
+]);
+
 export const stockMovementType = pgEnum("stock_movement_type", [
   "OPENING_BALANCE",
   "INBOUND_UNLOAD",
   "OUTBOUND_ORDER",
   "ORDER_REVERSAL",
   "MANUAL_ADJUSTMENT",
+  // Local suppliers arrive unannounced by truck: counted once, logged once.
+  "INBOUND_LOCAL",
+  "LOCAL_REVERSAL",
 ]);
 
 const auditTimestamps = {
@@ -100,10 +110,16 @@ export const suppliers = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     code: text("code"),
+    /** Which inbound route this supplier uses: containers by sea, or truck. */
+    kind: supplierKind("kind").notNull().default("INTERNATIONAL"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    // Lets shipment and local_delivery reference (id, kind) so the database
+    // itself refuses a packing list from a local supplier, and refuses to
+    // change a supplier's kind while rows on the other route depend on it.
+    unique("supplier_id_kind_uq").on(table.id, table.kind),
     uniqueIndex("supplier_name_lower_uq").on(sql`lower(${table.name})`),
     uniqueIndex("supplier_code_lower_uq")
       .on(sql`lower(${table.code})`)
@@ -145,6 +161,8 @@ export const shipments = pgTable(
     supplierId: uuid("supplier_id")
       .notNull()
       .references(() => suppliers.id, { onDelete: "restrict" }),
+    /** Always INTERNATIONAL; the composite FK ties it to the supplier's kind. */
+    supplierKind: supplierKind("supplier_kind").notNull().default("INTERNATIONAL"),
     dateListReceived: date("date_list_received", { mode: "string" }).notNull(),
     reference: text("reference"),
     notes: text("notes"),
@@ -154,6 +172,15 @@ export const shipments = pgTable(
   (table) => [
     index("shipment_supplier_id_idx").on(table.supplierId),
     index("shipment_date_list_received_idx").on(table.dateListReceived),
+    check(
+      "shipment_supplier_international_ck",
+      sql`${table.supplierKind} = 'INTERNATIONAL'`,
+    ),
+    foreignKey({
+      name: "shipment_supplier_kind_fk",
+      columns: [table.supplierId, table.supplierKind],
+      foreignColumns: [suppliers.id, suppliers.kind],
+    }),
   ],
 );
 
@@ -350,6 +377,77 @@ export const orderSlipItems = pgTable(
   ],
 );
 
+/**
+ * A local supplier's truck delivery. No packing list, no port, no declared
+ * versus counted step — it is counted as it comes off the truck and logged
+ * once, so date_received is the only date and there is no status lifecycle.
+ * A wrong count is corrected by voiding, which reverses its stock.
+ */
+export const localDeliveries = pgTable(
+  "local_delivery",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "restrict" }),
+    /** Always LOCAL; the composite FK ties it to the supplier's kind. */
+    supplierKind: supplierKind("supplier_kind").notNull().default("LOCAL"),
+    dateReceived: date("date_received", { mode: "string" }).notNull(),
+    reference: text("reference"),
+    notes: text("notes"),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidedBy: uuid("voided_by").references(() => appUsers.id, { onDelete: "set null" }),
+    voidReason: text("void_reason"),
+    createdBy: uuid("created_by").references(() => appUsers.id, { onDelete: "set null" }),
+    ...auditTimestamps,
+  },
+  (table) => [
+    index("local_delivery_supplier_id_idx").on(table.supplierId),
+    index("local_delivery_date_received_idx").on(table.dateReceived),
+    check(
+      "local_delivery_supplier_local_ck",
+      sql`${table.supplierKind} = 'LOCAL'`,
+    ),
+    foreignKey({
+      name: "local_delivery_supplier_kind_fk",
+      columns: [table.supplierId, table.supplierKind],
+      foreignColumns: [suppliers.id, suppliers.kind],
+    }),
+    check(
+      "local_delivery_void_reason_ck",
+      sql`${table.voidedAt} is null or length(trim(coalesce(${table.voidReason}, ''))) > 0`,
+    ),
+  ],
+);
+
+/** Mirrors container_item, minus actual_qty_sacks: here the two are the same. */
+export const localDeliveryItems = pgTable(
+  "local_delivery_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    localDeliveryId: uuid("local_delivery_id")
+      .notNull()
+      .references(() => localDeliveries.id, { onDelete: "cascade" }),
+    productCategoryId: uuid("product_category_id")
+      .notNull()
+      .references(() => productCategories.id, { onDelete: "restrict" }),
+    qtySacks: integer("qty_sacks").notNull(),
+    pricePerSack: numeric("price_per_sack", { precision: 14, scale: 2, mode: "number" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("local_delivery_item_product_uq").on(
+      table.localDeliveryId,
+      table.productCategoryId,
+    ),
+    check("local_delivery_item_qty_positive", sql`${table.qtySacks} > 0`),
+    check(
+      "local_delivery_item_price_nonnegative",
+      sql`${table.pricePerSack} is null or ${table.pricePerSack} >= 0`,
+    ),
+  ],
+);
+
 export const stockBalances = pgTable("stock_balance", {
   productCategoryId: uuid("product_category_id")
     .primaryKey()
@@ -374,6 +472,9 @@ export const stockMovements = pgTable(
     containerId: uuid("container_id").references(() => containers.id, { onDelete: "restrict" }),
     orderSlipId: uuid("order_slip_id").references(() => orderSlips.id, { onDelete: "restrict" }),
     orderRevision: integer("order_revision"),
+    localDeliveryId: uuid("local_delivery_id").references(() => localDeliveries.id, {
+      onDelete: "restrict",
+    }),
     note: text("note"),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid("created_by").references(() => appUsers.id, { onDelete: "set null" }),
@@ -387,14 +488,16 @@ export const stockMovements = pgTable(
     index("stock_movement_batch_idx").on(table.batchId),
     index("stock_movement_container_idx").on(table.containerId),
     index("stock_movement_order_slip_idx").on(table.orderSlipId),
+    index("stock_movement_local_delivery_idx").on(table.localDeliveryId),
     check("stock_movement_delta_nonzero", sql`${table.quantityDelta} <> 0`),
     check("stock_movement_balance_nonnegative", sql`${table.balanceAfter} >= 0`),
     check(
       "stock_movement_source_ck",
       sql`
-        (${table.movementType} = 'INBOUND_UNLOAD' and ${table.containerId} is not null and ${table.orderSlipId} is null)
-        or (${table.movementType} in ('OUTBOUND_ORDER', 'ORDER_REVERSAL') and ${table.orderSlipId} is not null and ${table.containerId} is null and ${table.orderRevision} is not null)
-        or (${table.movementType} in ('OPENING_BALANCE', 'MANUAL_ADJUSTMENT') and ${table.containerId} is null and ${table.orderSlipId} is null)
+        (${table.movementType} = 'INBOUND_UNLOAD' and ${table.containerId} is not null and ${table.orderSlipId} is null and ${table.localDeliveryId} is null)
+        or (${table.movementType} in ('OUTBOUND_ORDER', 'ORDER_REVERSAL') and ${table.orderSlipId} is not null and ${table.containerId} is null and ${table.localDeliveryId} is null and ${table.orderRevision} is not null)
+        or (${table.movementType} in ('INBOUND_LOCAL', 'LOCAL_REVERSAL') and ${table.localDeliveryId} is not null and ${table.containerId} is null and ${table.orderSlipId} is null)
+        or (${table.movementType} in ('OPENING_BALANCE', 'MANUAL_ADJUSTMENT') and ${table.containerId} is null and ${table.orderSlipId} is null and ${table.localDeliveryId} is null)
       `,
     ),
   ],
@@ -413,6 +516,8 @@ export const schema = {
   cashiers,
   orderSlips,
   orderSlipItems,
+  localDeliveries,
+  localDeliveryItems,
   stockBalances,
   stockMovements,
 };
