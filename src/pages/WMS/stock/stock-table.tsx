@@ -72,7 +72,7 @@ export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
     id: "actions",
     header: "",
     accessorFn: (r) => r.id,
-    size: 80,
+    size: 110,
     meta: { fixed: "right" },
     cell: (c) => <ProductActions row={c.row.original} />,
   },

@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  adjustStock,
   createProduct,
   createShipment,
   getContainer,
@@ -239,6 +240,18 @@ export function useCreateShipment() {
     mutationFn: createShipment,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
+    },
+  });
+}
+
+export function useAdjustStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: adjustStock,
+    onSuccess: () => {
+      // qk.stock covers both the balance list and the movement ledger.
+      qc.invalidateQueries({ queryKey: qk.stock });
+      qc.invalidateQueries({ queryKey: qk.posProducts });
     },
   });
 }

@@ -1,5 +1,7 @@
 import { apiRequest, queryString } from "../utils/api-client";
 import type {
+  AdjustStockInput,
+  AdjustStockResult,
   ContainerDetail,
   CreateProductInput,
   ContainerVarianceRow,
@@ -29,6 +31,16 @@ export async function getProductCategories(
   params: ProductCategoryParams = {},
 ): Promise<ProductCategory[]> {
   return apiRequest<ProductCategory[]>(`/products${queryString(params)}`);
+}
+
+/** The only way to correct a balance outside unloading and order slips. */
+export async function adjustStock(
+  input: AdjustStockInput,
+): Promise<AdjustStockResult> {
+  return apiRequest<AdjustStockResult>("/stock/adjustments", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function createProduct(

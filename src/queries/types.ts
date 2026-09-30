@@ -191,6 +191,22 @@ export interface ProductCategoryParams {
 
 // ---- mutation inputs --------------------------------------------
 
+/**
+ * POST /stock/adjustments. The delta is signed and cannot be zero; the reason
+ * is required because it is the only provenance a manual adjustment has.
+ */
+export interface AdjustStockInput {
+  productCategoryId: string;
+  quantityDelta: number;
+  reason: string;
+}
+
+export interface AdjustStockResult {
+  movementId: string;
+  /** The balance after the adjustment, not the delta. */
+  remainingQty: number;
+}
+
 export interface CreateProductInput {
   brand: string;
   variety: string | null;
