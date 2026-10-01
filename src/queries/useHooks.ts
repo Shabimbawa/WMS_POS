@@ -14,12 +14,16 @@ import {
   createDelivery,
   createProduct,
   createShipment,
+  createSupplier,
   getContainer,
   getContainerVariance,
   getOpenQuestionCount,
   getOpenQuestions,
   getDeliveries,
   getProductCategories,
+  getReceivingReport,
+  getReportShipments,
+  getStockSummaryReport,
   getShippingContainerNotebook,
   getStockLog,
   getStockStatus,
@@ -33,11 +37,16 @@ import {
 import {
   createCashier,
   createOrderSlip,
+  deleteOrderSlip,
+  emptyOrderSlipTrash,
   getCashiers,
   getOrderSlip,
   getOrderSlips,
   getOrderSlipSummary,
+  getOrderSlipTrash,
   getPosProducts,
+  purgeOrderSlip,
+  restoreOrderSlip,
   updateCashier,
   updateOrderSlip,
 } from "./pos.ts";
@@ -46,6 +55,8 @@ import type {
   LocalDeliveryParams,
   OpenQuestionParams,
   ProductCategoryParams,
+  ReceivingParams,
+  ReportParams,
   ShippingContainerNotebookParams,
   SupplierParams,
   StockLogParams,
@@ -55,6 +66,7 @@ import type {
 import type {
   OrderSlipListParams,
   OrderSlipSummaryParams,
+  OrderSlipTrashParams,
 } from "./posTypes.ts";
 
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes
@@ -96,6 +108,12 @@ export const qk = {
   // Under "order-slips" so creating or editing a slip refreshes the summary.
   orderSlipSummary: (p: OrderSlipSummaryParams) =>
     ["order-slips", "summary", p] as const,
+  orderSlipTrash: (p: OrderSlipTrashParams) => ["order-slips", "trash", p] as const,
+
+  // Under "stock" so anything that moves stock makes a shown report stale.
+  stockSummaryReport: (p: ReportParams) => ["stock", "report", "summary", p] as const,
+  receivingReport: (p: ReceivingParams) => ["stock", "report", "receiving", p] as const,
+  reportShipments: ["notebook", "report-shipments"] as const,
 
   cashiers: ["pos", "cashiers"] as const,
   cashierList: (includeInactive: boolean) =>
@@ -242,10 +260,47 @@ export function useOrderSlipSummary(params: OrderSlipSummaryParams) {
   });
 }
 
+export function useOrderSlipTrash(params: OrderSlipTrashParams) {
+  return useQuery({
+    queryKey: qk.orderSlipTrash(params),
+    queryFn: () => getOrderSlipTrash(params),
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useCashiers(includeInactive = false) {
   return useQuery({
     queryKey: qk.cashierList(includeInactive),
     queryFn: () => getCashiers(includeInactive),
+    staleTime: STALE_TIME,
+  });
+}
+
+// ---- reports ----------------------------------------------------
+//
+// Fetched only once the user presses Generate (`params` set), so changing
+// a filter doesn't refetch until they ask for the new report.
+
+export function useStockSummaryReport(params: ReportParams | null) {
+  return useQuery({
+    queryKey: qk.stockSummaryReport(params!),
+    queryFn: () => getStockSummaryReport(params!),
+    enabled: params !== null,
+  });
+}
+
+export function useReceivingReport(params: ReceivingParams | null) {
+  return useQuery({
+    queryKey: qk.receivingReport(params!),
+    queryFn: () => getReceivingReport(params!),
+    enabled: params !== null,
+  });
+}
+
+export function useReportShipments() {
+  return useQuery({
+    queryKey: qk.reportShipments,
+    queryFn: getReportShipments,
     staleTime: STALE_TIME,
   });
 }
@@ -399,5 +454,57 @@ export function useUpdateOrderSlip() {
       qc.invalidateQueries({ queryKey: qk.posProducts });
       qc.invalidateQueries({ queryKey: qk.stock });
     },
+  });
+}
+
+/**
+ * Deleting and restoring move stock, so they refresh every slip view
+ * (Trash included, under qk.orderSlips) and every stock view.
+ */
+function orderSlipStockInvalidation(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: qk.orderSlips });
+  qc.invalidateQueries({ queryKey: qk.posProducts });
+  qc.invalidateQueries({ queryKey: qk.stock });
+}
+
+export function useDeleteOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteOrderSlip,
+    onSuccess: () => orderSlipStockInvalidation(qc),
+  });
+}
+
+export function useRestoreOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: restoreOrderSlip,
+    onSuccess: () => orderSlipStockInvalidation(qc),
+  });
+}
+
+/** Emptying moves no stock; only the Trash list changes. */
+export function usePurgeOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: purgeOrderSlip,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["order-slips", "trash"] }),
+  });
+}
+
+export function useEmptyOrderSlipTrash() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: emptyOrderSlipTrash,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["order-slips", "trash"] }),
+  });
+}
+
+export function useCreateSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createSupplier,
+    // Every supplier dropdown, whichever kind it filters to.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["suppliers"] }),
   });
 }

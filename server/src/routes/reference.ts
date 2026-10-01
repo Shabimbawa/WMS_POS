@@ -10,6 +10,20 @@ const supplierQuery = z.object({
   kind: z.enum(["INTERNATIONAL", "LOCAL"]).optional(),
 });
 
+const createSupplier = z.object({
+  name: z.string().trim().min(1).max(200),
+  code: z.string().trim().min(1).max(50).nullable().default(null),
+  kind: z.enum(["INTERNATIONAL", "LOCAL"]),
+});
+
+const supplierColumns = {
+  id: suppliers.id,
+  name: suppliers.name,
+  code: suppliers.code,
+  kind: suppliers.kind,
+  is_active: suppliers.isActive,
+};
+
 const productQuery = z.object({
   availableOnly: z.stringbool().optional().default(false),
 });
@@ -74,13 +88,7 @@ export async function referenceRoutes(app: FastifyInstance): Promise<void> {
     async (request) => {
       const query = supplierQuery.parse(request.query);
       return db
-        .select({
-          id: suppliers.id,
-          name: suppliers.name,
-          code: suppliers.code,
-          kind: suppliers.kind,
-          is_active: suppliers.isActive,
-        })
+        .select(supplierColumns)
         .from(suppliers)
         .where(
           query.kind
@@ -90,6 +98,21 @@ export async function referenceRoutes(app: FastifyInstance): Promise<void> {
         .orderBy(asc(suppliers.name));
     },
   );
+
+  // Kind is fixed once rows depend on it: the composite (id, kind) foreign
+  // keys refuse a change, so picking the wrong one means a new supplier.
+  app.post("/suppliers", warehouseOnly, async (request, reply) => {
+    const body = createSupplier.parse(request.body);
+    try {
+      const [created] = await db.insert(suppliers).values(body).returning(supplierColumns);
+      return reply.code(201).send(created);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ApiError(409, "SUPPLIER_EXISTS", "A supplier with that name or code already exists");
+      }
+      throw error;
+    }
+  });
 
   app.get(
     "/products",

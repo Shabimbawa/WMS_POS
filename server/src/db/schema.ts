@@ -335,6 +335,18 @@ export const orderSlips = pgTable(
     paymentDueDate: date("payment_due_date", { mode: "string" }).notNull(),
     totalAmount: numeric("total_amount", { precision: 16, scale: 2, mode: "number" }).notNull(),
     revision: integer("revision").notNull().default(1),
+    /**
+     * Set when the slip is moved to Trash. Its stock is reversed at that
+     * moment, so a trashed slip no longer counts as a sale anywhere.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => appUsers.id, { onDelete: "set null" }),
+    /**
+     * Set when the Trash is emptied (by hand, or 30 days after deletedAt).
+     * The row stays so its stock movements keep their source; it is just
+     * never shown again and can't be restored.
+     */
+    purgedAt: timestamp("purged_at", { withTimezone: true }),
     createdBy: uuid("created_by").references(() => appUsers.id, { onDelete: "set null" }),
     updatedBy: uuid("updated_by").references(() => appUsers.id, { onDelete: "set null" }),
     ...auditTimestamps,
@@ -342,6 +354,13 @@ export const orderSlips = pgTable(
   (table) => [
     uniqueIndex("order_slip_date_number_uq").on(table.date, table.slipNumber),
     index("order_slip_cashier_date_idx").on(table.cashierId, table.date),
+    index("order_slip_trash_idx")
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} is not null and ${table.purgedAt} is null`),
+    check(
+      "order_slip_purged_after_deleted_ck",
+      sql`${table.purgedAt} is null or ${table.deletedAt} is not null`,
+    ),
     check("order_slip_number_positive", sql`${table.slipNumber} > 0`),
     check("order_slip_total_nonnegative", sql`${table.totalAmount} >= 0`),
     check("order_slip_due_date_ck", sql`${table.paymentDueDate} >= ${table.date}`),

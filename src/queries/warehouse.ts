@@ -9,9 +9,15 @@ import type {
   LocalDeliveryRow,
   ContainerVarianceRow,
   CreateShipmentInput,
+  CreateSupplierInput,
   OpenQuestionParams,
   OpenQuestionRow,
   Page,
+  ReceivingParams,
+  ReceivingRow,
+  ReportParams,
+  ReportShipment,
+  StockSummaryRow,
   ProductCategory,
   ProductCategoryParams,
   ShipmentRow,
@@ -33,6 +39,13 @@ export async function getSuppliers(
   params: SupplierParams = {},
 ): Promise<Supplier[]> {
   return apiRequest<Supplier[]>(`/suppliers${queryString(params)}`);
+}
+
+export async function createSupplier(input: CreateSupplierInput): Promise<Supplier> {
+  return apiRequest<Supplier>("/suppliers", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 export async function getProductCategories(
   params: ProductCategoryParams = {},
@@ -201,4 +214,18 @@ export async function updateStockStatus(_input: UpdateStockInput): Promise<never
   throw new Error(
     "Direct stock replacement is disabled. Create an audited stock adjustment instead.",
   );
+}
+
+// ---- reports ----------------------------------------------------
+
+export async function getStockSummaryReport(params: ReportParams): Promise<StockSummaryRow[]> {
+  return apiRequest<StockSummaryRow[]>(`/reports/stock-summary${queryString(params)}`);
+}
+
+export async function getReceivingReport(params: ReceivingParams): Promise<ReceivingRow[]> {
+  return apiRequest<ReceivingRow[]>(`/reports/receiving${queryString(params)}`);
+}
+
+export async function getReportShipments(): Promise<ReportShipment[]> {
+  return apiRequest<ReportShipment[]>("/reports/shipments");
 }

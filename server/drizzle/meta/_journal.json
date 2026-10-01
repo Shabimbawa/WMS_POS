@@ -57,6 +57,13 @@
       "when": 1790786422603,
       "tag": "0007_talented_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790833085759,
+      "tag": "0008_order_slip_trash",
+      "breakpoints": true
     }
   ]
 }

@@ -14,7 +14,7 @@ import {
   Typography,
 } from "antd";
 import { type Dayjs } from "dayjs";
-import { PlusOutlined, UndoOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PlusOutlined, UndoOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import type { SortDir } from "../../../queries/posTypes";
@@ -56,9 +56,14 @@ export default function OrderSlipPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>Order slips</Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/order-slip/new")}>
-          New Order Slip
-        </Button>
+        <Flex gap={8}>
+          <Button icon={<DeleteOutlined />} onClick={() => navigate("/order-slip/trash")}>
+            Trash
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/order-slip/new")}>
+            New Order Slip
+          </Button>
+        </Flex>
       </Flex>
       <Typography.Text type="secondary">
         One row per order slip. Click a slip number to open it.

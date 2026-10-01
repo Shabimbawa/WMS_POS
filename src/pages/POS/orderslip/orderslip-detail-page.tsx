@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Button,
@@ -27,7 +27,7 @@ import {
 import { DateParser } from "../../../common/utils/util";
 import { lineAmount } from "../../../queries/pos";
 import { useOrderSlip } from "../../../queries/useHooks";
-import { EditOrderSlipButton } from "./orderslip-actions";
+import { DeleteOrderSlipButton, EditOrderSlipButton } from "./orderslip-actions";
 
 const itemColumns: ColumnDef<OrderSlipItem, any>[] = [
   {
@@ -69,9 +69,26 @@ function BackToList() {
 }
 
 export default function OrderSlipDetailPage() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: slip, isLoading, isError } = useOrderSlip(id);
   const columns = useMemo(() => itemColumns, []);
+  // Checked before the query: once deleted, the refetch 404s.
+  const [deleted, setDeleted] = useState(false);
+
+  if (deleted) {
+    return (
+      <Result
+        status="success"
+        title="Order slip moved to Trash"
+        subTitle="Its sacks are back in stock. You can restore it from Trash within 30 days."
+        extra={[
+          <BackToList key="back" />,
+          <Button key="trash" onClick={() => navigate("/order-slip/trash")}>Open Trash</Button>,
+        ]}
+      />
+    );
+  }
 
   if (isLoading) return <Skeleton active paragraph={{ rows: 8 }} />;
 
@@ -96,6 +113,7 @@ export default function OrderSlipDetailPage() {
         <Flex gap={8}>
           <BackToList />
           <EditOrderSlipButton slip={slip} />
+          <DeleteOrderSlipButton slip={slip} onDeleted={() => setDeleted(true)} />
         </Flex>
       </Flex>
 
