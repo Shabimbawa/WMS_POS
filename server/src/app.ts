@@ -13,6 +13,7 @@ import { inventoryRoutes } from "./routes/inventory.js";
 import { orderRoutes } from "./routes/orders.js";
 import { orderTrashRoutes, purgeExpiredOrderSlips } from "./routes/order-trash.js";
 import { referenceRoutes } from "./routes/reference.js";
+import { reportRoutes } from "./routes/reports.js";
 import { shipmentRoutes } from "./routes/shipments.js";
 
 export async function buildApp() {
@@ -74,6 +75,7 @@ export async function buildApp() {
   await app.register(cashierRoutes, { prefix: "/api/v1" });
   await app.register(deliveryRoutes, { prefix: "/api/v1" });
   await app.register(orderTrashRoutes, { prefix: "/api/v1" });
+  await app.register(reportRoutes, { prefix: "/api/v1" });
 
   // Empties Trash of slips past their 30 days. Hourly is plenty: the
   // deadline is a day count, and a late run only keeps a slip a little longer.

@@ -12,7 +12,7 @@ type SupplierValues = {
   kind: SupplierKind;
 };
 
-export const SUPPLIER_KIND_LABEL: Record<SupplierKind, string> = {
+const SUPPLIER_KIND_LABEL: Record<SupplierKind, string> = {
   INTERNATIONAL: "International (containers)",
   LOCAL: "Local (truck deliveries)",
 };

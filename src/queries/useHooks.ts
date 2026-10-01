@@ -21,6 +21,9 @@ import {
   getOpenQuestions,
   getDeliveries,
   getProductCategories,
+  getReceivingReport,
+  getReportShipments,
+  getStockSummaryReport,
   getShippingContainerNotebook,
   getStockLog,
   getStockStatus,
@@ -52,6 +55,8 @@ import type {
   LocalDeliveryParams,
   OpenQuestionParams,
   ProductCategoryParams,
+  ReceivingParams,
+  ReportParams,
   ShippingContainerNotebookParams,
   SupplierParams,
   StockLogParams,
@@ -104,6 +109,11 @@ export const qk = {
   orderSlipSummary: (p: OrderSlipSummaryParams) =>
     ["order-slips", "summary", p] as const,
   orderSlipTrash: (p: OrderSlipTrashParams) => ["order-slips", "trash", p] as const,
+
+  // Under "stock" so anything that moves stock makes a shown report stale.
+  stockSummaryReport: (p: ReportParams) => ["stock", "report", "summary", p] as const,
+  receivingReport: (p: ReceivingParams) => ["stock", "report", "receiving", p] as const,
+  reportShipments: ["notebook", "report-shipments"] as const,
 
   cashiers: ["pos", "cashiers"] as const,
   cashierList: (includeInactive: boolean) =>
@@ -262,6 +272,35 @@ export function useCashiers(includeInactive = false) {
   return useQuery({
     queryKey: qk.cashierList(includeInactive),
     queryFn: () => getCashiers(includeInactive),
+    staleTime: STALE_TIME,
+  });
+}
+
+// ---- reports ----------------------------------------------------
+//
+// Fetched only once the user presses Generate (`params` set), so changing
+// a filter doesn't refetch until they ask for the new report.
+
+export function useStockSummaryReport(params: ReportParams | null) {
+  return useQuery({
+    queryKey: qk.stockSummaryReport(params!),
+    queryFn: () => getStockSummaryReport(params!),
+    enabled: params !== null,
+  });
+}
+
+export function useReceivingReport(params: ReceivingParams | null) {
+  return useQuery({
+    queryKey: qk.receivingReport(params!),
+    queryFn: () => getReceivingReport(params!),
+    enabled: params !== null,
+  });
+}
+
+export function useReportShipments() {
+  return useQuery({
+    queryKey: qk.reportShipments,
+    queryFn: getReportShipments,
     staleTime: STALE_TIME,
   });
 }

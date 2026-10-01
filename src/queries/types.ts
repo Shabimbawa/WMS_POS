@@ -442,3 +442,73 @@ export interface VarianceParams extends Pagination {
 }
 
 export type OpenQuestionParams = Pagination;
+
+// ---- reports ----------------------------------------------------
+//
+// GET /reports/*. Read-only summaries for the Generate Reports page.
+
+/** Inclusive YYYY-MM-DD bounds, plus an optional product filter. */
+export interface ReportParams {
+  dateFrom: string;
+  dateTo: string;
+  /** Comma-separated product ids; omit for every product. */
+  productIds?: string;
+}
+
+/** One product's stock over the period. opening + in − sold ± adj = closing. */
+export interface StockSummaryRow {
+  product_category_id: string;
+  brand: string;
+  variety: string | null;
+  code: string | null;
+  size_kg: number;
+  opening: number;
+  received_shipments: number;
+  /** Net of voided deliveries. */
+  received_local: number;
+  /** Net of order reversals (edits and deleted slips). */
+  sold: number;
+  adjustments: number;
+  closing: number;
+  movement_count: number;
+}
+
+export type ReceivingSource = "SHIPMENT" | "LOCAL";
+
+export interface ReceivingParams extends ReportParams {
+  /** Shows that whole shipment, ignoring the period. */
+  shipmentId?: string;
+  source?: "ALL" | ReceivingSource;
+}
+
+/** One received line: a container item, or a local delivery item. */
+export interface ReceivingRow {
+  line_id: string;
+  source: ReceivingSource;
+  reference: string | null;
+  /** Packing list date for shipments, date received for local deliveries. */
+  date: string;
+  supplier: string;
+  container_no: string | null;
+  status: ContainerStatus | null;
+  date_unloaded: string | null;
+  product_category_id: string;
+  brand: string;
+  variety: string | null;
+  code: string | null;
+  size_kg: number;
+  declared_qty: number;
+  /** Null until the container is unloaded. */
+  actual_qty: number | null;
+  variance: number | null;
+  price_per_sack: number | null;
+  /** Counted (else declared) sacks × price; null without a price. */
+  value: number | null;
+}
+
+export interface ReportShipment {
+  id: string;
+  reference: string | null;
+  date_list_received: string;
+  supplier: string;
+}

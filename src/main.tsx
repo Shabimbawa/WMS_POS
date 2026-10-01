@@ -23,6 +23,7 @@ import CashierPage from './pages/POS/cashier/cashier-page.tsx'
 import CreateShipmentPage from './pages/WMS/container/create-shipment-page.tsx'
 import ResolveDiscrepancyPage from './pages/WMS/container/resolve-discrepancy-page.tsx'
 import DiscrepanciesPage from './pages/WMS/discrepancy/discrepancies-page.tsx'
+import ReportsPage from './pages/WMS/reports/reports-page.tsx'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -40,6 +41,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/deliveries/new" element={<CreateDeliveryPage />} />
                 <Route path="/stock" element={<StockPage />} />
                 <Route path="/inventory" element={<StockLogPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/order-slip" element={<PosPage/>}/>
                 <Route path="/order-slip/new" element={<CreateOrderSlipPage />} />
                 <Route path="/order-slip/trash" element={<OrderSlipTrashPage />} />
