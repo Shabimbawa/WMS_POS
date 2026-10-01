@@ -77,7 +77,7 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
       size: 110,
       meta: { fixed: "right" },
       cell: (c) => (
-        <div style={{ textAlign: "right", fontWeight: 700 }}>
+        <div style={{ textAlign: "right", fontWeight: c.row.original.isTotal ? 700 : 400 }}>
           {fmtInt(c.getValue<number>())}
         </div>
       ),
