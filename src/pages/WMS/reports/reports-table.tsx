@@ -51,7 +51,7 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
       size: 160,
       meta: { fixed: "left" },
       cell: (c) => (
-        <span style={{ fontWeight: 700 }}>
+        <span style={{ fontWeight: c.row.original.isTotal ? 700 : 400 }}>
           {c.getValue<string>()}
         </span>
       ),
