@@ -21,9 +21,8 @@ import {
   getOpenQuestions,
   getDeliveries,
   getProductCategories,
-  getReceivingReport,
+  getDailyReport,
   getReportShipments,
-  getStockSummaryReport,
   getShippingContainerNotebook,
   getStockLog,
   getStockStatus,
@@ -55,8 +54,7 @@ import type {
   LocalDeliveryParams,
   OpenQuestionParams,
   ProductCategoryParams,
-  ReceivingParams,
-  ReportParams,
+  DailyReportParams,
   ShippingContainerNotebookParams,
   SupplierParams,
   StockLogParams,
@@ -111,8 +109,7 @@ export const qk = {
   orderSlipTrash: (p: OrderSlipTrashParams) => ["order-slips", "trash", p] as const,
 
   // Under "stock" so anything that moves stock makes a shown report stale.
-  stockSummaryReport: (p: ReportParams) => ["stock", "report", "summary", p] as const,
-  receivingReport: (p: ReceivingParams) => ["stock", "report", "receiving", p] as const,
+  dailyReport: (p: DailyReportParams) => ["stock", "report", "daily", p] as const,
   reportShipments: ["notebook", "report-shipments"] as const,
 
   cashiers: ["pos", "cashiers"] as const,
@@ -281,18 +278,10 @@ export function useCashiers(includeInactive = false) {
 // Fetched only once the user presses Generate (`params` set), so changing
 // a filter doesn't refetch until they ask for the new report.
 
-export function useStockSummaryReport(params: ReportParams | null) {
+export function useDailyReport(params: DailyReportParams | null) {
   return useQuery({
-    queryKey: qk.stockSummaryReport(params!),
-    queryFn: () => getStockSummaryReport(params!),
-    enabled: params !== null,
-  });
-}
-
-export function useReceivingReport(params: ReceivingParams | null) {
-  return useQuery({
-    queryKey: qk.receivingReport(params!),
-    queryFn: () => getReceivingReport(params!),
+    queryKey: qk.dailyReport(params!),
+    queryFn: () => getDailyReport(params!),
     enabled: params !== null,
   });
 }
