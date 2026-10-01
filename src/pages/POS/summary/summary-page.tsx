@@ -104,7 +104,8 @@ export default function OrderSlipSummaryPage() {
                     {fmtInt(slipCount)} {slipCount === 1 ? "slip" : "slips"} · {fmtMoney(total)}
                   </Typography.Text>
                 </Flex>
-                <Flex wrap gap={16} align="start">
+                {/* Stretch so cards on one line share a height. */}
+                <Flex wrap gap={16} align="stretch">
                   {cashiers.map((summary) => (
                     <CashierDayCard
                       key={summary.cashier.id}

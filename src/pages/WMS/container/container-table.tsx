@@ -3,6 +3,7 @@ import { Tag } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
+import { LabelValue, OverflowList } from "../../../common/items/overflow-list/overflow-list";
 import type { ContainerStatus, ShipmentRow } from "../../../queries/types";
 import {
   STATUS_COLOR,
@@ -46,17 +47,21 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
       const list = c.row.original.container;
       if (!list.length) return <span style={{ opacity: 0.45 }}>—</span>;
       return (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {list.map((ct) => (
+        <OverflowList
+          items={list}
+          max={4}
+          layout="inline"
+          getKey={(ct) => ct.id}
+          title={`${list.length} containers`}
+          renderItem={(ct) => (
             <Tag
-              key={ct.id}
               color={STATUS_COLOR[ct.status]}
               style={{ margin: 0, fontFamily: "monospace" }}
             >
               {ct.container_no ?? "no box"}
             </Tag>
-          ))}
-        </div>
+          )}
+        />
       );
     },
   },
@@ -73,7 +78,15 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
         ),
       );
       if (!brands.size) return <span style={{ opacity: 0.45 }}>—</span>;
-      return [...brands].join(", ");
+      return (
+        <OverflowList
+          items={[...brands]}
+          max={2}
+          getKey={(b) => b}
+          title={`${brands.size} brands`}
+          renderItem={(b) => b}
+        />
+      );
     },
   },
   {
@@ -139,38 +152,41 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
       const items = c.row.original.container_item;
       if (!items.length) return dash;
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {items.map((i) => {
+        <OverflowList
+          items={items}
+          max={3}
+          getKey={(i) => i.id}
+          title={`${items.length} brands`}
+          renderItem={(i) => {
             const counted =
               i.actual_qty_sacks !== null && i.actual_qty_sacks !== i.qty_sacks
                 ? i.actual_qty_sacks
                 : null;
             return (
-              <div
-                key={i.id}
-                style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
-              >
-                <span>{fmtProduct(i.product_category)}</span>
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {fmtInt(i.qty_sacks)}
-                  {counted !== null && (
-                    <span
-                      style={{
-                        color:
-                          counted < i.qty_sacks
-                            ? "var(--ant-color-error, #ff4d4f)"
-                            : "var(--ant-color-success, #52c41a)",
-                      }}
-                    >
-                      {" → "}
-                      {fmtInt(counted)}
-                    </span>
-                  )}
-                </span>
-              </div>
+              <LabelValue
+                label={fmtProduct(i.product_category)}
+                value={
+                  <>
+                    {fmtInt(i.qty_sacks)}
+                    {counted !== null && (
+                      <span
+                        style={{
+                          color:
+                            counted < i.qty_sacks
+                              ? "var(--ant-color-error, #ff4d4f)"
+                              : "var(--ant-color-success, #52c41a)",
+                        }}
+                      >
+                        {" → "}
+                        {fmtInt(counted)}
+                      </span>
+                    )}
+                  </>
+                }
+              />
             );
-          })}
-        </div>
+          }}
+        />
       );
     },
   },

@@ -1,5 +1,6 @@
 import { Card, Descriptions, Flex, Tag, Typography } from "antd";
 
+import { LabelValue, OverflowList } from "../../../common/items/overflow-list/overflow-list";
 import type { CashierDaySummary, PaymentStatus } from "../../../queries/posTypes";
 import {
   fmtInt,
@@ -26,7 +27,7 @@ export function CashierDayCard({
       size="small"
       hoverable
       onClick={onOpen}
-      style={{ width: 340 }}
+      style={{ width: 340, height: "100%" }}
       title={
         <Flex align="center" gap={8}>
           <span>{summary.cashier.name}</span>
@@ -62,12 +63,17 @@ export function CashierDayCard({
             <Typography.Text type="secondary">Sacks per product</Typography.Text>
             <Typography.Text type="secondary">{fmtInt(totalSacks)} total</Typography.Text>
           </Flex>
-          {summary.products.map((p) => (
-            <Flex key={p.productId} justify="space-between" gap={12}>
-              <span>{fmtProduct(p)}</span>
-              <span style={{ whiteSpace: "nowrap" }}>{fmtInt(p.sacks)}</span>
-            </Flex>
-          ))}
+          {/* Capped so a busy day doesn't stretch the card; the rest fold
+              into a popover. */}
+          <OverflowList
+            items={summary.products}
+            max={5}
+            getKey={(p) => p.productId}
+            title={`${summary.cashier.name} · ${summary.products.length} products`}
+            renderItem={(p) => (
+              <LabelValue label={fmtProduct(p)} value={fmtInt(p.sacks)} />
+            )}
+          />
         </div>
       </Flex>
     </Card>
