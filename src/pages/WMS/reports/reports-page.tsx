@@ -17,22 +17,18 @@ import {
 import { FilePdfOutlined, TableOutlined } from "@ant-design/icons";
 import type { Dayjs } from "dayjs";
 
-import type { ReceivingParams, ReceivingSource } from "../../../queries/types";
-import {
-  useProductCategories,
-  useReceivingReport,
-  useReportShipments,
-  useStockSummaryReport,
-} from "../../../queries/useHooks";
+import type { DailyReportKind, DailyReportParams, ReceivingSource } from "../../../queries/types";
+import { useDailyReport, useProductCategories, useReportShipments } from "../../../queries/useHooks";
 import { DateParser } from "../../../common/utils/util";
-import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import { fmtInt, fmtProduct } from "../type-format/format";
 import { printReport } from "./print-report";
 import {
-  receivingPrintable,
-  receivingTotals,
-  stockSummaryPrintable,
-  stockSummaryTotals,
-} from "./report-export";
+  buildGrids,
+  granularityFor,
+  gridPrintSection,
+  REPORT_KIND_LABEL,
+  type Granularity,
+} from "./report-grid";
 import {
   describePeriod,
   PERIOD_OPTIONS,
@@ -41,36 +37,32 @@ import {
   toIsoDate,
   type PeriodKind,
 } from "./report-period";
-import { ReceivingTable, StockSummaryTable } from "./reports-table";
+import { TimeframeGrid } from "./reports-table";
 
 const { RangePicker } = DatePicker;
 
-type ReportType = "stock" | "receiving";
 type SourceFilter = "ALL" | ReceivingSource;
 
-const REPORT_OPTIONS: { label: string; value: ReportType; description: string }[] = [
-  {
-    label: "Stock summary",
-    value: "stock",
-    description: "Per product: opening stock, what came in, what was sold or adjusted, and closing stock.",
-  },
-  {
-    label: "Receiving",
-    value: "receiving",
-    description: "Every line received from shipments and local deliveries, with declared vs counted sacks and value.",
-  },
-];
+const REPORT_DESCRIPTION: Record<DailyReportKind, string> = {
+  purchase:
+    "Sacks ordered in per day: shipments by packing-list date (declared sacks) and local deliveries by date received.",
+  sales: "Sacks sold per day, from order slips. Slips in Trash are left out.",
+};
 
-/** What the last Generate press asked for; the table shows exactly this. */
-type Applied =
-  | { type: "stock"; params: { dateFrom: string; dateTo: string; productIds?: string }; subtitle: string[] }
-  | { type: "receiving"; params: ReceivingParams; subtitle: string[] };
+/** What the last Generate press asked for; the grids show exactly this. */
+type Applied = {
+  params: DailyReportParams;
+  granularity: Granularity;
+  /** Products were picked by hand, so show them even with no sacks. */
+  keepEmpty: boolean;
+  subtitle: string[];
+};
 
 export default function ReportsPage() {
-  const [reportType, setReportType] = useState<ReportType>("stock");
-  const [periodKind, setPeriodKind] = useState<PeriodKind>("monthly");
+  const [kind, setKind] = useState<DailyReportKind>("purchase");
+  const [periodKind, setPeriodKind] = useState<PeriodKind>("weekly");
   const [anchor, setAnchor] = useState<Dayjs>(today);
-  const [custom, setCustom] = useState<[Dayjs, Dayjs]>(() => [today().subtract(29, "day"), today()]);
+  const [custom, setCustom] = useState<[Dayjs, Dayjs]>(() => [today().subtract(13, "day"), today()]);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [shipmentId, setShipmentId] = useState<string | undefined>();
   const [source, setSource] = useState<SourceFilter>("ALL");
@@ -80,7 +72,7 @@ export default function ReportsPage() {
   const { data: shipments, isLoading: loadingShipments } = useReportShipments();
 
   const range = resolvePeriod(periodKind, anchor, custom);
-  const shipmentOverridesPeriod = reportType === "receiving" && Boolean(shipmentId);
+  const shipmentOverridesPeriod = kind === "purchase" && Boolean(shipmentId);
 
   const productOptions = useMemo(
     () => (products ?? []).map((p) => ({ label: fmtProduct(p), value: p.id })),
@@ -97,9 +89,8 @@ export default function ReportsPage() {
 
   const generate = () => {
     const subtitle: string[] = [];
-    const shipment = shipments?.find((s) => s.id === shipmentId);
-    if (shipmentOverridesPeriod && shipment) {
-      subtitle.push(`Shipment: ${shipmentOptions.find((o) => o.value === shipment.id)?.label}`);
+    if (shipmentOverridesPeriod) {
+      subtitle.push(`Shipment: ${shipmentOptions.find((o) => o.value === shipmentId)?.label ?? ""}`);
     } else {
       subtitle.push(`Period: ${describePeriod(periodKind, range)}`);
     }
@@ -108,36 +99,38 @@ export default function ReportsPage() {
         ? `Products: ${productIds.map((id) => productOptions.find((o) => o.value === id)?.label ?? id).join(", ")}`
         : "Products: all",
     );
-    const base = {
-      dateFrom: toIsoDate(range[0]),
-      dateTo: toIsoDate(range[1]),
-      productIds: productIds.length ? productIds.join(",") : undefined,
-    };
-    if (reportType === "stock") {
-      setApplied({ type: "stock", params: base, subtitle });
-    } else {
-      if (!shipmentOverridesPeriod) {
-        subtitle.push(`Source: ${source === "ALL" ? "shipments and local deliveries" : source === "SHIPMENT" ? "shipments" : "local deliveries"}`);
-      }
-      setApplied({
-        type: "receiving",
-        params: { ...base, shipmentId, source: shipmentOverridesPeriod ? undefined : source },
-        subtitle,
-      });
+    if (kind === "purchase" && !shipmentOverridesPeriod && source !== "ALL") {
+      subtitle.push(`Source: ${source === "SHIPMENT" ? "shipments only" : "local deliveries only"}`);
     }
+    setApplied({
+      params: {
+        kind,
+        dateFrom: toIsoDate(range[0]),
+        dateTo: toIsoDate(range[1]),
+        productIds: productIds.length ? productIds.join(",") : undefined,
+        shipmentId: kind === "purchase" ? shipmentId : undefined,
+        source: kind === "purchase" && !shipmentOverridesPeriod ? source : undefined,
+      },
+      // A whole shipment can span any dates; give it day columns regardless.
+      granularity: shipmentOverridesPeriod ? "day" : granularityFor(range),
+      keepEmpty: productIds.length > 0,
+      subtitle,
+    });
   };
 
-  const stockQuery = useStockSummaryReport(applied?.type === "stock" ? applied.params : null);
-  const receivingQuery = useReceivingReport(applied?.type === "receiving" ? applied.params : null);
-  const active = applied?.type === "receiving" ? receivingQuery : stockQuery;
+  const report = useDailyReport(applied?.params ?? null);
+  const grids = useMemo(
+    () => (applied && report.data ? buildGrids(report.data, applied.granularity, applied.keepEmpty) : []),
+    [applied, report.data],
+  );
 
   const exportPdf = () => {
     if (!applied) return;
-    if (applied.type === "stock" && stockQuery.data) {
-      printReport(stockSummaryPrintable(stockQuery.data, applied.subtitle));
-    } else if (applied.type === "receiving" && receivingQuery.data) {
-      printReport(receivingPrintable(receivingQuery.data, applied.subtitle));
-    }
+    printReport({
+      title: `${REPORT_KIND_LABEL[applied.params.kind]} Report`,
+      subtitle: applied.subtitle,
+      sections: grids.map((grid) => gridPrintSection(grid, applied.params.kind)),
+    });
   };
 
   const periodPicker = (() => {
@@ -170,13 +163,16 @@ export default function ReportsPage() {
     }
   })();
 
+  const grandTotal = grids.reduce((n, g) => n + g.grandTotal, 0);
+  const activeColumns = new Set(grids.flatMap((g) => g.columns.map((c) => c.key))).size;
+
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center" wrap gap={12}>
         <Typography.Title level={4} style={{ margin: 0 }}>Generate Reports</Typography.Title>
         <Button
           icon={<FilePdfOutlined />}
-          disabled={!active.data || active.isFetching}
+          disabled={!report.data || report.isFetching || !grids.length}
           onClick={exportPdf}
         >
           Export PDF / Print
@@ -188,11 +184,11 @@ export default function ReportsPage() {
 
       <Card size="small">
         <Form layout="vertical">
-          <Form.Item label="Report" style={{ marginBottom: 12 }} extra={REPORT_OPTIONS.find((o) => o.value === reportType)?.description}>
+          <Form.Item label="Report" style={{ marginBottom: 12 }} extra={REPORT_DESCRIPTION[kind]}>
             <Segmented
-              value={reportType}
-              onChange={(value) => setReportType(value as ReportType)}
-              options={REPORT_OPTIONS.map(({ label, value }) => ({ label, value }))}
+              value={kind}
+              onChange={(value) => setKind(value as DailyReportKind)}
+              options={(["purchase", "sales"] as const).map((value) => ({ label: REPORT_KIND_LABEL[value], value }))}
             />
           </Form.Item>
 
@@ -200,7 +196,11 @@ export default function ReportsPage() {
             <Form.Item
               label="Period"
               style={{ marginBottom: 0 }}
-              extra={shipmentOverridesPeriod ? "Ignored: a shipment is selected" : describePeriod(periodKind, range)}
+              extra={
+                shipmentOverridesPeriod
+                  ? "Ignored: a shipment is selected"
+                  : `${describePeriod(periodKind, range)}${granularityFor(range) === "month" ? " · one column per month" : ""}`
+              }
             >
               <Flex wrap gap={8}>
                 <Segmented
@@ -230,7 +230,7 @@ export default function ReportsPage() {
               />
             </Form.Item>
 
-            {reportType === "receiving" && (
+            {kind === "purchase" && (
               <>
                 <Form.Item label="Shipment" style={{ marginBottom: 0, minWidth: 280 }}>
                   <Select
@@ -269,60 +269,30 @@ export default function ReportsPage() {
 
       {!applied ? (
         <Empty description="Choose filters and press Generate" />
-      ) : active.isError ? (
-        <Alert type="error" showIcon message="Could not generate report" description={(active.error as Error).message} />
-      ) : active.isPending ? (
+      ) : report.isError ? (
+        <Alert type="error" showIcon message="Could not generate report" description={(report.error as Error).message} />
+      ) : report.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
+      ) : !grids.length ? (
+        <Empty description={`No ${applied.params.kind === "sales" ? "sales" : "purchases"} for these filters`} />
       ) : (
-        <Card
-          size="small"
-          title={applied.type === "stock" ? "Stock summary" : "Receiving"}
-          extra={<Typography.Text type="secondary">{applied.subtitle[0]}</Typography.Text>}
-          style={{ opacity: active.isFetching ? 0.6 : 1 }}
-        >
-          {applied.type === "stock" && stockQuery.data ? (
-            <StockSummaryResult rows={stockQuery.data} />
-          ) : applied.type === "receiving" && receivingQuery.data ? (
-            <ReceivingResult rows={receivingQuery.data} />
-          ) : null}
-        </Card>
+        <Space direction="vertical" size="middle" style={{ width: "100%", opacity: report.isFetching ? 0.6 : 1 }}>
+          <Card size="small">
+            <Flex wrap gap={32} align="center">
+              <Statistic title="Report" value={REPORT_KIND_LABEL[applied.params.kind]} />
+              <Statistic title="Brands" value={grids.length} />
+              <Statistic title={applied.granularity === "day" ? "Days with sacks" : "Months with sacks"} value={activeColumns} />
+              <Statistic title="Total sacks" value={fmtInt(grandTotal)} />
+              <Typography.Text type="secondary" style={{ marginLeft: "auto" }}>{applied.subtitle[0]}</Typography.Text>
+            </Flex>
+          </Card>
+          {grids.map((grid) => (
+            <Card key={grid.brand} size="small">
+              <TimeframeGrid grid={grid} kind={applied.params.kind} />
+            </Card>
+          ))}
+        </Space>
       )}
-    </Space>
-  );
-}
-
-function StockSummaryResult({ rows }: { rows: Parameters<typeof stockSummaryTotals>[0] }) {
-  if (!rows.length) return <Empty description="No stock activity for these filters" />;
-  const t = stockSummaryTotals(rows);
-  return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Flex wrap gap={32}>
-        <Statistic title="Products" value={rows.length} />
-        <Statistic title="Opening (sacks)" value={fmtInt(t.opening)} />
-        <Statistic title="Received (sacks)" value={fmtInt(t.received_shipments + t.received_local)} />
-        <Statistic title="Sold (sacks)" value={fmtInt(t.sold)} />
-        <Statistic title="Adjustments" value={fmtInt(t.adjustments)} />
-        <Statistic title="Closing (sacks)" value={fmtInt(t.closing)} />
-      </Flex>
-      <StockSummaryTable data={rows} />
-    </Space>
-  );
-}
-
-function ReceivingResult({ rows }: { rows: Parameters<typeof receivingTotals>[0] }) {
-  if (!rows.length) return <Empty description="Nothing was received for these filters" />;
-  const t = receivingTotals(rows);
-  return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Flex wrap gap={32}>
-        <Statistic title="Lines" value={t.lines} />
-        <Statistic title="Declared (sacks)" value={fmtInt(t.declared)} />
-        <Statistic title="Counted (sacks)" value={fmtInt(t.counted)} />
-        <Statistic title="Variance" value={`${t.variance > 0 ? "+" : ""}${fmtInt(t.variance)}`} />
-        <Statistic title="Value" value={fmtMoney(t.value)} />
-        {t.pending > 0 && <Statistic title="Awaiting unload" value={`${t.pending} lines`} />}
-      </Flex>
-      <ReceivingTable data={rows} />
     </Space>
   );
 }

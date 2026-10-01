@@ -1,166 +1,102 @@
 import { useMemo } from "react";
-import { Tag, Typography } from "antd";
+import { Flex, Typography } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
-import dayjs from "dayjs";
-import type { ReceivingRow, StockSummaryRow } from "../../../queries/types";
-import { fmtInt, fmtMoney, fmtProduct, STATUS_COLOR, STATUS_LABEL } from "../type-format/format";
-import { productLabel } from "./report-export";
+import type { DailyReportKind } from "../../../queries/types";
+import { fmtInt } from "../type-format/format";
+import { cellText, REPORT_KIND_LABEL, type BrandGrid } from "./report-grid";
 
-/** Signed sack count; zero renders muted so the movements stand out. */
-const qty = (value: number, signed = false) =>
-  value === 0 ? (
-    <span style={{ opacity: 0.35 }}>0</span>
-  ) : (
-    <span>{signed && value > 0 ? "+" : ""}{fmtInt(value)}</span>
-  );
+/** A product row, or the Total Sacks footer row. */
+type GridTableRow = {
+  key: string;
+  label: string;
+  color?: string;
+  values: number[];
+  total: number;
+  isTotal: boolean;
+};
 
-const stockSummaryColumns: ColumnDef<StockSummaryRow, any>[] = [
-  {
-    id: "product",
-    header: "Product",
-    accessorFn: (r) => productLabel(r),
-    size: 260,
-    meta: { fixed: "left" },
-    cell: (c) => fmtProduct({ ...c.row.original }),
-  },
-  { id: "opening", header: "Opening", accessorFn: (r) => r.opening, size: 100, cell: (c) => qty(c.getValue<number>()) },
-  {
-    id: "received_shipments",
-    header: "From shipments",
-    accessorFn: (r) => r.received_shipments,
-    size: 130,
-    cell: (c) => qty(c.getValue<number>(), true),
-  },
-  {
-    id: "received_local",
-    header: "Local deliveries",
-    accessorFn: (r) => r.received_local,
-    size: 130,
-    cell: (c) => qty(c.getValue<number>(), true),
-  },
-  {
-    id: "sold",
-    header: "Sold",
-    accessorFn: (r) => r.sold,
-    size: 100,
-    cell: (c) => (c.getValue<number>() ? <span>−{fmtInt(c.getValue<number>())}</span> : qty(0)),
-  },
-  {
-    id: "adjustments",
-    header: "Adjustments",
-    accessorFn: (r) => r.adjustments,
-    size: 110,
-    cell: (c) => qty(c.getValue<number>(), true),
-  },
-  {
-    id: "closing",
-    header: "Closing",
-    accessorFn: (r) => r.closing,
-    size: 100,
-    meta: { fixed: "right" },
-    cell: (c) => <strong>{fmtInt(c.getValue<number>())}</strong>,
-  },
-];
+const twoLineHeader = (top: string, label: string) => (
+  <div style={{ textAlign: "center", lineHeight: 1.25 }}>
+    <div style={{ fontWeight: 400, fontSize: 12, opacity: 0.75 }}>{top}</div>
+    <div style={{ fontWeight: 700, fontSize: 15, color: "var(--ant-color-primary, #1677ff)" }}>{label}</div>
+  </div>
+);
 
-export function StockSummaryTable({ data }: { data: StockSummaryRow[] }) {
-  const columns = useMemo(() => stockSummaryColumns, []);
-  return <DataTable data={data} columns={columns} />;
-}
+const headerStyle = { fontWeight: 700, fontSize: 15, color: "var(--ant-color-primary, #1677ff)" };
 
-const receivingColumns: ColumnDef<ReceivingRow, any>[] = [
-  {
-    id: "date",
-    header: "Date",
-    accessorFn: (r) => r.date,
-    size: 120,
-    meta: { fixed: "left" },
-    // Short form keeps every row one line tall.
-    cell: (c) => <span style={{ whiteSpace: "nowrap" }}>{dayjs(c.getValue<string>()).format("MMM D, YYYY")}</span>,
-  },
-  {
-    id: "source",
-    header: "Source",
-    accessorFn: (r) => r.source,
-    size: 220,
-    cell: (c) => {
-      const row = c.row.original;
-      return (
-        <div>
-          <Tag color={row.source === "SHIPMENT" ? "blue" : "green"} style={{ margin: 0 }}>
-            {row.source === "SHIPMENT" ? "Shipment" : "Local"}
-          </Tag>{" "}
-          {row.reference || <Typography.Text type="secondary">No reference</Typography.Text>}
-          {row.container_no && (
-            <div style={{ fontSize: 12, opacity: 0.6, fontFamily: "monospace" }}>{row.container_no}</div>
-          )}
-        </div>
-      );
-    },
-  },
-  { id: "supplier", header: "Supplier", accessorFn: (r) => r.supplier, size: 160 },
-  {
-    id: "status",
-    header: "Status",
-    accessorFn: (r) => r.status,
-    size: 110,
-    cell: (c) => {
-      const status = c.row.original.status;
-      return status ? (
-        <Tag color={STATUS_COLOR[status]} style={{ margin: 0 }}>{STATUS_LABEL[status]}</Tag>
-      ) : (
-        <Tag style={{ margin: 0 }}>Received</Tag>
-      );
-    },
-  },
-  {
-    id: "product",
-    header: "Product",
-    accessorFn: (r) => productLabel(r),
-    size: 240,
-    cell: (c) => fmtProduct({ ...c.row.original }),
-  },
-  { id: "declared_qty", header: "Declared", accessorFn: (r) => r.declared_qty, size: 100, cell: (c) => fmtInt(c.getValue<number>()) },
-  {
-    id: "actual_qty",
-    header: "Counted",
-    accessorFn: (r) => r.actual_qty,
-    size: 100,
-    cell: (c) =>
-      c.getValue<number | null>() === null ? (
-        <Typography.Text type="secondary">Not yet</Typography.Text>
-      ) : (
-        fmtInt(c.getValue<number>())
-      ),
-  },
-  {
-    id: "variance",
-    header: "Variance",
-    accessorFn: (r) => r.variance,
-    size: 100,
-    cell: (c) => {
-      const v = c.getValue<number | null>();
-      if (v === null) return <Typography.Text type="secondary">—</Typography.Text>;
-      return (
-        <span style={{ color: v < 0 ? "var(--ant-color-error, #ff4d4f)" : v > 0 ? "var(--ant-color-warning, #faad14)" : undefined, opacity: v === 0 ? 0.35 : 1 }}>
-          {v > 0 ? "+" : ""}{fmtInt(v)}
+/**
+ * One brand's timeframe: product rows, a column per day (or month) with
+ * sacks, the row's total on the right and a Total Sacks row at the bottom.
+ */
+export function TimeframeGrid({ grid, kind }: { grid: BrandGrid; kind: DailyReportKind }) {
+  const columns = useMemo<ColumnDef<GridTableRow, any>[]>(() => [
+    {
+      id: "label",
+      header: () => <span style={headerStyle}>Kind</span>,
+      accessorFn: (r) => r.label,
+      size: 160,
+      meta: { fixed: "left" },
+      cell: (c) => (
+        <span style={{ fontWeight: 700, color: c.row.original.isTotal ? headerStyle.color : c.row.original.color }}>
+          {c.getValue<string>()}
         </span>
-      );
+      ),
     },
-  },
-  { id: "price_per_sack", header: "Price / sack", accessorFn: (r) => r.price_per_sack, size: 120, cell: (c) => fmtMoney(c.getValue<number | null>()) },
-  {
-    id: "value",
-    header: "Value",
-    accessorFn: (r) => r.value,
-    size: 140,
-    meta: { fixed: "right" },
-    cell: (c) => <strong>{fmtMoney(c.getValue<number | null>())}</strong>,
-  },
-];
+    ...grid.columns.map<ColumnDef<GridTableRow, any>>((col, i) => ({
+      id: col.key,
+      header: () => twoLineHeader(col.top, col.label),
+      accessorFn: (r) => r.values[i],
+      size: 96,
+      cell: (c) => (
+        <div style={{ textAlign: "center", fontWeight: c.row.original.isTotal ? 700 : undefined }}>
+          {c.row.original.isTotal ? fmtInt(c.getValue<number>()) : cellText(c.getValue<number>())}
+        </div>
+      ),
+    })),
+    // No width: takes the leftover space, so the days pack left and the
+    // total sits at the right edge, as on the printed sheet.
+    { id: "spacer", header: "", accessorFn: () => null, cell: () => null },
+    {
+      id: "total",
+      header: () => <div style={{ ...headerStyle, textAlign: "right", lineHeight: 1.25 }}>Total<br />Sacks</div>,
+      accessorFn: (r) => r.total,
+      size: 110,
+      meta: { fixed: "right" },
+      cell: (c) => (
+        <div style={{ textAlign: "right", fontWeight: 700, opacity: c.row.original.isTotal ? 1 : 0.75 }}>
+          {fmtInt(c.getValue<number>())}
+        </div>
+      ),
+    },
+  ], [grid]);
 
-export function ReceivingTable({ data }: { data: ReceivingRow[] }) {
-  const columns = useMemo(() => receivingColumns, []);
-  return <DataTable data={data} columns={columns} />;
+  const data = useMemo<GridTableRow[]>(() => [
+    ...grid.rows.map((row) => ({
+      key: row.product.id,
+      label: row.label,
+      color: row.color,
+      values: row.values,
+      total: row.total,
+      isTotal: false,
+    })),
+    { key: "total", label: "Total Sacks", values: grid.totals, total: grid.grandTotal, isTotal: true },
+  ], [grid]);
+
+  return (
+    <div>
+      <div style={{ borderBottom: "1px solid var(--ant-color-border, #d9d9d9)", paddingBottom: 10, marginBottom: 8 }}>
+        <Typography.Title level={5} style={{ margin: 0 }}>{grid.brand} Timeframe</Typography.Title>
+        <Typography.Text type="secondary">{REPORT_KIND_LABEL[kind]}</Typography.Text>
+      </div>
+      {grid.columns.length ? (
+        <DataTable data={data} columns={columns} />
+      ) : (
+        <Flex justify="center" style={{ padding: 16 }}>
+          <Typography.Text type="secondary">No sacks in this period</Typography.Text>
+        </Flex>
+      )}
+    </div>
+  );
 }
