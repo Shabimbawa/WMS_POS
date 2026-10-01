@@ -11,6 +11,7 @@ import { deliveryRoutes } from "./routes/deliveries.js";
 import { healthRoutes } from "./routes/health.js";
 import { inventoryRoutes } from "./routes/inventory.js";
 import { orderRoutes } from "./routes/orders.js";
+import { orderTrashRoutes, purgeExpiredOrderSlips } from "./routes/order-trash.js";
 import { referenceRoutes } from "./routes/reference.js";
 import { shipmentRoutes } from "./routes/shipments.js";
 
@@ -72,6 +73,24 @@ export async function buildApp() {
   await app.register(orderRoutes, { prefix: "/api/v1" });
   await app.register(cashierRoutes, { prefix: "/api/v1" });
   await app.register(deliveryRoutes, { prefix: "/api/v1" });
+  await app.register(orderTrashRoutes, { prefix: "/api/v1" });
+
+  // Empties Trash of slips past their 30 days. Hourly is plenty: the
+  // deadline is a day count, and a late run only keeps a slip a little longer.
+  const purgeTrash = () => {
+    purgeExpiredOrderSlips()
+      .then((purged) => {
+        if (purged) app.log.info({ purged }, "emptied expired order slips from trash");
+      })
+      .catch((err: unknown) => app.log.error({ err }, "order slip trash purge failed"));
+  };
+  let purgeTimer: NodeJS.Timeout | undefined;
+  app.addHook("onReady", async () => {
+    purgeTrash();
+    purgeTimer = setInterval(purgeTrash, 60 * 60 * 1000);
+    purgeTimer.unref();
+  });
+  app.addHook("onClose", async () => clearInterval(purgeTimer));
 
   return app;
 }

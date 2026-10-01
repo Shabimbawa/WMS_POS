@@ -33,11 +33,16 @@ import {
 import {
   createCashier,
   createOrderSlip,
+  deleteOrderSlip,
+  emptyOrderSlipTrash,
   getCashiers,
   getOrderSlip,
   getOrderSlips,
   getOrderSlipSummary,
+  getOrderSlipTrash,
   getPosProducts,
+  purgeOrderSlip,
+  restoreOrderSlip,
   updateCashier,
   updateOrderSlip,
 } from "./pos.ts";
@@ -55,6 +60,7 @@ import type {
 import type {
   OrderSlipListParams,
   OrderSlipSummaryParams,
+  OrderSlipTrashParams,
 } from "./posTypes.ts";
 
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes
@@ -96,6 +102,7 @@ export const qk = {
   // Under "order-slips" so creating or editing a slip refreshes the summary.
   orderSlipSummary: (p: OrderSlipSummaryParams) =>
     ["order-slips", "summary", p] as const,
+  orderSlipTrash: (p: OrderSlipTrashParams) => ["order-slips", "trash", p] as const,
 
   cashiers: ["pos", "cashiers"] as const,
   cashierList: (includeInactive: boolean) =>
@@ -238,6 +245,14 @@ export function useOrderSlipSummary(params: OrderSlipSummaryParams) {
   return useQuery({
     queryKey: qk.orderSlipSummary(params),
     queryFn: () => getOrderSlipSummary(params),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useOrderSlipTrash(params: OrderSlipTrashParams) {
+  return useQuery({
+    queryKey: qk.orderSlipTrash(params),
+    queryFn: () => getOrderSlipTrash(params),
     placeholderData: keepPreviousData,
   });
 }
@@ -399,5 +414,48 @@ export function useUpdateOrderSlip() {
       qc.invalidateQueries({ queryKey: qk.posProducts });
       qc.invalidateQueries({ queryKey: qk.stock });
     },
+  });
+}
+
+/**
+ * Deleting and restoring move stock, so they refresh every slip view
+ * (Trash included, under qk.orderSlips) and every stock view.
+ */
+function orderSlipStockInvalidation(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: qk.orderSlips });
+  qc.invalidateQueries({ queryKey: qk.posProducts });
+  qc.invalidateQueries({ queryKey: qk.stock });
+}
+
+export function useDeleteOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteOrderSlip,
+    onSuccess: () => orderSlipStockInvalidation(qc),
+  });
+}
+
+export function useRestoreOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: restoreOrderSlip,
+    onSuccess: () => orderSlipStockInvalidation(qc),
+  });
+}
+
+/** Emptying moves no stock; only the Trash list changes. */
+export function usePurgeOrderSlip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: purgeOrderSlip,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["order-slips", "trash"] }),
+  });
+}
+
+export function useEmptyOrderSlipTrash() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: emptyOrderSlipTrash,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["order-slips", "trash"] }),
   });
 }

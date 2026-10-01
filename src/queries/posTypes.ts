@@ -111,3 +111,23 @@ export interface CashierDaySummary {
         sacks: number;
     }[];
 }
+
+// ---- trash ------------------------------------------------------
+//
+// Deleting a slip moves it to Trash and returns its stock. It stays
+// restorable until the trash is emptied, by hand or `purgeAt`.
+
+export interface TrashedOrderSlip extends OrderSlip {
+    deletedAt: string;
+    /** Email of whoever deleted it; null if that user was removed. */
+    deletedBy: string | null;
+    /** When the server empties it from Trash automatically. */
+    purgeAt: string;
+}
+
+export interface OrderSlipTrashParams {
+    page: number;
+    pageSize: number;
+    /** Matches customer, cashier name or slip number. */
+    search?: string;
+}

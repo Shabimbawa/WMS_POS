@@ -9,7 +9,9 @@ import type {
   OrderSlipItem,
   OrderSlipListParams,
   OrderSlipSummaryParams,
+  OrderSlipTrashParams,
   Product,
+  TrashedOrderSlip,
   UpdateCashierInput,
   UpdateOrderSlipInput,
 } from "./posTypes";
@@ -58,6 +60,35 @@ export async function updateOrderSlip(input: UpdateOrderSlipInput): Promise<void
       items: input.items,
     }),
   });
+}
+
+// ---- trash ------------------------------------------------------
+
+/** Moves a slip to Trash. Its stock goes back on the shelf. */
+export async function deleteOrderSlip(id: string): Promise<void> {
+  await apiRequest(`/order-slips/${id}`, { method: "DELETE" });
+}
+
+/** Takes a slip out of Trash, deducting its stock again. */
+export async function restoreOrderSlip(id: string): Promise<void> {
+  await apiRequest(`/order-slips/${id}/restore`, { method: "POST" });
+}
+
+export async function getOrderSlipTrash(
+  params: OrderSlipTrashParams,
+): Promise<Page<TrashedOrderSlip>> {
+  return apiRequest<Page<TrashedOrderSlip>>(`/order-slips/trash${queryString(params)}`);
+}
+
+/** Permanently removes one slip from Trash. */
+export async function purgeOrderSlip(id: string): Promise<void> {
+  await apiRequest(`/order-slips/trash/${id}`, { method: "DELETE" });
+}
+
+/** Permanently removes every slip in Trash. */
+export async function emptyOrderSlipTrash(): Promise<number> {
+  const result = await apiRequest<{ purged: number }>("/order-slips/trash", { method: "DELETE" });
+  return result.purged;
 }
 
 // ---- cashiers ---------------------------------------------------

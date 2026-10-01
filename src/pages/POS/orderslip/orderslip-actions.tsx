@@ -1,8 +1,10 @@
-import { Button, Tooltip } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { Button, Popconfirm, Tooltip, message } from "antd";
+import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
+import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import type { OrderSlip } from "../../../queries/posTypes";
+import { useDeleteOrderSlip } from "../../../queries/useHooks";
 import { canEditOrderSlip } from "../type-format/format";
 
 /**
@@ -39,5 +41,60 @@ export function EditOrderSlipButton({
         {compact ? null : "Edit"}
       </Button>
     </Tooltip>
+  );
+}
+
+/**
+ * Moves a slip to Trash after a confirm. Its stock goes back on the shelf
+ * straight away; it can be restored from Trash for 30 days. `onDeleted`
+ * runs after success, e.g. to leave a detail page that no longer exists.
+ */
+export function DeleteOrderSlipButton({
+  slip,
+  compact = false,
+  onDeleted,
+}: {
+  slip: Pick<OrderSlip, "id">;
+  compact?: boolean;
+  onDeleted?: () => void;
+}) {
+  const [msg, msgHolder] = message.useMessage();
+  const { showError, contextHolder } = ErrorNotificationPopup();
+  const remove = useDeleteOrderSlip();
+
+  const confirm = async () => {
+    try {
+      await remove.mutateAsync(slip.id);
+      msg.success("Order slip moved to Trash");
+      onDeleted?.();
+    } catch (e) {
+      showError(e, "Could not delete order slip");
+    }
+  };
+
+  return (
+    <>
+      {msgHolder}
+      {contextHolder}
+      <Popconfirm
+        title="Move this order slip to Trash?"
+        description="Its sacks go back into stock. You can restore it from Trash within 30 days."
+        okText="Move to Trash"
+        okButtonProps={{ danger: true }}
+        onConfirm={confirm}
+      >
+        <Tooltip title={compact ? "Delete order slip" : undefined}>
+          <Button
+            danger
+            type={compact ? "text" : "default"}
+            icon={<DeleteOutlined />}
+            aria-label="Delete order slip"
+            loading={remove.isPending}
+          >
+            {compact ? null : "Delete"}
+          </Button>
+        </Tooltip>
+      </Popconfirm>
+    </>
   );
 }

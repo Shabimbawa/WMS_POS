@@ -27,7 +27,7 @@ import {
 import { DateParser } from "../../../common/utils/util";
 import { lineAmount } from "../../../queries/pos";
 import { useOrderSlip } from "../../../queries/useHooks";
-import { EditOrderSlipButton } from "./orderslip-actions";
+import { DeleteOrderSlipButton, EditOrderSlipButton } from "./orderslip-actions";
 
 const itemColumns: ColumnDef<OrderSlipItem, any>[] = [
   {
@@ -69,6 +69,7 @@ function BackToList() {
 }
 
 export default function OrderSlipDetailPage() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: slip, isLoading, isError } = useOrderSlip(id);
   const columns = useMemo(() => itemColumns, []);
@@ -96,6 +97,7 @@ export default function OrderSlipDetailPage() {
         <Flex gap={8}>
           <BackToList />
           <EditOrderSlipButton slip={slip} />
+          <DeleteOrderSlipButton slip={slip} onDeleted={() => navigate("/order-slip")} />
         </Flex>
       </Flex>
 

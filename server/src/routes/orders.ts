@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
@@ -55,11 +55,11 @@ type OrderItemRow = {
   stockQuantity: number;
 };
 
-function variant(variety: string | null, sizeKg: number): string {
+export function variant(variety: string | null, sizeKg: number): string {
   return [variety, `${sizeKg}kg`].filter(Boolean).join(" ");
 }
 
-function toApiItem(row: OrderItemRow) {
+export function toApiItem(row: OrderItemRow) {
   return {
     id: row.id,
     quantity: row.quantity,
@@ -73,7 +73,7 @@ function toApiItem(row: OrderItemRow) {
   };
 }
 
-function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
+export function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
   const result = new Map<K, T[]>();
   for (const row of rows) {
     const key = keyOf(row);
@@ -94,7 +94,7 @@ function assertOrderInput(input: z.infer<typeof orderBody>): void {
   }
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Next slip number for `date`. Numbers restart at 1 each day.
@@ -134,7 +134,7 @@ function money(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-async function getItemRows(orderSlipIds: string[]): Promise<OrderItemRow[]> {
+export async function getItemRows(orderSlipIds: string[]): Promise<OrderItemRow[]> {
   if (!orderSlipIds.length) return [];
   return db
     .select({
@@ -155,7 +155,7 @@ async function getItemRows(orderSlipIds: string[]): Promise<OrderItemRow[]> {
     .orderBy(asc(orderSlipItems.createdAt));
 }
 
-const slipColumns = {
+export const slipColumns = {
   id: orderSlips.id,
   slipNumber: orderSlips.slipNumber,
   date: orderSlips.date,
@@ -169,13 +169,16 @@ const slipColumns = {
   cashierActive: cashiers.isActive,
 };
 
-type SlipRow = {
+export type SlipRow = {
   [K in keyof typeof slipColumns]: (typeof slipColumns)[K]["_"]["data"];
 };
 
-function toApiSlip({ cashierId, cashierName, cashierActive, ...slip }: SlipRow) {
+export function toApiSlip({ cashierId, cashierName, cashierActive, ...slip }: SlipRow) {
   return { ...slip, cashier: { id: cashierId, name: cashierName, isActive: cashierActive } };
 }
+
+/** Slips in Trash (or emptied from it) are hidden everywhere but the Trash. */
+export const notDeleted = isNull(orderSlips.deletedAt);
 
 export async function orderRoutes(app: FastifyInstance): Promise<void> {
   const posOnly = { preHandler: requireRole("pos_admin") };
@@ -220,6 +223,7 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
       )
       : undefined;
     const where = and(
+      notDeleted,
       gte(orderSlips.date, query.dateFrom),
       lte(orderSlips.date, query.dateTo),
       query.cashierId ? eq(orderSlips.cashierId, query.cashierId) : undefined,
@@ -263,7 +267,7 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     if (query.dateFrom > query.dateTo) {
       throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
     }
-    const inRange = and(gte(orderSlips.date, query.dateFrom), lte(orderSlips.date, query.dateTo));
+    const inRange = and(notDeleted, gte(orderSlips.date, query.dateFrom), lte(orderSlips.date, query.dateTo));
     const statusCount = (status: "paid" | "partial" | "unpaid") =>
       sql<number>`(count(*) filter (where ${orderSlips.status} = ${status}))::int`;
 
@@ -326,7 +330,7 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
       .select(slipColumns)
       .from(orderSlips)
       .innerJoin(cashiers, eq(orderSlips.cashierId, cashiers.id))
-      .where(eq(orderSlips.id, id))
+      .where(and(eq(orderSlips.id, id), notDeleted))
       .limit(1);
     if (!slip) throw new ApiError(404, "ORDER_SLIP_NOT_FOUND", "Order slip was not found");
     return { ...toApiSlip(slip), items: (await getItemRows([id])).map(toApiItem) };
@@ -436,10 +440,11 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
           date: orderSlips.date,
           slipNumber: orderSlips.slipNumber,
           cashierId: orderSlips.cashierId,
+          deletedAt: orderSlips.deletedAt,
         })
         .from(orderSlips)
         .where(eq(orderSlips.id, id));
-      if (!current) throw new ApiError(404, "ORDER_SLIP_NOT_FOUND", "Order slip was not found");
+      if (!current || current.deletedAt) throw new ApiError(404, "ORDER_SLIP_NOT_FOUND", "Order slip was not found");
       if (current.status === "paid") throw new ApiError(409, "PAID_ORDER_IMMUTABLE", "Paid order slips cannot be edited");
       await assertCashier(tx, input.cashierId, current.cashierId);
 

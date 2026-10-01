@@ -17,6 +17,7 @@ import PosPage from './pages/POS/orderslip/orderslip-page.tsx'
 import OrderSlipDetailPage from './pages/POS/orderslip/orderslip-detail-page.tsx'
 import CreateOrderSlipPage from './pages/POS/orderslip/create-orderslip-page.tsx'
 import EditOrderSlipPage from './pages/POS/orderslip/edit-orderslip-page.tsx'
+import OrderSlipTrashPage from './pages/POS/orderslip/orderslip-trash-page.tsx'
 import OrderSlipSummaryPage from './pages/POS/summary/summary-page.tsx'
 import CashierPage from './pages/POS/cashier/cashier-page.tsx'
 import CreateShipmentPage from './pages/WMS/container/create-shipment-page.tsx'
@@ -41,6 +42,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/inventory" element={<StockLogPage />} />
                 <Route path="/order-slip" element={<PosPage/>}/>
                 <Route path="/order-slip/new" element={<CreateOrderSlipPage />} />
+                <Route path="/order-slip/trash" element={<OrderSlipTrashPage />} />
                 <Route path="/order-slip/:id" element={<OrderSlipDetailPage />} />
                 <Route path="/order-slip/:id/edit" element={<EditOrderSlipPage />} />
                 <Route path="/order-summary" element={<OrderSlipSummaryPage />} />
