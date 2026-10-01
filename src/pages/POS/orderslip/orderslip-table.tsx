@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Tag, Typography } from "antd";
-import dayjs from "dayjs";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
@@ -15,7 +14,7 @@ import {
   PAYMENT_STATUS_COLOR,
   PAYMENT_STATUS_LABEL,
 } from "../type-format/format";
-import { DateParser } from "../../../common/utils/util";
+import { fmtTableDate } from "../../../common/utils/util";
 import { EditOrderSlipButton } from "./orderslip-actions";
 
 /** Rows here are order slips; the full line items live on the detail page. */
@@ -26,7 +25,7 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
     accessorFn: (r) => r.date,
     size: 150,
     meta: { fixed: "left" },
-    cell: (c) => DateParser(c.getValue<string>()),
+    cell: (c) => fmtTableDate(c.getValue<string>()),
   },
   {
     id: "slipNumber",
@@ -131,7 +130,7 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
               }}
             >
               {overdue ? "Overdue" : "Due"}{" "}
-              {dayjs(slip.paymentDueDate).format("MMM D, YYYY")}
+              {fmtTableDate(slip.paymentDueDate)}
             </div>
           )}
         </div>

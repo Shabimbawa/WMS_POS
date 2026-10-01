@@ -1,6 +1,6 @@
 import { Tag, Tooltip } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
-import dayjs from "dayjs";
+import { fmtTableDate, fmtTableDateTime } from "../../../common/utils/util";
 
 import { DataTable } from "../../../common/items/table/table";
 import type { StockLogRow } from "../../../queries/types";
@@ -25,9 +25,9 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
     // occurred_at is when it happened; created_at is when it was recorded
     cell: (c) => (
       <Tooltip
-        title={`Recorded ${dayjs(c.row.original.created_at).format("MMM DD, YYYY h:mm A")}`}
+        title={`Recorded ${fmtTableDateTime(c.row.original.created_at)}`}
       >
-        {dayjs(c.getValue<string>()).format("MMM DD, YYYY")}
+        {fmtTableDate(c.getValue<string>())}
       </Tooltip>
     ),
   },
@@ -106,7 +106,7 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
           <span>
             Slip{" "}
             {r.order_slip_date
-              ? `${dayjs(r.order_slip_date).format("MMM D")} · `
+              ? `${fmtTableDate(r.order_slip_date)} · `
               : ""}
             #{r.order_slip_number ?? "?"}
             {r.order_revision && r.order_revision > 1
