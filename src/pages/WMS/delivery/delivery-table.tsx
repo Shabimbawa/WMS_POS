@@ -3,6 +3,7 @@ import { StopOutlined } from "@ant-design/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
+import { LabelValue, OverflowList } from "../../../common/items/overflow-list/overflow-list";
 import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import { DateParser } from "../../../common/utils/util";
@@ -115,19 +116,15 @@ const deliveryColumns: ColumnDef<LocalDeliveryRow, any>[] = [
       const items = c.row.original.items;
       if (!items.length) return dash;
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {items.map((i) => (
-            <div
-              key={i.id}
-              style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
-            >
-              <span>{fmtProduct(i.product_category)}</span>
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {fmtInt(i.qty_sacks)}
-              </span>
-            </div>
-          ))}
-        </div>
+        <OverflowList
+          items={items}
+          max={3}
+          getKey={(i) => i.id}
+          title={`${items.length} products`}
+          renderItem={(i) => (
+            <LabelValue label={fmtProduct(i.product_category)} value={fmtInt(i.qty_sacks)} />
+          )}
+        />
       );
     },
   },

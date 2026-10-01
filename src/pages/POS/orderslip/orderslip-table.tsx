@@ -1,14 +1,16 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Tag } from "antd";
+import { Tag, Typography } from "antd";
 import dayjs from "dayjs";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
+import { LabelValue, OverflowList } from "../../../common/items/overflow-list/overflow-list";
 import type { OrderSlip } from "../../../queries/posTypes";
 import {
   fmtInt,
   fmtMoney,
+  fmtProduct,
   isOverdue,
   PAYMENT_STATUS_COLOR,
   PAYMENT_STATUS_LABEL,
@@ -59,24 +61,37 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
     header: "Address",
     accessorFn: (r) => r.address,
     size: 220,
-    cell: (c) => c.getValue<string>() || "—",
+    // One line; a long address would otherwise widen the whole column.
+    cell: (c) => {
+      const address = c.getValue<string>();
+      if (!address) return "—";
+      return (
+        <Typography.Text ellipsis={{ tooltip: address }} style={{ maxWidth: 200 }}>
+          {address}
+        </Typography.Text>
+      );
+    },
   },
   {
     id: "items",
     header: "Articles",
     accessorFn: (r) => r.items.length,
     size: 280,
+    // Two lines at most, so every row keeps the same height; the rest fold
+    // into a popover.
     cell: (c) => {
       const items = c.row.original.items;
       if (!items.length) return <span style={{ opacity: 0.45 }}>—</span>;
-      const names = [
-        ...new Set(items.map((i) => `${i.article.brand} ${i.article.variant}`)),
-      ];
       return (
-        <span>
-          {items.length} {items.length === 1 ? "article" : "articles"}
-          <span style={{ opacity: 0.6 }}> · {names.join(", ")}</span>
-        </span>
+        <OverflowList
+          items={items}
+          max={2}
+          getKey={(i) => i.id}
+          title={`${items.length} articles`}
+          renderItem={(i) => (
+            <LabelValue label={fmtProduct(i.article)} value={`× ${fmtInt(i.quantity)}`} />
+          )}
+        />
       );
     },
   },
