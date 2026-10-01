@@ -45,7 +45,8 @@ export type OrderSlipHeaderValues = {
   orderBy?: string;
   address?: string;
   status: PaymentStatus;
-  paymentDueDate: Dayjs;
+  /** Only shown, and only sent, while the slip is unpaid or partial. */
+  paymentDueDate?: Dayjs;
   cashierId: string;
 };
 
@@ -61,14 +62,21 @@ const newKey = () => crypto.randomUUID();
 function ItemFormFields({
   products,
   takenProductIds,
+  notForSale,
 }: {
   products: Product[];
   /** Products already on this slip, excluding the line being edited. */
   takenProductIds: Set<string>;
+  /**
+   * Saved lines whose product is no longer for sale, with the quantity
+   * they were saved at. They can be kept or reduced, never increased.
+   */
+  notForSale: Map<string, number>;
 }) {
   const form = Form.useFormInstance<ItemValues>();
   const productId = Form.useWatch("productId", form);
-  const stock = products.find((p) => p.id === productId)?.quantity;
+  const savedMax = productId ? notForSale.get(productId) : undefined;
+  const stock = savedMax ?? products.find((p) => p.id === productId)?.quantity;
 
   return (
     <>
@@ -91,20 +99,31 @@ function ItemFormFields({
           showSearch
           optionFilterProp="label"
           placeholder="Search by brand or variant"
-          options={products.map((p) => ({
-            label: `${fmtProduct(p)} — ${fmtMoney(p.unitPrice)} · ${
-              p.quantity > 0 ? `${fmtInt(p.quantity)} in stock` : "out of stock"
-            }`,
-            value: p.id,
-            disabled: p.quantity <= 0,
-          }))}
+          options={products.map((p) => {
+            const max = notForSale.get(p.id);
+            return {
+              label: max !== undefined
+                ? `${fmtProduct(p)} — ${fmtMoney(p.unitPrice)} · no longer for sale`
+                : `${fmtProduct(p)} — ${fmtMoney(p.unitPrice)} · ${
+                  p.quantity > 0 ? `${fmtInt(p.quantity)} in stock` : "out of stock"
+                }`,
+              value: p.id,
+              disabled: max === undefined && p.quantity <= 0,
+            };
+          })}
         />
       </Form.Item>
       <Form.Item
         name="quantity"
         label="Quantity"
         dependencies={["productId"]}
-        extra={stock !== undefined ? `${fmtInt(stock)} in stock` : undefined}
+        extra={
+          savedMax !== undefined
+            ? `No longer for sale: keep up to ${fmtInt(savedMax)}, the quantity already on this slip`
+            : stock !== undefined
+              ? `${fmtInt(stock)} in stock`
+              : undefined
+        }
         rules={[
           { required: true, message: "Enter a quantity" },
           // UX only — stock can change between here and submit, so the
@@ -113,7 +132,11 @@ function ItemFormFields({
             validator: (_, qty: number | undefined) =>
               qty !== undefined && stock !== undefined && qty > stock
                 ? Promise.reject(
-                    new Error(`Only ${fmtInt(stock)} in stock`),
+                    new Error(
+                      savedMax !== undefined
+                        ? `Can't go above the ${fmtInt(savedMax)} already on this slip`
+                        : `Only ${fmtInt(stock)} in stock`,
+                    ),
                   )
                 : Promise.resolve(),
           },
@@ -133,6 +156,11 @@ interface OrderSlipFormProps {
   initialItems?: DraftOrderItem[];
   /** The slip's cashier when editing, kept selectable even if deactivated. */
   currentCashier?: Cashier;
+  /**
+   * The slip's articles as saved, priced at what they sold for. Lets lines
+   * whose product is no longer for sale still show and be kept or reduced.
+   */
+  savedProducts?: Product[];
   submitLabel: string;
   submitting: boolean;
   /** Error notification title when onSubmit throws. */
@@ -153,6 +181,7 @@ export function OrderSlipForm({
   initialValues,
   initialItems = [],
   currentCashier,
+  savedProducts,
   submitLabel,
   submitting,
   errorTitle,
@@ -193,14 +222,30 @@ export function OrderSlipForm({
     })),
     [liveProducts, existingQuantity],
   );
+  // The live list only has products for sale. A saved line whose product
+  // has since been made unavailable comes from the slip itself instead,
+  // capped at the quantity it was saved with (the backend allows no more).
+  const notForSaleProducts = useMemo(() => {
+    const liveIds = new Set(liveProducts.map((p) => p.id));
+    return (savedProducts ?? []).filter((p) => !liveIds.has(p.id));
+  }, [liveProducts, savedProducts]);
+  const notForSale = useMemo(
+    () => new Map(notForSaleProducts.map((p) => [p.id, existingQuantity.get(p.id) ?? 0])),
+    [notForSaleProducts, existingQuantity],
+  );
+  const pickableProducts = useMemo(
+    () => [...products, ...notForSaleProducts],
+    [products, notForSaleProducts],
+  );
 
   const [form] = Form.useForm<OrderSlipHeaderValues>();
+  const status = Form.useWatch("status", form);
   const [items, setItems] = useState<DraftOrderItem[]>(initialItems);
   const [itemsChanged, setItemsChanged] = useState(false);
 
   const productsById = useMemo(
-    () => new Map(products.map((p) => [p.id, p])),
-    [products],
+    () => new Map(pickableProducts.map((p) => [p.id, p])),
+    [pickableProducts],
   );
 
   // ---- draft state helpers ----
@@ -232,8 +277,9 @@ export function OrderSlipForm({
         onSave={(v) => updateItem(item.key, v)}
       >
         <ItemFormFields
-          products={products}
+          products={pickableProducts}
           takenProductIds={takenIds(item.key)}
+          notForSale={notForSale}
         />
       </CommonModalForm>
       <Popconfirm
@@ -265,7 +311,11 @@ export function OrderSlipForm({
         orderBy: header.orderBy?.trim() ?? "",
         address: header.address?.trim() ?? "",
         status: header.status,
-        paymentDueDate: header.paymentDueDate.format("YYYY-MM-DD"),
+        // A paid slip's due date is the day it's saved; the backend sets it.
+        paymentDueDate:
+          header.status === "paid"
+            ? undefined
+            : header.paymentDueDate?.format("YYYY-MM-DD"),
         cashierId: header.cashierId,
         // client-side keys stay behind
         items: items.map((i) => ({
@@ -370,29 +420,31 @@ export function OrderSlipForm({
                   ).map((s) => ({ label: PAYMENT_STATUS_LABEL[s], value: s }))}
                 />
               </Form.Item>
-              <Form.Item
-                name="paymentDueDate"
-                label="Payment due"
-                dependencies={["date"]}
-                rules={[
-                  { required: true, message: "Pick a due date" },
-                  ({ getFieldValue }) => ({
-                    validator: (_, v: Dayjs | undefined) =>
-                      v && v.isBefore(getFieldValue("date"), "day")
-                        ? Promise.reject(
-                            new Error("Can't be before the slip date"),
-                          )
-                        : Promise.resolve(),
-                  }),
-                ]}
-                style={{ flex: 1, minWidth: 200, marginBottom: 0 }}
-              >
-                <DatePicker
-                  allowClear={false}
-                  format="MMMM DD, YYYY"
-                  style={{ width: "100%" }}
-                />
-              </Form.Item>
+              {status !== "paid" && (
+                <Form.Item
+                  name="paymentDueDate"
+                  label="Payment due"
+                  dependencies={["date"]}
+                  rules={[
+                    { required: true, message: "Pick a due date" },
+                    ({ getFieldValue }) => ({
+                      validator: (_, v: Dayjs | undefined) =>
+                        v && v.isBefore(getFieldValue("date"), "day")
+                          ? Promise.reject(
+                              new Error("Can't be before the slip date"),
+                            )
+                          : Promise.resolve(),
+                    }),
+                  ]}
+                  style={{ flex: 1, minWidth: 200, marginBottom: 0 }}
+                >
+                  <DatePicker
+                    allowClear={false}
+                    format="MMMM DD, YYYY"
+                    style={{ width: "100%" }}
+                  />
+                </Form.Item>
+              )}
             </Flex>
           </Form>
         </Card>
@@ -411,7 +463,11 @@ export function OrderSlipForm({
               okText="Add"
               onSave={addItem}
             >
-              <ItemFormFields products={products} takenProductIds={takenIds()} />
+              <ItemFormFields
+                products={pickableProducts}
+                takenProductIds={takenIds()}
+                notForSale={notForSale}
+              />
             </CommonModalForm>
           }
         >

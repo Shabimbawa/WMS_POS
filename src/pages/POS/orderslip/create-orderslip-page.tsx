@@ -6,8 +6,8 @@ import { useCreateOrderSlip } from "../../../queries/useHooks";
 import { posToday } from "../type-format/format";
 import { OrderSlipForm } from "./orderslip-form";
 
-/** Default payment terms for a new slip, in days from the slip date. */
-const DEFAULT_TERM_DAYS = 30;
+/** Default payment terms for an unpaid or partial slip, in days from today. */
+const DEFAULT_TERM_DAYS = 14;
 
 export default function CreateOrderSlipPage() {
   const navigate = useNavigate();
