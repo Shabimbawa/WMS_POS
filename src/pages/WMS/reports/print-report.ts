@@ -98,7 +98,7 @@ function buildHtml(report: PrintableReport): string {
 <style>
   @page { size: A4 landscape; margin: 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #222; font-size: 11px; margin: 0; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #000; font-size: 11px; margin: 0; }
   header { margin-bottom: 14px; }
   h1 { font-size: 15px; margin: 0 0 2px; }
   .sub { color: #666; margin: 0; }
@@ -109,23 +109,22 @@ function buildHtml(report: PrintableReport): string {
   .kind { color: #666; margin: 2px 0 10px; padding-bottom: 10px; border-bottom: 1px solid #bbb; }
   table { width: 100%; border-collapse: collapse; }
   thead { display: table-header-group; }
-  th { font-weight: 700; font-size: 14px; color: #1e3a8a; padding: 6px 8px; text-align: center; vertical-align: bottom; }
+  th { font-weight: 700; font-size: 14px; padding: 6px 8px; text-align: center; vertical-align: bottom; }
   .list th { font-size: 12px; text-align: left; border-bottom: 1px solid #999; }
   .list td { text-align: left; }
   .list .num { text-align: right; white-space: nowrap; }
   tr { page-break-inside: avoid; }
   th.label { font-size: 17px; text-align: left; padding-bottom: 8px; }
-  th .top { display: block; font-weight: 400; font-size: 11.5px; color: #222; }
+  th .top { display: block; font-weight: 400; font-size: 11.5px; }
   td { padding: 5px 8px; text-align: center; font-variant-numeric: tabular-nums; }
   .label { width: 150px; }
   .mid { width: 92px; }
   .total { width: 90px; }
   td.label { text-align: left; font-weight: 700; }
   .total.num { text-align: right; }
-  td.total { font-weight: 700; color: #555; }
+  td.total { font-weight: 700; }
   tbody tr:nth-child(odd) td { background: #f3f4f6; }
-  tfoot td { border-top: 1.5px solid #333; font-weight: 700; color: #1e3a8a; padding-top: 8px; }
-  tfoot td.total { color: #1e3a8a; }
+  tfoot td { border-top: 1.5px solid #000; font-weight: 700; padding-top: 8px; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .empty { padding: 24px; text-align: center; color: #888; }
 </style></head>

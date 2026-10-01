@@ -7,12 +7,12 @@ import type { ReceivingRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import { cellText, fmtReportDate, type BrandGrid, type SupplierGroup } from "./report-grid";
 
-const PRIMARY = "var(--ant-color-primary, #1677ff)";
-const headerStyle = { fontWeight: 700, fontSize: 15, color: PRIMARY };
+// Plain text color throughout: black on the light theme, like the sheets.
+const headerStyle = { fontWeight: 700, fontSize: 15 };
 
 const twoLineHeader = (top: string, label: string) => (
   <div style={{ textAlign: "center", lineHeight: 1.25 }}>
-    <div style={{ fontWeight: 400, fontSize: 12, opacity: 0.75 }}>{top}</div>
+    <div style={{ fontWeight: 400, fontSize: 12 }}>{top}</div>
     <div style={{ ...headerStyle, whiteSpace: "nowrap" }}>{label}</div>
   </div>
 );
@@ -51,7 +51,7 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
       size: 160,
       meta: { fixed: "left" },
       cell: (c) => (
-        <span style={{ fontWeight: 700, color: c.row.original.isTotal ? PRIMARY : undefined }}>
+        <span style={{ fontWeight: 700 }}>
           {c.getValue<string>()}
         </span>
       ),
@@ -77,7 +77,7 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
       size: 110,
       meta: { fixed: "right" },
       cell: (c) => (
-        <div style={{ textAlign: "right", fontWeight: 700, opacity: c.row.original.isTotal ? 1 : 0.75 }}>
+        <div style={{ textAlign: "right", fontWeight: 700 }}>
           {fmtInt(c.getValue<number>())}
         </div>
       ),
@@ -127,7 +127,7 @@ const receivingColumns: ColumnDef<ReceivingTableRow, any>[] = [
     size: 110,
     meta: { fixed: "left" },
     cell: (c) =>
-      c.row.original.line ? fmtReportDate(c.row.original.line.date) : <strong style={{ color: PRIMARY }}>Subtotal</strong>,
+      c.row.original.line ? fmtReportDate(c.row.original.line.date) : <strong>Subtotal</strong>,
   },
   {
     id: "source",
