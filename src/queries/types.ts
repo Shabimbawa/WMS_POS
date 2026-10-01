@@ -70,6 +70,13 @@ export interface SupplierParams {
   kind?: SupplierKind;
 }
 
+/** POST /suppliers. Names and codes are unique, ignoring case. */
+export interface CreateSupplierInput {
+  name: string;
+  code: string | null;
+  kind: SupplierKind;
+}
+
 export interface ProductCategory {
   id: string;
   brand: string;

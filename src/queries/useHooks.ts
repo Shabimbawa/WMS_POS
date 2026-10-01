@@ -14,6 +14,7 @@ import {
   createDelivery,
   createProduct,
   createShipment,
+  createSupplier,
   getContainer,
   getContainerVariance,
   getOpenQuestionCount,
@@ -457,5 +458,14 @@ export function useEmptyOrderSlipTrash() {
   return useMutation({
     mutationFn: emptyOrderSlipTrash,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["order-slips", "trash"] }),
+  });
+}
+
+export function useCreateSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createSupplier,
+    // Every supplier dropdown, whichever kind it filters to.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["suppliers"] }),
   });
 }

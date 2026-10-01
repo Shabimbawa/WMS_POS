@@ -36,6 +36,7 @@ import {
   type DraftContainer,
   type DraftItem,
 } from "./create-shipment-table";
+import { CreateSupplierButton } from "../supplier/create-supplier-button";
 
 // ---- form value shapes -------------------------------------------
 
@@ -342,6 +343,12 @@ export default function CreateShipmentPage() {
                     label: s.name,
                     value: s.id,
                   }))}
+                />
+              </Form.Item>
+              <Form.Item label=" " colon={false} style={{ marginBottom: 0 }}>
+                <CreateSupplierButton
+                  kind="INTERNATIONAL"
+                  onCreated={(supplier) => form.setFieldValue("supplier_id", supplier.id)}
                 />
               </Form.Item>
               <Form.Item

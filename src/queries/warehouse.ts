@@ -9,6 +9,7 @@ import type {
   LocalDeliveryRow,
   ContainerVarianceRow,
   CreateShipmentInput,
+  CreateSupplierInput,
   OpenQuestionParams,
   OpenQuestionRow,
   Page,
@@ -33,6 +34,13 @@ export async function getSuppliers(
   params: SupplierParams = {},
 ): Promise<Supplier[]> {
   return apiRequest<Supplier[]>(`/suppliers${queryString(params)}`);
+}
+
+export async function createSupplier(input: CreateSupplierInput): Promise<Supplier> {
+  return apiRequest<Supplier>("/suppliers", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 export async function getProductCategories(
   params: ProductCategoryParams = {},

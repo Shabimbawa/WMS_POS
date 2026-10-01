@@ -33,6 +33,7 @@ import {
   ProductReferenceTable,
   type DraftItem,
 } from "../container/create-shipment-table";
+import { CreateSupplierButton } from "../supplier/create-supplier-button";
 
 type ItemValues = {
   product_category_id: string;
@@ -251,6 +252,14 @@ export default function CreateDeliveryPage() {
                   }))}
                   showSearch
                   optionFilterProp="label"
+                />
+              </Form.Item>
+            </Form>
+            <Form layout="vertical">
+              <Form.Item label=" " colon={false} style={{ marginBottom: 0 }}>
+                <CreateSupplierButton
+                  kind="LOCAL"
+                  onCreated={(supplier) => setSupplierId(supplier.id)}
                 />
               </Form.Item>
             </Form>
