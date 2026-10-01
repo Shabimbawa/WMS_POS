@@ -11,7 +11,7 @@ import {
   fmtInt,
   fmtProduct,
 } from "../type-format/format";
-import { DateParser } from "../../../common/utils/util";
+import { fmtTableDate } from "../../../common/utils/util";
 import { ContainerActions } from "./container-actions";
 
 /** Rows here are packing lists, with containers nested underneath. */
@@ -22,7 +22,7 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
     accessorFn: (r) => r.date_list_received,
     size: 140,
     meta: { fixed: "left" },
-    cell: (c) => DateParser(c.getValue<string>()),
+    cell: (c) => fmtTableDate(c.getValue<string>()),
   },
   {
     id: "supplier",
@@ -205,7 +205,7 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
     size: 130,
     cell: (c) => {
       const v = c.getValue<string | null>();
-      return v ? DateParser(v) : dash;
+      return v ? fmtTableDate(v) : dash;
     },
   },
   {
@@ -215,7 +215,7 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
     size: 130,
     cell: (c) => {
       const v = c.getValue<string | null>();
-      return v ? DateParser(v) : dash;
+      return v ? fmtTableDate(v) : dash;
     },
   },
   {
@@ -225,7 +225,7 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
     size: 130,
     cell: (c) => {
       const v = c.getValue<string | null>();
-      return v ? DateParser(v) : dash;
+      return v ? fmtTableDate(v) : dash;
     },
   },
   {

@@ -6,7 +6,7 @@ import { DataTable } from "../../../common/items/table/table";
 import { LabelValue, OverflowList } from "../../../common/items/overflow-list/overflow-list";
 import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
-import { DateParser } from "../../../common/utils/util";
+import { fmtTableDate } from "../../../common/utils/util";
 import type { LocalDeliveryRow } from "../../../queries/types";
 import { useVoidDelivery } from "../../../queries/useHooks";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
@@ -91,7 +91,7 @@ const deliveryColumns: ColumnDef<LocalDeliveryRow, any>[] = [
     accessorFn: (r) => r.date_received,
     size: 140,
     meta: { fixed: "left" },
-    cell: (c) => DateParser(c.getValue<string>()),
+    cell: (c) => fmtTableDate(c.getValue<string>()),
   },
   {
     id: "supplier",

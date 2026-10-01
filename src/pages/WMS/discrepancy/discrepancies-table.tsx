@@ -1,9 +1,8 @@
 import { Tag } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
-import dayjs from "dayjs";
 
 import { DataTable } from "../../../common/items/table/table";
-import { DateParser } from "../../../common/utils/util";
+import { fmtTableDate, fmtTableDateTime } from "../../../common/utils/util";
 import type {
   ContainerVarianceItem,
   ContainerVarianceRow,
@@ -48,7 +47,7 @@ const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
     header: "List received",
     accessorFn: (r) => r.date_list_received,
     size: 140,
-    cell: (c) => DateParser(c.getValue<string>()),
+    cell: (c) => fmtTableDate(c.getValue<string>()),
   },
   {
     id: "date_unloaded",
@@ -57,7 +56,7 @@ const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
     size: 140,
     cell: (c) => {
       const v = c.getValue<string | null>();
-      return v ? DateParser(v) : dash;
+      return v ? fmtTableDate(v) : dash;
     },
   },
   {
@@ -213,7 +212,7 @@ const openQuestionColumns: ColumnDef<OpenQuestionRow, any>[] = [
     accessorFn: (r) => r.created_at,
     size: 170,
     meta: { fixed: "left" },
-    cell: (c) => dayjs(c.getValue<string>()).format("MMM DD, YYYY h:mm A"),
+    cell: (c) => fmtTableDateTime(c.getValue<string>()),
   },
   {
     id: "container_no",

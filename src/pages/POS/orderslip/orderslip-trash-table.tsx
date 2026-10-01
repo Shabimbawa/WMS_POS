@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
+import { fmtTableDate, fmtTableDateTime } from "../../../common/utils/util";
 import type { TrashedOrderSlip } from "../../../queries/posTypes";
 import { usePurgeOrderSlip, useRestoreOrderSlip } from "../../../queries/useHooks";
 import {
@@ -79,7 +80,8 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
   {
     id: "slip",
     header: "Slip",
-    accessorFn: (r) => fmtSlipNumber(r),
+    // Same date format as every other table, then the day's slip number.
+    accessorFn: (r) => `${fmtTableDate(r.date)} · #${r.slipNumber}`,
     size: 140,
     meta: { fixed: "left" },
     cell: (c) => <span style={{ fontFamily: "monospace" }}>{c.getValue<string>()}</span>,
@@ -146,7 +148,7 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
       const slip = c.row.original;
       return (
         <div>
-          {dayjs(slip.deletedAt).format("MMM D, YYYY h:mm A")}
+          {fmtTableDateTime(slip.deletedAt)}
           {slip.deletedBy && (
             <div style={{ fontSize: 12, opacity: 0.6 }}>by {slip.deletedBy}</div>
           )}
@@ -162,7 +164,7 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
     cell: (c) => {
       const days = Math.max(0, Math.ceil(dayjs(c.getValue<string>()).diff(dayjs(), "day", true)));
       return (
-        <Tooltip title={dayjs(c.getValue<string>()).format("MMM D, YYYY h:mm A")}>
+        <Tooltip title={fmtTableDateTime(c.getValue<string>())}>
           <span style={{ color: days <= 3 ? "var(--ant-color-error, #ff4d4f)" : undefined }}>
             {days === 0 ? "Today" : `In ${days} ${days === 1 ? "day" : "days"}`}
           </span>

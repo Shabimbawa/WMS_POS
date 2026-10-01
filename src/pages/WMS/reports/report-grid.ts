@@ -7,6 +7,8 @@
 
 import dayjs, { type Dayjs } from "dayjs";
 
+import { fmtTableDate } from "../../../common/utils/util";
+
 import type { InboundReport, ProductLabel, ReceivingRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import type { PrintSection } from "./print-report";
@@ -15,7 +17,7 @@ import type { PrintSection } from "./print-report";
 const MAX_DAY_COLUMNS = 31;
 
 /** Table dates everywhere in reports: 08/17/2026. */
-export const fmtReportDate = (date: string) => dayjs(date).format("MM/DD/YYYY");
+export const fmtReportDate = fmtTableDate;
 
 /**
  * Row label colors, one per variety within a brand (Blue, Orange, …).
