@@ -16,10 +16,16 @@ export interface PrintRow {
   color?: string;
 }
 
-/** One titled table. Every section after the first starts a new page. */
+/** One titled table. */
 export interface PrintSection {
   title: string;
   subtitle?: string;
+  /**
+   * grid (default): label column, packed fixed-width middle columns, and a
+   * total at the right edge, like the timeframe sheets. list: an ordinary
+   * table, each column aligned by its `align`.
+   */
+  layout?: "grid" | "list";
   columns: PrintColumn[];
   rows: PrintRow[];
   /** Optional totals row, one cell per column. */
@@ -32,6 +38,8 @@ export interface PrintableReport {
   /** Lines under the title: period, filters. */
   subtitle: string[];
   sections: PrintSection[];
+  /** Start every section after the first on a new page. */
+  pagePerSection?: boolean;
 }
 
 const escapeHtml = (value: string) =>
@@ -42,16 +50,21 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;");
 
 /**
- * The first column is the row label and the last the row total; the ones
- * between are fixed-width and packed left, with an empty spacer taking the
- * rest of the width so the total sits at the right edge.
+ * Grid layout: the first column is the row label and the last the row
+ * total; the ones between are fixed-width and packed left, with an empty
+ * spacer taking the rest of the width so the total sits at the right edge.
  */
 function sectionHtml(section: PrintSection): string {
+  const grid = (section.layout ?? "grid") === "grid";
   const last = section.columns.length - 1;
   const cls = (i: number) =>
-    [i === 0 ? "label" : i === last ? "total" : "mid", section.columns[i]?.align === "right" ? "num" : ""].join(" ");
-  // Spacer before the total column, in every row.
-  const withSpacer = (cells: string[], spacer: string) => [...cells.slice(0, -1), spacer, ...cells.slice(-1)];
+    [
+      grid ? (i === 0 ? "label" : i === last ? "total" : "mid") : "",
+      section.columns[i]?.align === "right" ? "num" : "",
+    ].join(" ").trim();
+  // Spacer before the total column, in every row of a grid.
+  const withSpacer = (cells: string[], spacer: string) =>
+    grid ? [...cells.slice(0, -1), spacer, ...cells.slice(-1)] : cells;
   const label = (text: string) => escapeHtml(text).replace(/\n/g, "<br>");
 
   const head = withSpacer(
@@ -78,7 +91,7 @@ function sectionHtml(section: PrintSection): string {
   return `<section>
     <h2>${escapeHtml(section.title)}</h2>
     ${section.subtitle ? `<p class="kind">${escapeHtml(section.subtitle)}</p>` : ""}
-    <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>
+    <table class="${grid ? "grid" : "list"}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>
   </section>`;
 }
 
@@ -86,6 +99,7 @@ function buildHtml(report: PrintableReport): string {
   const printedAt = new Date().toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title>
+<style>${report.pagePerSection ? "section + section { page-break-before: always; }" : ""}</style>
 <style>
   @page { size: A4 landscape; margin: 12mm; }
   * { box-sizing: border-box; }
@@ -94,13 +108,17 @@ function buildHtml(report: PrintableReport): string {
   h1 { font-size: 15px; margin: 0 0 2px; }
   .sub { color: #666; margin: 0; }
   .meta { color: #999; margin: 4px 0 0; font-size: 9.5px; }
-  section { margin-bottom: 22px; page-break-inside: avoid; }
-  section + section { page-break-before: always; }
+  section { margin-bottom: 22px; }
+  .grid { page-break-inside: avoid; }
   h2 { font-size: 16px; margin: 0; color: #333; }
   .kind { color: #666; margin: 2px 0 10px; padding-bottom: 10px; border-bottom: 1px solid #bbb; }
   table { width: 100%; border-collapse: collapse; }
   thead { display: table-header-group; }
   th { font-weight: 700; font-size: 14px; color: #1e3a8a; padding: 6px 8px; text-align: center; vertical-align: bottom; }
+  .list th { font-size: 12px; text-align: left; border-bottom: 1px solid #999; }
+  .list td { text-align: left; }
+  .list .num { text-align: right; white-space: nowrap; }
+  tr { page-break-inside: avoid; }
   th.label { font-size: 17px; text-align: left; padding-bottom: 8px; }
   th .top { display: block; font-weight: 400; font-size: 11.5px; color: #222; }
   td { padding: 5px 8px; text-align: center; font-variant-numeric: tabular-nums; }

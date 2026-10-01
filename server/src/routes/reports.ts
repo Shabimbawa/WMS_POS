@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
@@ -7,8 +7,6 @@ import {
   containers,
   localDeliveries,
   localDeliveryItems,
-  orderSlipItems,
-  orderSlips,
   productCategories,
   shipments,
   suppliers,
@@ -23,118 +21,88 @@ const productIdList = z
   .transform((value) => (value ? value.split(",").filter(Boolean) : []))
   .pipe(z.array(z.uuid()).max(200));
 
-const dailyQuery = z.object({
-  kind: z.enum(["purchase", "sales"]),
+const range = {
   dateFrom: z.iso.date(),
   dateTo: z.iso.date(),
-  productIds: productIdList,
-  /** Purchase only: that whole shipment, whatever the period. */
-  shipmentId: z.uuid().optional(),
-  /** Purchase only. */
-  source: z.enum(["ALL", "SHIPMENT", "LOCAL"]).default("ALL"),
-});
+};
+
+const source = z.enum(["ALL", "SHIPMENT", "LOCAL"]).default("ALL");
+
+const inboundQuery = z.object({ ...range, productIds: productIdList, source });
+const receivingQuery = z.object({ ...range, supplierId: z.uuid().optional(), source });
+
+function assertRange(query: { dateFrom: string; dateTo: string }) {
+  if (query.dateFrom > query.dateTo) {
+    throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
+  }
+}
+
+/**
+ * Received stock only, dated by when it physically came in: containers once
+ * UNLOADED (counted sacks, on the unload date — the same date as their
+ * INBOUND_UNLOAD movement) and local deliveries on the date received.
+ * Pending and cancelled containers and voided deliveries never appear.
+ */
+const unloadedIn = (dateFrom: string, dateTo: string) =>
+  and(
+    eq(containers.status, "UNLOADED"),
+    gte(containers.dateUnloaded, dateFrom),
+    lte(containers.dateUnloaded, dateTo),
+  );
+
+const deliveredIn = (dateFrom: string, dateTo: string) =>
+  and(
+    isNull(localDeliveries.voidedAt),
+    gte(localDeliveries.dateReceived, dateFrom),
+    lte(localDeliveries.dateReceived, dateTo),
+  );
 
 type Cell = { productId: string; date: string; sacks: number };
 
 export async function reportRoutes(app: FastifyInstance): Promise<void> {
   const warehouseOnly = { preHandler: requireRole("warehouse_admin") };
 
-  /** Every shipment, newest first, for the report's shipment filter. */
-  app.get("/reports/shipments", warehouseOnly, async () => {
-    return db
-      .select({
-        id: shipments.id,
-        reference: shipments.reference,
-        date_list_received: shipments.dateListReceived,
-        supplier: suppliers.name,
-      })
-      .from(shipments)
-      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
-      .orderBy(desc(shipments.dateListReceived), desc(shipments.createdAt));
-  });
-
   /**
-   * Sacks per product per day, for the timeframe grids.
-   *
-   * purchase: what was ordered in, on the day it was ordered. Shipments
-   * count declared sacks on the packing list's date (cancelled containers
-   * left out); local deliveries count their sacks on the date received
-   * (voided ones left out).
-   *
-   * sales: sacks on order slips, by slip date. Slips in Trash are left out,
-   * and an edited slip counts as it stands now.
-   *
-   * `products` lists every active product (or just the filtered ones), so
-   * the client can show a brand's quiet sizes as zero rows.
+   * Stock summary: inbound sacks per product per arrival day, for the
+   * timeframe grids. `products` lists every active product (or the
+   * filtered ones) so the client can show a brand's quiet sizes as zeros.
    */
-  app.get("/reports/daily", warehouseOnly, async (request) => {
-    const query = dailyQuery.parse(request.query);
-    if (query.dateFrom > query.dateTo) {
-      throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
-    }
+  app.get("/reports/inbound", warehouseOnly, async (request) => {
+    const query = inboundQuery.parse(request.query);
+    assertRange(query);
     const productFilter = (column: Parameters<typeof inArray>[0]) =>
       query.productIds.length ? inArray(column, query.productIds) : undefined;
 
-    let cells: Cell[];
-    if (query.kind === "sales") {
-      cells = await db
-        .select({
-          productId: orderSlipItems.productCategoryId,
-          date: orderSlips.date,
-          sacks: sql<number>`sum(${orderSlipItems.quantity})::int`,
-        })
-        .from(orderSlipItems)
-        .innerJoin(orderSlips, eq(orderSlipItems.orderSlipId, orderSlips.id))
-        .where(and(
-          isNull(orderSlips.deletedAt),
-          gte(orderSlips.date, query.dateFrom),
-          lte(orderSlips.date, query.dateTo),
-          productFilter(orderSlipItems.productCategoryId),
-        ))
-        .groupBy(orderSlipItems.productCategoryId, orderSlips.date);
-    } else {
-      const shipmentCells = query.source === "LOCAL" && !query.shipmentId ? [] : await db
-        .select({
-          productId: containerItems.productCategoryId,
-          date: shipments.dateListReceived,
-          sacks: sql<number>`sum(${containerItems.qtySacks})::int`,
-        })
-        .from(containerItems)
-        .innerJoin(containers, eq(containerItems.containerId, containers.id))
-        .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
-        .where(and(
-          ne(containers.status, "CANCELLED"),
-          query.shipmentId
-            ? eq(shipments.id, query.shipmentId)
-            : and(gte(shipments.dateListReceived, query.dateFrom), lte(shipments.dateListReceived, query.dateTo)),
-          productFilter(containerItems.productCategoryId),
-        ))
-        .groupBy(containerItems.productCategoryId, shipments.dateListReceived);
-      const localCells = query.source === "SHIPMENT" || query.shipmentId ? [] : await db
-        .select({
-          productId: localDeliveryItems.productCategoryId,
-          date: localDeliveries.dateReceived,
-          sacks: sql<number>`sum(${localDeliveryItems.qtySacks})::int`,
-        })
-        .from(localDeliveryItems)
-        .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
-        .where(and(
-          isNull(localDeliveries.voidedAt),
-          gte(localDeliveries.dateReceived, query.dateFrom),
-          lte(localDeliveries.dateReceived, query.dateTo),
-          productFilter(localDeliveryItems.productCategoryId),
-        ))
-        .groupBy(localDeliveryItems.productCategoryId, localDeliveries.dateReceived);
-      // A product can arrive both ways on one day; merge them into one cell.
-      const merged = new Map<string, Cell>();
-      for (const cell of [...shipmentCells, ...localCells]) {
-        const key = `${cell.productId}|${cell.date}`;
-        const current = merged.get(key);
-        if (current) current.sacks += cell.sacks;
-        else merged.set(key, { ...cell });
-      }
-      cells = [...merged.values()];
+    const shipmentCells = query.source === "LOCAL" ? [] : await db
+      .select({
+        productId: containerItems.productCategoryId,
+        date: sql<string>`${containers.dateUnloaded}`,
+        sacks: sql<number>`coalesce(sum(${containerItems.actualQtySacks}), 0)::int`,
+      })
+      .from(containerItems)
+      .innerJoin(containers, eq(containerItems.containerId, containers.id))
+      .where(and(unloadedIn(query.dateFrom, query.dateTo), productFilter(containerItems.productCategoryId)))
+      .groupBy(containerItems.productCategoryId, containers.dateUnloaded);
+    const localCells = query.source === "SHIPMENT" ? [] : await db
+      .select({
+        productId: localDeliveryItems.productCategoryId,
+        date: localDeliveries.dateReceived,
+        sacks: sql<number>`sum(${localDeliveryItems.qtySacks})::int`,
+      })
+      .from(localDeliveryItems)
+      .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
+      .where(and(deliveredIn(query.dateFrom, query.dateTo), productFilter(localDeliveryItems.productCategoryId)))
+      .groupBy(localDeliveryItems.productCategoryId, localDeliveries.dateReceived);
+
+    // A product can arrive both ways on one day; merge them into one cell.
+    const merged = new Map<string, Cell>();
+    for (const cell of [...shipmentCells, ...localCells]) {
+      const key = `${cell.productId}|${cell.date}`;
+      const current = merged.get(key);
+      if (current) current.sacks += cell.sacks;
+      else merged.set(key, { ...cell });
     }
+    const cells = [...merged.values()].filter((cell) => cell.sacks !== 0);
 
     // Retired products appear only when they still have figures in the period.
     const withFigures = [...new Set(cells.map((cell) => cell.productId))];
@@ -158,9 +126,92 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
 
     return {
       products,
-      cells: cells
-        .filter((cell) => cell.sacks !== 0)
-        .map((cell) => ({ product_category_id: cell.productId, date: cell.date, sacks: cell.sacks })),
+      cells: cells.map((cell) => ({ product_category_id: cell.productId, date: cell.date, sacks: cell.sacks })),
     };
+  });
+
+  /**
+   * Receiving: every line received in the range, for one supplier or all,
+   * sorted by supplier then date. Shipments by unload date with declared vs
+   * counted; local deliveries by date received, where the two are the same.
+   */
+  app.get("/reports/receiving", warehouseOnly, async (request) => {
+    const query = receivingQuery.parse(request.query);
+    assertRange(query);
+    const product = {
+      product_category_id: productCategories.id,
+      brand: productCategories.brand,
+      variety: productCategories.variety,
+      code: productCategories.code,
+      size_kg: productCategories.sizeKg,
+    };
+
+    const shipmentRows = query.source === "LOCAL" ? [] : await db
+      .select({
+        line_id: containerItems.id,
+        supplier_id: suppliers.id,
+        supplier: suppliers.name,
+        date: sql<string>`${containers.dateUnloaded}`,
+        reference: shipments.reference,
+        container_no: containers.containerNo,
+        ...product,
+        declared_qty: containerItems.qtySacks,
+        actual_qty: sql<number>`coalesce(${containerItems.actualQtySacks}, 0)::int`,
+        price_per_sack: containerItems.pricePerSack,
+      })
+      .from(containerItems)
+      .innerJoin(containers, eq(containerItems.containerId, containers.id))
+      .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .innerJoin(productCategories, eq(containerItems.productCategoryId, productCategories.id))
+      .where(and(
+        unloadedIn(query.dateFrom, query.dateTo),
+        query.supplierId ? eq(suppliers.id, query.supplierId) : undefined,
+      ));
+
+    const localRows = query.source === "SHIPMENT" ? [] : await db
+      .select({
+        line_id: localDeliveryItems.id,
+        supplier_id: suppliers.id,
+        supplier: suppliers.name,
+        date: localDeliveries.dateReceived,
+        reference: localDeliveries.reference,
+        ...product,
+        qty: localDeliveryItems.qtySacks,
+        price_per_sack: localDeliveryItems.pricePerSack,
+      })
+      .from(localDeliveryItems)
+      .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
+      .innerJoin(suppliers, eq(localDeliveries.supplierId, suppliers.id))
+      .innerJoin(productCategories, eq(localDeliveryItems.productCategoryId, productCategories.id))
+      .where(and(
+        deliveredIn(query.dateFrom, query.dateTo),
+        query.supplierId ? eq(suppliers.id, query.supplierId) : undefined,
+      ));
+
+    const value = (qty: number, price: number | null) =>
+      price === null ? null : Math.round(qty * price * 100) / 100;
+
+    return [
+      ...shipmentRows.map((row) => ({
+        ...row,
+        source: "SHIPMENT" as const,
+        variance: row.actual_qty - row.declared_qty,
+        value: value(row.actual_qty, row.price_per_sack),
+      })),
+      ...localRows.map(({ qty, ...row }) => ({
+        ...row,
+        source: "LOCAL" as const,
+        container_no: null,
+        declared_qty: qty,
+        actual_qty: qty,
+        variance: 0,
+        value: value(qty, row.price_per_sack),
+      })),
+    ].sort((a, b) =>
+      a.supplier.localeCompare(b.supplier)
+      || a.date.localeCompare(b.date)
+      || a.brand.localeCompare(b.brand)
+      || a.size_kg - b.size_kg);
   });
 }
