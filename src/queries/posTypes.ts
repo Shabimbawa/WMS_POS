@@ -63,7 +63,8 @@ export interface CreateOrderSlipInput {
     orderBy: string;
     address: string;
     status: PaymentStatus;
-    paymentDueDate: string;
+    /** Omitted for paid slips: the backend sets it to the day it's saved. */
+    paymentDueDate?: string;
     cashierId: string;
     items: CreateOrderSlipItem[];
 }

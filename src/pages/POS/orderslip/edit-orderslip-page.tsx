@@ -68,6 +68,7 @@ export default function EditOrderSlipPage() {
           cashierId: slip.cashier.id,
         }}
         currentCashier={slip.cashier}
+        savedProducts={slip.items.map((i) => i.article)}
         initialItems={slip.items.map((i) => ({
           key: crypto.randomUUID(),
           productId: i.article.id,

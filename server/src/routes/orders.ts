@@ -35,7 +35,8 @@ const orderBody = z.object({
   orderBy: z.string().trim().max(500).default(""),
   address: z.string().trim().max(2_000).default(""),
   status: z.enum(["paid", "unpaid", "partial"]),
-  paymentDueDate: z.iso.date(),
+  /** Ignored for paid slips. Defaults to DEFAULT_TERM_DAYS out when omitted. */
+  paymentDueDate: z.iso.date().optional(),
   cashierId: z.uuid(),
   items: z.array(z.object({
     productId: z.uuid(),
@@ -84,8 +85,40 @@ function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
   return result;
 }
 
+/** A slip's day is a Philippine calendar day, wherever the server runs. */
+const POS_TIMEZONE = "Asia/Manila";
+
+/** Payment terms for an unpaid or partial slip saved without a due date. */
+const DEFAULT_TERM_DAYS = 14;
+
+/** Today in Philippine time, as YYYY-MM-DD. */
+function posToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: POS_TIMEZONE }).format(new Date());
+}
+
+function addDays(date: string, days: number): string {
+  const result = new Date(`${date}T00:00:00Z`);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+}
+
+function laterDate(a: string, b: string): string {
+  return a > b ? a : b;
+}
+
+/**
+ * The due date to store. A paid slip is due the day it's marked paid, so
+ * whatever the client sent is ignored. Neither may fall before the slip
+ * date (order_slip_due_date_ck), hence the clamp for future-dated slips.
+ */
+function resolveDueDate(input: z.infer<typeof orderBody>): string {
+  const today = posToday();
+  if (input.status === "paid") return laterDate(today, input.date);
+  return input.paymentDueDate ?? addDays(laterDate(today, input.date), DEFAULT_TERM_DAYS);
+}
+
 function assertOrderInput(input: z.infer<typeof orderBody>): void {
-  if (input.paymentDueDate < input.date) {
+  if (input.status !== "paid" && input.paymentDueDate && input.paymentDueDate < input.date) {
     throw new ApiError(400, "INVALID_DUE_DATE", "Payment due date cannot be before the order date");
   }
   const ids = input.items.map((item) => item.productId);
@@ -382,7 +415,7 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
           orderBy: input.orderBy,
           address: input.address,
           status: input.status,
-          paymentDueDate: input.paymentDueDate,
+          paymentDueDate: resolveDueDate(input),
           totalAmount,
           createdBy: request.currentUser!.id,
           updatedBy: request.currentUser!.id,
@@ -444,7 +477,11 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
       await assertCashier(tx, input.cashierId, current.cashierId);
 
       const oldItems = await tx
-        .select({ productId: orderSlipItems.productCategoryId, quantity: orderSlipItems.quantity })
+        .select({
+          productId: orderSlipItems.productCategoryId,
+          quantity: orderSlipItems.quantity,
+          unitPrice: orderSlipItems.unitPrice,
+        })
         .from(orderSlipItems)
         .where(eq(orderSlipItems.orderSlipId, id));
       const productIds = [...new Set([...oldItems.map((item) => item.productId), ...input.items.map((item) => item.productId)])].sort();
@@ -466,8 +503,8 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
         .where(inArray(stockBalances.productCategoryId, productIds))
         .orderBy(asc(stockBalances.productCategoryId))
         .for("update");
-      const available = new Map(balances.map((row) => [row.productId, row.quantity]));
-      for (const item of oldItems) available.set(item.productId, (available.get(item.productId) ?? 0) + item.quantity);
+      const balanceById = new Map(balances.map((row) => [row.productId, row.quantity]));
+      const oldById = new Map(oldItems.map((item) => [item.productId, item]));
 
       // Moving a slip to another day renumbers it within that day. Its old
       // number is left as a gap rather than shifting that day's other slips.
@@ -476,63 +513,71 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
         : await nextSlipNumber(tx, input.date);
 
       const productById = new Map(products.map((product) => [product.id, product]));
+      const priceById = new Map<string, number>();
       let totalAmount = 0;
       for (const item of input.items) {
         const product = productById.get(item.productId)!;
-        if (!product.isActive || !product.isAvailable || product.sellingPrice === null) {
-          throw new ApiError(409, "PRODUCT_NOT_FOR_SALE", "One or more products are not currently for sale");
+        const previous = oldById.get(item.productId);
+        const forSale = product.isActive && product.isAvailable && product.sellingPrice !== null;
+        // A line already on the slip may stay, or shrink, after its product
+        // stops being for sale. It keeps the price it was sold at. Adding
+        // the product, or more of it, is a new sale and is refused.
+        if (!forSale && (!previous || item.quantity > previous.quantity)) {
+          throw new ApiError(409, "PRODUCT_NOT_FOR_SALE", "One or more products are not currently for sale", { productId: item.productId });
         }
-        const quantity = available.get(item.productId) ?? 0;
-        if (item.quantity > quantity) {
-          throw new ApiError(409, "INSUFFICIENT_STOCK", `Only ${quantity} sacks are available`, { productId: item.productId, available: quantity });
+        // The slip's own sacks count as available: only the increase is new.
+        const available = (balanceById.get(item.productId) ?? 0) + (previous?.quantity ?? 0);
+        if (item.quantity > available) {
+          throw new ApiError(409, "INSUFFICIENT_STOCK", `Only ${available} sacks are available`, { productId: item.productId, available });
         }
-        totalAmount = money(totalAmount + money(item.quantity * product.sellingPrice));
+        const price = forSale ? product.sellingPrice! : previous!.unitPrice;
+        priceById.set(item.productId, price);
+        totalAmount = money(totalAmount + money(item.quantity * price));
       }
 
-      const reversalBatchId = randomUUID();
-      for (const item of [...oldItems].sort((a, b) => a.productId.localeCompare(b.productId))) {
-        const [balance] = await tx
-          .update(stockBalances)
-          .set({ remainingQty: sql`${stockBalances.remainingQty} + ${item.quantity}`, updatedAt: new Date() })
-          .where(eq(stockBalances.productCategoryId, item.productId))
-          .returning({ quantity: stockBalances.remainingQty });
-        await tx.insert(stockMovements).values({
-          batchId: reversalBatchId,
-          productCategoryId: item.productId,
-          movementType: "ORDER_REVERSAL",
-          quantityDelta: item.quantity,
-          balanceAfter: balance!.quantity,
-          orderSlipId: id,
-          orderRevision: current.revision,
-          createdBy: request.currentUser!.id,
-        });
-      }
-
+      // Record only what this revision changed: per product, an outbound
+      // movement for sacks added or a reversal for sacks taken off. Lines
+      // whose quantity didn't change write nothing, so the stock log shows
+      // each sack leaving once rather than a full reversal and re-sale.
       const newRevision = current.revision + 1;
-      const outboundBatchId = randomUUID();
-      for (const item of [...input.items].sort((a, b) => a.productId.localeCompare(b.productId))) {
+      const newQuantityById = new Map(input.items.map((item) => [item.productId, item.quantity]));
+      const batchId = randomUUID();
+      for (const productId of productIds) {
+        const delta = (newQuantityById.get(productId) ?? 0) - (oldById.get(productId)?.quantity ?? 0);
+        if (delta === 0) continue;
         const [balance] = await tx
           .update(stockBalances)
-          .set({ remainingQty: sql`${stockBalances.remainingQty} - ${item.quantity}`, updatedAt: new Date() })
-          .where(eq(stockBalances.productCategoryId, item.productId))
+          .set({ remainingQty: sql`${stockBalances.remainingQty} - ${delta}`, updatedAt: new Date() })
+          .where(eq(stockBalances.productCategoryId, productId))
           .returning({ quantity: stockBalances.remainingQty });
         if (!balance || balance.quantity < 0) throw new ApiError(409, "INSUFFICIENT_STOCK", "Stock changed while the order was being updated");
-        await tx.insert(stockMovements).values({
-          batchId: outboundBatchId,
-          productCategoryId: item.productId,
-          movementType: "OUTBOUND_ORDER",
-          quantityDelta: -item.quantity,
-          balanceAfter: balance.quantity,
-          orderSlipId: id,
-          orderRevision: newRevision,
-          occurredAt: new Date(`${input.date}T12:00:00Z`),
-          createdBy: request.currentUser!.id,
-        });
+        await tx.insert(stockMovements).values(delta > 0
+          ? {
+            batchId,
+            productCategoryId: productId,
+            movementType: "OUTBOUND_ORDER",
+            quantityDelta: -delta,
+            balanceAfter: balance.quantity,
+            orderSlipId: id,
+            orderRevision: newRevision,
+            occurredAt: new Date(`${input.date}T12:00:00Z`),
+            createdBy: request.currentUser!.id,
+          }
+          : {
+            batchId,
+            productCategoryId: productId,
+            movementType: "ORDER_REVERSAL",
+            quantityDelta: -delta,
+            balanceAfter: balance.quantity,
+            orderSlipId: id,
+            orderRevision: newRevision,
+            createdBy: request.currentUser!.id,
+          });
       }
 
       await tx.delete(orderSlipItems).where(eq(orderSlipItems.orderSlipId, id));
       await tx.insert(orderSlipItems).values(input.items.map((item) => {
-        const price = productById.get(item.productId)!.sellingPrice!;
+        const price = priceById.get(item.productId)!;
         return {
           orderSlipId: id,
           productCategoryId: item.productId,
@@ -550,7 +595,7 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
           orderBy: input.orderBy,
           address: input.address,
           status: input.status,
-          paymentDueDate: input.paymentDueDate,
+          paymentDueDate: resolveDueDate(input),
           totalAmount,
           revision: newRevision,
           updatedBy: request.currentUser!.id,
