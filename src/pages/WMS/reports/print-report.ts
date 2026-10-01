@@ -12,8 +12,6 @@ export interface PrintColumn {
 
 export interface PrintRow {
   cells: string[];
-  /** Colors the first cell, the row label. */
-  color?: string;
 }
 
 /** One titled table. */
@@ -75,10 +73,7 @@ function sectionHtml(section: PrintSection): string {
   const body = section.rows
     .map((row) =>
       `<tr>${withSpacer(
-        row.cells.map((cell, i) =>
-          i === 0 && row.color
-            ? `<td class="${cls(i)}" style="color:${escapeHtml(row.color)}">${escapeHtml(cell)}</td>`
-            : `<td class="${cls(i)}">${escapeHtml(cell)}</td>`),
+        row.cells.map((cell, i) => `<td class="${cls(i)}">${escapeHtml(cell)}</td>`),
         '<td class="spacer"></td>',
       ).join("")}</tr>`)
     .join("");
@@ -125,7 +120,7 @@ function buildHtml(report: PrintableReport): string {
   .label { width: 150px; }
   .mid { width: 92px; }
   .total { width: 90px; }
-  td.label { text-align: left; font-weight: 700; color: #1e3a8a; }
+  td.label { text-align: left; font-weight: 700; }
   .total.num { text-align: right; }
   td.total { font-weight: 700; color: #555; }
   tbody tr:nth-child(odd) td { background: #f3f4f6; }

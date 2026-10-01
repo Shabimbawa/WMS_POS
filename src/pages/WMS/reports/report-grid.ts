@@ -19,12 +19,6 @@ const MAX_DAY_COLUMNS = 31;
 /** Table dates everywhere in reports: 08/17/2026. */
 export const fmtReportDate = fmtTableDate;
 
-/**
- * Row label colors, one per variety within a brand (Blue, Orange, …).
- * Mid-tones, so they read on light and dark themes and on paper.
- */
-const VARIETY_COLORS = ["#3b82f6", "#f59e0b", "#ec4899", "#10b981", "#8b5cf6", "#ef4444"];
-
 // ---- stock summary (inbound grid) ---------------------------------
 
 export interface GridColumn {
@@ -39,7 +33,6 @@ export interface GridRow {
   product: ProductLabel;
   /** "Blue 50kg", or "25kg" for a brand without varieties. */
   label: string;
-  color: string;
   /** One per column, in column order. */
   values: number[];
   total: number;
@@ -94,14 +87,12 @@ export function buildGrids(report: InboundReport, granularity: Granularity, keep
     for (const p of products) for (const key of sacksByProduct.get(p.id)?.keys() ?? []) keys.add(key);
     const columns = [...keys].sort().map((key) => column(key, granularity));
 
-    const varieties = [...new Set(products.map((p) => p.variety ?? ""))];
     const rows = products.map((product) => {
       const sacks = sacksByProduct.get(product.id);
       const values = columns.map((c) => sacks?.get(c.key) ?? 0);
       return {
         product,
         label: rowLabel(product),
-        color: VARIETY_COLORS[varieties.indexOf(product.variety ?? "") % VARIETY_COLORS.length],
         values,
         total: values.reduce((a, b) => a + b, 0),
       };
@@ -126,7 +117,6 @@ export function gridPrintSection(grid: BrandGrid): PrintSection {
       { label: "Total\nSacks", align: "right" as const },
     ],
     rows: grid.rows.map((row) => ({
-      color: row.color,
       cells: [row.label, ...row.values.map(cellText), fmtInt(row.total)],
     })),
     totals: ["Total Sacks", ...grid.totals.map(fmtInt), fmtInt(grid.grandTotal)],

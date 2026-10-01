@@ -32,7 +32,6 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) 
 type GridTableRow = {
   key: string;
   label: string;
-  color?: string;
   values: number[];
   total: number;
   isTotal: boolean;
@@ -52,7 +51,7 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
       size: 160,
       meta: { fixed: "left" },
       cell: (c) => (
-        <span style={{ fontWeight: 700, color: c.row.original.isTotal ? PRIMARY : c.row.original.color }}>
+        <span style={{ fontWeight: 700, color: c.row.original.isTotal ? PRIMARY : undefined }}>
           {c.getValue<string>()}
         </span>
       ),
@@ -89,7 +88,6 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
     ...grid.rows.map((row) => ({
       key: row.product.id,
       label: row.label,
-      color: row.color,
       values: row.values,
       total: row.total,
       isTotal: false,
