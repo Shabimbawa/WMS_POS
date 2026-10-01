@@ -47,7 +47,8 @@ export function EditOrderSlipButton({
 /**
  * Moves a slip to Trash after a confirm. Its stock goes back on the shelf
  * straight away; it can be restored from Trash for 30 days. `onDeleted`
- * runs after success, e.g. to leave a detail page that no longer exists.
+ * runs after success, e.g. to replace a detail page that no longer exists;
+ * pass it instead of relying on this button's toast when that happens.
  */
 export function DeleteOrderSlipButton({
   slip,
@@ -65,8 +66,8 @@ export function DeleteOrderSlipButton({
   const confirm = async () => {
     try {
       await remove.mutateAsync(slip.id);
-      msg.success("Order slip moved to Trash");
-      onDeleted?.();
+      if (onDeleted) onDeleted();
+      else msg.success("Order slip moved to Trash");
     } catch (e) {
       showError(e, "Could not delete order slip");
     }

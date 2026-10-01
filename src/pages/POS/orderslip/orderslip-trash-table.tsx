@@ -1,11 +1,10 @@
-import { useMemo } from "react";
-import { Button, Flex, Popconfirm, Popover, Tag, Tooltip, Typography, message } from "antd";
+import { createContext, useContext, useMemo } from "react";
+import { Button, Flex, Popconfirm, Popover, Tag, Tooltip, Typography } from "antd";
 import { DeleteOutlined, RollbackOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
-import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import type { TrashedOrderSlip } from "../../../queries/posTypes";
 import { usePurgeOrderSlip, useRestoreOrderSlip } from "../../../queries/useHooks";
 import {
@@ -17,35 +16,40 @@ import {
   PAYMENT_STATUS_LABEL,
 } from "../type-format/format";
 
+/** Toasts from the page: a row's own holder would unmount with the row. */
+export interface TrashNotify {
+  success: (text: string) => void;
+  error: (error: unknown, title: string) => void;
+}
+
+const NotifyContext = createContext<TrashNotify | null>(null);
+
 /** Restore and delete-forever controls for one trashed slip. */
 function TrashActions({ slip }: { slip: TrashedOrderSlip }) {
-  const [msg, msgHolder] = message.useMessage();
-  const { showError, contextHolder } = ErrorNotificationPopup();
+  const notify = useContext(NotifyContext)!;
   const restore = useRestoreOrderSlip();
   const purge = usePurgeOrderSlip();
 
   const onRestore = async () => {
     try {
       await restore.mutateAsync(slip.id);
-      msg.success(`Restored ${fmtSlipNumber(slip)}`);
+      notify.success(`Restored ${fmtSlipNumber(slip)}`);
     } catch (e) {
-      showError(e, "Could not restore order slip");
+      notify.error(e, "Could not restore order slip");
     }
   };
 
   const onPurge = async () => {
     try {
       await purge.mutateAsync(slip.id);
-      msg.success("Order slip deleted permanently");
+      notify.success("Order slip deleted permanently");
     } catch (e) {
-      showError(e, "Could not delete order slip");
+      notify.error(e, "Could not delete order slip");
     }
   };
 
   return (
     <Flex gap={4} justify="end">
-      {msgHolder}
-      {contextHolder}
       <Popconfirm
         title="Restore this order slip?"
         description="Its sacks are deducted from stock again."
@@ -184,7 +188,11 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
   },
 ];
 
-export function OrderSlipTrashTable({ data }: { data: TrashedOrderSlip[] }) {
+export function OrderSlipTrashTable({ data, notify }: { data: TrashedOrderSlip[]; notify: TrashNotify }) {
   const columns = useMemo(() => trashColumns, []);
-  return <DataTable data={data} columns={columns} />;
+  return (
+    <NotifyContext.Provider value={notify}>
+      <DataTable data={data} columns={columns} />
+    </NotifyContext.Provider>
+  );
 }

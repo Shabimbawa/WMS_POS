@@ -34,6 +34,7 @@ export default function OrderSlipTrashPage() {
   );
   const { data, isPending, isError, error, isPlaceholderData } = useOrderSlipTrash(params);
   const empty = useEmptyOrderSlipTrash();
+  const notify = { success: (text: string) => void msg.success(text), error: showError };
 
   const emptyTrash = async () => {
     try {
@@ -95,7 +96,7 @@ export default function OrderSlipTrashPage() {
         <Empty description={search.trim() ? "No deleted slips match your search" : "Trash is empty"} />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
-          <OrderSlipTrashTable data={data.rows} />
+          <OrderSlipTrashTable data={data.rows} notify={notify} />
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination
               current={data.page}

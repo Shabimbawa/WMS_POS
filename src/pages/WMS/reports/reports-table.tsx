@@ -3,7 +3,7 @@ import { Tag, Typography } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
-import { DateParser } from "../../../common/utils/util";
+import dayjs from "dayjs";
 import type { ReceivingRow, StockSummaryRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct, STATUS_COLOR, STATUS_LABEL } from "../type-format/format";
 import { productLabel } from "./report-export";
@@ -74,9 +74,10 @@ const receivingColumns: ColumnDef<ReceivingRow, any>[] = [
     id: "date",
     header: "Date",
     accessorFn: (r) => r.date,
-    size: 150,
+    size: 120,
     meta: { fixed: "left" },
-    cell: (c) => DateParser(c.getValue<string>()),
+    // Short form keeps every row one line tall.
+    cell: (c) => <span style={{ whiteSpace: "nowrap" }}>{dayjs(c.getValue<string>()).format("MMM D, YYYY")}</span>,
   },
   {
     id: "source",
