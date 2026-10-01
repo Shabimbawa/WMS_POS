@@ -13,9 +13,10 @@ import type {
   OpenQuestionParams,
   OpenQuestionRow,
   Page,
-  DailyReport,
-  DailyReportParams,
-  ReportShipment,
+  InboundReport,
+  InboundReportParams,
+  ReceivingParams,
+  ReceivingRow,
   ProductCategory,
   ProductCategoryParams,
   ShipmentRow,
@@ -216,10 +217,10 @@ export async function updateStockStatus(_input: UpdateStockInput): Promise<never
 
 // ---- reports ----------------------------------------------------
 
-export async function getDailyReport(params: DailyReportParams): Promise<DailyReport> {
-  return apiRequest<DailyReport>(`/reports/daily${queryString(params)}`);
+export async function getInboundReport(params: InboundReportParams): Promise<InboundReport> {
+  return apiRequest<InboundReport>(`/reports/inbound${queryString(params)}`);
 }
 
-export async function getReportShipments(): Promise<ReportShipment[]> {
-  return apiRequest<ReportShipment[]>("/reports/shipments");
+export async function getReceivingReport(params: ReceivingParams): Promise<ReceivingRow[]> {
+  return apiRequest<ReceivingRow[]>(`/reports/receiving${queryString(params)}`);
 }

@@ -445,39 +445,57 @@ export type OpenQuestionParams = Pagination;
 
 // ---- reports ----------------------------------------------------
 //
-// GET /reports/*. Read-only summaries for the Generate Reports page.
-
-/**
- * purchase: sacks ordered in (shipments by packing-list date, declared;
- * local deliveries by date received). sales: sacks on order slips.
- */
-export type DailyReportKind = "purchase" | "sales";
+// GET /reports/*. Read-only summaries for the Generate Reports page. Both
+// count received stock only, dated by arrival: containers once unloaded
+// (counted sacks, unload date) and local deliveries (date received).
+// Pending or cancelled containers and voided deliveries never appear.
 
 export type ReceivingSource = "SHIPMENT" | "LOCAL";
 
-export interface DailyReportParams {
-  kind: DailyReportKind;
+interface ReportRange {
   /** Inclusive YYYY-MM-DD bounds. */
   dateFrom: string;
   dateTo: string;
-  /** Comma-separated product ids; omit for every product. */
-  productIds?: string;
-  /** Purchase only: shows that whole shipment, ignoring the period. */
-  shipmentId?: string;
-  /** Purchase only. */
   source?: "ALL" | ReceivingSource;
 }
 
-/** Sacks per product per day; days with nothing are simply absent. */
-export interface DailyReport {
+export interface InboundReportParams extends ReportRange {
+  /** Comma-separated product ids; omit for every product. */
+  productIds?: string;
+}
+
+/** Inbound sacks per product per arrival day; quiet days are absent. */
+export interface InboundReport {
   /** Every product the grid should list, quiet ones included. */
   products: ProductLabel[];
   cells: { product_category_id: string; date: string; sacks: number }[];
 }
 
-export interface ReportShipment {
-  id: string;
-  reference: string | null;
-  date_list_received: string;
+export interface ReceivingParams extends ReportRange {
+  /** Omit for every supplier. */
+  supplierId?: string;
+}
+
+/** One received line, sorted by supplier then date. */
+export interface ReceivingRow {
+  line_id: string;
+  source: ReceivingSource;
+  supplier_id: string;
   supplier: string;
+  /** Unload date for shipments, date received for local deliveries. */
+  date: string;
+  reference: string | null;
+  container_no: string | null;
+  product_category_id: string;
+  brand: string;
+  variety: string | null;
+  code: string | null;
+  size_kg: number;
+  declared_qty: number;
+  actual_qty: number;
+  /** actual − declared; always 0 for local deliveries. */
+  variance: number;
+  price_per_sack: number | null;
+  /** Counted sacks × price; null without a price. */
+  value: number | null;
 }

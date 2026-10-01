@@ -17,16 +17,22 @@ import {
 import { FilePdfOutlined, TableOutlined } from "@ant-design/icons";
 import type { Dayjs } from "dayjs";
 
-import type { DailyReportKind, DailyReportParams, ReceivingSource } from "../../../queries/types";
-import { useDailyReport, useProductCategories, useReportShipments } from "../../../queries/useHooks";
-import { DateParser } from "../../../common/utils/util";
-import { fmtInt, fmtProduct } from "../type-format/format";
-import { printReport } from "./print-report";
+import type { InboundReportParams, ReceivingParams, ReceivingSource } from "../../../queries/types";
+import {
+  useInboundReport,
+  useProductCategories,
+  useReceivingReport,
+  useSuppliers,
+} from "../../../queries/useHooks";
+import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import { printReport, type PrintableReport } from "./print-report";
 import {
   buildGrids,
+  fmtReportDate,
   granularityFor,
   gridPrintSection,
-  REPORT_KIND_LABEL,
+  groupBySupplier,
+  receivingPrintSection,
   type Granularity,
 } from "./report-grid";
 import {
@@ -37,112 +43,153 @@ import {
   toIsoDate,
   type PeriodKind,
 } from "./report-period";
-import { TimeframeGrid } from "./reports-table";
+import { SupplierReceivingTable, TimeframeGrid } from "./reports-table";
 
 const { RangePicker } = DatePicker;
 
+type ReportType = "stock" | "receiving";
 type SourceFilter = "ALL" | ReceivingSource;
 
-const REPORT_DESCRIPTION: Record<DailyReportKind, string> = {
-  purchase:
-    "Sacks ordered in per day: shipments by packing-list date (declared sacks) and local deliveries by date received.",
-  sales: "Sacks sold per day, from order slips. Slips in Trash are left out.",
-};
+const REPORT_OPTIONS: { label: string; value: ReportType; description: string }[] = [
+  {
+    label: "Stock summary",
+    value: "stock",
+    description:
+      "Inbound sacks per brand, by the day they arrived: containers on their unload date (counted sacks) and local deliveries on the date received.",
+  },
+  {
+    label: "Receiving",
+    value: "receiving",
+    description: "Every line received in the date range, grouped by supplier, with declared vs counted sacks and value.",
+  },
+];
 
-/** What the last Generate press asked for; the grids show exactly this. */
-type Applied = {
-  params: DailyReportParams;
-  granularity: Granularity;
-  /** Products were picked by hand, so show them even with no sacks. */
-  keepEmpty: boolean;
-  subtitle: string[];
-};
+const SOURCE_OPTIONS = [
+  { label: "All", value: "ALL" },
+  { label: "Shipments", value: "SHIPMENT" },
+  { label: "Local", value: "LOCAL" },
+];
+
+const sourceLine = (source: SourceFilter) =>
+  source === "ALL" ? null : `Source: ${source === "SHIPMENT" ? "shipments only" : "local deliveries only"}`;
+
+/** What the last Generate press asked for; the tables show exactly this. */
+type Applied =
+  | { type: "stock"; params: InboundReportParams; granularity: Granularity; keepEmpty: boolean; subtitle: string[] }
+  | { type: "receiving"; params: ReceivingParams; subtitle: string[] };
 
 export default function ReportsPage() {
-  const [kind, setKind] = useState<DailyReportKind>("purchase");
+  const [reportType, setReportType] = useState<ReportType>("stock");
+  const [source, setSource] = useState<SourceFilter>("ALL");
+  // Stock summary filters
   const [periodKind, setPeriodKind] = useState<PeriodKind>("weekly");
   const [anchor, setAnchor] = useState<Dayjs>(today);
   const [custom, setCustom] = useState<[Dayjs, Dayjs]>(() => [today().subtract(13, "day"), today()]);
   const [productIds, setProductIds] = useState<string[]>([]);
-  const [shipmentId, setShipmentId] = useState<string | undefined>();
-  const [source, setSource] = useState<SourceFilter>("ALL");
+  // Receiving filters
+  const [receivingRange, setReceivingRange] = useState<[Dayjs, Dayjs]>(() => [today().startOf("month"), today()]);
+  const [supplierId, setSupplierId] = useState<string | undefined>();
   const [applied, setApplied] = useState<Applied | null>(null);
 
   const { data: products, isLoading: loadingProducts } = useProductCategories();
-  const { data: shipments, isLoading: loadingShipments } = useReportShipments();
+  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers();
 
   const range = resolvePeriod(periodKind, anchor, custom);
-  const shipmentOverridesPeriod = kind === "purchase" && Boolean(shipmentId);
 
   const productOptions = useMemo(
     () => (products ?? []).map((p) => ({ label: fmtProduct(p), value: p.id })),
     [products],
   );
-  const shipmentOptions = useMemo(
+  const supplierOptions = useMemo(
     () =>
-      (shipments ?? []).map((s) => ({
-        label: `${s.reference || "No reference"} · ${s.supplier} · ${DateParser(s.date_list_received)}`,
+      (suppliers ?? []).map((s) => ({
+        label: `${s.name} (${s.kind === "LOCAL" ? "local" : "international"})`,
         value: s.id,
       })),
-    [shipments],
+    [suppliers],
   );
 
   const generate = () => {
-    const subtitle: string[] = [];
-    if (shipmentOverridesPeriod) {
-      subtitle.push(`Shipment: ${shipmentOptions.find((o) => o.value === shipmentId)?.label ?? ""}`);
+    if (reportType === "stock") {
+      const subtitle = [
+        `Period: ${describePeriod(periodKind, range)}`,
+        productIds.length
+          ? `Products: ${productIds.map((id) => productOptions.find((o) => o.value === id)?.label ?? id).join(", ")}`
+          : "Products: all",
+        sourceLine(source),
+      ].filter((line): line is string => Boolean(line));
+      setApplied({
+        type: "stock",
+        params: {
+          dateFrom: toIsoDate(range[0]),
+          dateTo: toIsoDate(range[1]),
+          productIds: productIds.length ? productIds.join(",") : undefined,
+          source,
+        },
+        granularity: granularityFor(range),
+        keepEmpty: productIds.length > 0,
+        subtitle,
+      });
     } else {
-      subtitle.push(`Period: ${describePeriod(periodKind, range)}`);
+      const [from, to] = receivingRange;
+      const subtitle = [
+        `Date range: ${fmtReportDate(toIsoDate(from))} – ${fmtReportDate(toIsoDate(to))}`,
+        `Supplier: ${supplierId ? (suppliers?.find((s) => s.id === supplierId)?.name ?? "") : "all"}`,
+        sourceLine(source),
+      ].filter((line): line is string => Boolean(line));
+      setApplied({
+        type: "receiving",
+        params: { dateFrom: toIsoDate(from), dateTo: toIsoDate(to), supplierId, source },
+        subtitle,
+      });
     }
-    subtitle.push(
-      productIds.length
-        ? `Products: ${productIds.map((id) => productOptions.find((o) => o.value === id)?.label ?? id).join(", ")}`
-        : "Products: all",
-    );
-    if (kind === "purchase" && !shipmentOverridesPeriod && source !== "ALL") {
-      subtitle.push(`Source: ${source === "SHIPMENT" ? "shipments only" : "local deliveries only"}`);
-    }
-    setApplied({
-      params: {
-        kind,
-        dateFrom: toIsoDate(range[0]),
-        dateTo: toIsoDate(range[1]),
-        productIds: productIds.length ? productIds.join(",") : undefined,
-        shipmentId: kind === "purchase" ? shipmentId : undefined,
-        source: kind === "purchase" && !shipmentOverridesPeriod ? source : undefined,
-      },
-      // A whole shipment can span any dates; give it day columns regardless.
-      granularity: shipmentOverridesPeriod ? "day" : granularityFor(range),
-      keepEmpty: productIds.length > 0,
-      subtitle,
-    });
   };
 
-  const report = useDailyReport(applied?.params ?? null);
+  const inbound = useInboundReport(applied?.type === "stock" ? applied.params : null);
+  const receiving = useReceivingReport(applied?.type === "receiving" ? applied.params : null);
+  const active = applied?.type === "receiving" ? receiving : inbound;
+
   const grids = useMemo(
-    () => (applied && report.data ? buildGrids(report.data, applied.granularity, applied.keepEmpty) : []),
-    [applied, report.data],
+    () =>
+      applied?.type === "stock" && inbound.data
+        ? buildGrids(inbound.data, applied.granularity, applied.keepEmpty)
+        : [],
+    [applied, inbound.data],
   );
+  const supplierGroups = useMemo(
+    () => (applied?.type === "receiving" && receiving.data ? groupBySupplier(receiving.data) : []),
+    [applied, receiving.data],
+  );
+  const hasResults = applied?.type === "stock" ? grids.length > 0 : supplierGroups.length > 0;
 
   const exportPdf = () => {
     if (!applied) return;
-    printReport({
-      title: `${REPORT_KIND_LABEL[applied.params.kind]} Report`,
-      subtitle: applied.subtitle,
-      sections: grids.map((grid) => gridPrintSection(grid, applied.params.kind)),
-    });
+    const report: PrintableReport =
+      applied.type === "stock"
+        ? {
+          title: "Stock Summary (Inbound)",
+          subtitle: applied.subtitle,
+          sections: grids.map(gridPrintSection),
+          pagePerSection: true,
+        }
+        : {
+          title: "Receiving Report",
+          subtitle: applied.subtitle,
+          sections: supplierGroups.map(receivingPrintSection),
+        };
+    printReport(report);
   };
 
   const periodPicker = (() => {
     switch (periodKind) {
       case "weekly":
-        return <DatePicker picker="week" value={anchor} allowClear={false} onChange={(d) => d && setAnchor(d)} />;
+        return <DatePicker picker="week" showWeek={false} value={anchor} allowClear={false} onChange={(d) => d && setAnchor(d)} />;
       case "biweekly":
         return (
           <DatePicker
             value={anchor}
             allowClear={false}
-            format="MMM D, YYYY"
+            format="MM/DD/YYYY"
             onChange={(d) => d && setAnchor(d)}
             placeholder="Start date"
           />
@@ -156,7 +203,7 @@ export default function ReportsPage() {
           <RangePicker
             value={custom}
             allowClear={false}
-            format="MMM D, YYYY"
+            format="MM/DD/YYYY"
             onChange={(v) => v?.[0] && v[1] && setCustom([v[0], v[1]])}
           />
         );
@@ -165,100 +212,99 @@ export default function ReportsPage() {
 
   const grandTotal = grids.reduce((n, g) => n + g.grandTotal, 0);
   const activeColumns = new Set(grids.flatMap((g) => g.columns.map((c) => c.key))).size;
+  const receivedTotals = supplierGroups.reduce(
+    (t, g) => ({
+      lines: t.lines + g.rows.length,
+      counted: t.counted + g.counted,
+      variance: t.variance + g.variance,
+      value: t.value + g.value,
+    }),
+    { lines: 0, counted: 0, variance: 0, value: 0 },
+  );
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center" wrap gap={12}>
         <Typography.Title level={4} style={{ margin: 0 }}>Generate Reports</Typography.Title>
-        <Button
-          icon={<FilePdfOutlined />}
-          disabled={!report.data || report.isFetching || !grids.length}
-          onClick={exportPdf}
-        >
+        <Button icon={<FilePdfOutlined />} disabled={!hasResults || active.isFetching} onClick={exportPdf}>
           Export PDF / Print
         </Button>
       </Flex>
       <Typography.Text type="secondary">
         Pick a report and filters, then Generate. Export opens the print dialog; choose "Save as PDF" to save a file.
+        Only received stock is counted: pending or cancelled containers and voided deliveries are left out.
       </Typography.Text>
 
       <Card size="small">
         <Form layout="vertical">
-          <Form.Item label="Report" style={{ marginBottom: 12 }} extra={REPORT_DESCRIPTION[kind]}>
+          <Form.Item label="Report" style={{ marginBottom: 12 }} extra={REPORT_OPTIONS.find((o) => o.value === reportType)?.description}>
             <Segmented
-              value={kind}
-              onChange={(value) => setKind(value as DailyReportKind)}
-              options={(["purchase", "sales"] as const).map((value) => ({ label: REPORT_KIND_LABEL[value], value }))}
+              value={reportType}
+              onChange={(value) => setReportType(value as ReportType)}
+              options={REPORT_OPTIONS.map(({ label, value }) => ({ label, value }))}
             />
           </Form.Item>
 
           <Flex wrap gap={16} align="end">
-            <Form.Item
-              label="Period"
-              style={{ marginBottom: 0 }}
-              extra={
-                shipmentOverridesPeriod
-                  ? "Ignored: a shipment is selected"
-                  : `${describePeriod(periodKind, range)}${granularityFor(range) === "month" ? " · one column per month" : ""}`
-              }
-            >
-              <Flex wrap gap={8}>
-                <Segmented
-                  value={periodKind}
-                  onChange={(value) => setPeriodKind(value as PeriodKind)}
-                  options={PERIOD_OPTIONS}
-                  disabled={shipmentOverridesPeriod}
-                />
-                <div style={{ opacity: shipmentOverridesPeriod ? 0.5 : 1, pointerEvents: shipmentOverridesPeriod ? "none" : undefined }}>
-                  {periodPicker}
-                </div>
-              </Flex>
-            </Form.Item>
-
-            <Form.Item label="Products" style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
-              <Select
-                mode="multiple"
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                maxTagCount="responsive"
-                placeholder="All products"
-                loading={loadingProducts}
-                value={productIds}
-                onChange={setProductIds}
-                options={productOptions}
-              />
-            </Form.Item>
-
-            {kind === "purchase" && (
+            {reportType === "stock" ? (
               <>
-                <Form.Item label="Shipment" style={{ marginBottom: 0, minWidth: 280 }}>
+                <Form.Item
+                  label="Period"
+                  style={{ marginBottom: 0 }}
+                  extra={`${describePeriod(periodKind, range)}${granularityFor(range) === "month" ? " · one column per month" : ""}`}
+                >
+                  <Flex wrap gap={8}>
+                    <Segmented
+                      value={periodKind}
+                      onChange={(value) => setPeriodKind(value as PeriodKind)}
+                      options={PERIOD_OPTIONS}
+                    />
+                    {periodPicker}
+                  </Flex>
+                </Form.Item>
+                <Form.Item label="Products" style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    maxTagCount="responsive"
+                    placeholder="All products"
+                    loading={loadingProducts}
+                    value={productIds}
+                    onChange={setProductIds}
+                    options={productOptions}
+                  />
+                </Form.Item>
+              </>
+            ) : (
+              <>
+                <Form.Item label="Date range" style={{ marginBottom: 0 }}>
+                  <RangePicker
+                    value={receivingRange}
+                    allowClear={false}
+                    format="MM/DD/YYYY"
+                    onChange={(v) => v?.[0] && v[1] && setReceivingRange([v[0], v[1]])}
+                  />
+                </Form.Item>
+                <Form.Item label="Supplier" style={{ marginBottom: 0, minWidth: 280, flex: 1 }}>
                   <Select
                     allowClear
                     showSearch
                     optionFilterProp="label"
-                    placeholder="Any shipment in the period"
-                    loading={loadingShipments}
-                    value={shipmentId}
-                    onChange={setShipmentId}
-                    options={shipmentOptions}
-                    popupMatchSelectWidth={false}
-                  />
-                </Form.Item>
-                <Form.Item label="Source" style={{ marginBottom: 0 }}>
-                  <Segmented
-                    value={shipmentOverridesPeriod ? "SHIPMENT" : source}
-                    disabled={shipmentOverridesPeriod}
-                    onChange={(value) => setSource(value as SourceFilter)}
-                    options={[
-                      { label: "All", value: "ALL" },
-                      { label: "Shipments", value: "SHIPMENT" },
-                      { label: "Local", value: "LOCAL" },
-                    ]}
+                    placeholder="All suppliers"
+                    loading={loadingSuppliers}
+                    value={supplierId}
+                    onChange={setSupplierId}
+                    options={supplierOptions}
                   />
                 </Form.Item>
               </>
             )}
+
+            <Form.Item label="Source" style={{ marginBottom: 0 }}>
+              <Segmented value={source} onChange={(value) => setSource(value as SourceFilter)} options={SOURCE_OPTIONS} />
+            </Form.Item>
 
             <Button type="primary" icon={<TableOutlined />} onClick={generate}>
               Generate
@@ -269,28 +315,47 @@ export default function ReportsPage() {
 
       {!applied ? (
         <Empty description="Choose filters and press Generate" />
-      ) : report.isError ? (
-        <Alert type="error" showIcon message="Could not generate report" description={(report.error as Error).message} />
-      ) : report.isPending ? (
+      ) : active.isError ? (
+        <Alert type="error" showIcon message="Could not generate report" description={(active.error as Error).message} />
+      ) : active.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
-      ) : !grids.length ? (
-        <Empty description={`No ${applied.params.kind === "sales" ? "sales" : "purchases"} for these filters`} />
+      ) : !hasResults ? (
+        <Empty description="Nothing was received for these filters" />
       ) : (
-        <Space direction="vertical" size="middle" style={{ width: "100%", opacity: report.isFetching ? 0.6 : 1 }}>
+        <Space direction="vertical" size="middle" style={{ width: "100%", opacity: active.isFetching ? 0.6 : 1 }}>
           <Card size="small">
-            <Flex wrap gap={32} align="center">
-              <Statistic title="Report" value={REPORT_KIND_LABEL[applied.params.kind]} />
-              <Statistic title="Brands" value={grids.length} />
-              <Statistic title={applied.granularity === "day" ? "Days with sacks" : "Months with sacks"} value={activeColumns} />
-              <Statistic title="Total sacks" value={fmtInt(grandTotal)} />
-              <Typography.Text type="secondary" style={{ marginLeft: "auto" }}>{applied.subtitle[0]}</Typography.Text>
-            </Flex>
+            {applied.type === "stock" ? (
+              <Flex wrap gap={32} align="center">
+                <Statistic title="Brands" value={grids.length} />
+                <Statistic title={applied.granularity === "day" ? "Days with arrivals" : "Months with arrivals"} value={activeColumns} />
+                <Statistic title="Sacks received" value={fmtInt(grandTotal)} />
+                <Typography.Text type="secondary" style={{ marginLeft: "auto" }}>{applied.subtitle[0]}</Typography.Text>
+              </Flex>
+            ) : (
+              <Flex wrap gap={32} align="center">
+                <Statistic title="Suppliers" value={supplierGroups.length} />
+                <Statistic title="Lines" value={receivedTotals.lines} />
+                <Statistic title="Sacks counted" value={fmtInt(receivedTotals.counted)} />
+                <Statistic
+                  title="Variance"
+                  value={`${receivedTotals.variance > 0 ? "+" : ""}${fmtInt(receivedTotals.variance)}`}
+                />
+                <Statistic title="Value" value={fmtMoney(receivedTotals.value)} />
+                <Typography.Text type="secondary" style={{ marginLeft: "auto" }}>{applied.subtitle[0]}</Typography.Text>
+              </Flex>
+            )}
           </Card>
-          {grids.map((grid) => (
-            <Card key={grid.brand} size="small">
-              <TimeframeGrid grid={grid} kind={applied.params.kind} />
-            </Card>
-          ))}
+          {applied.type === "stock"
+            ? grids.map((grid) => (
+              <Card key={grid.brand} size="small">
+                <TimeframeGrid grid={grid} />
+              </Card>
+            ))
+            : supplierGroups.map((group) => (
+              <Card key={group.supplierId} size="small">
+                <SupplierReceivingTable group={group} />
+              </Card>
+            ))}
         </Space>
       )}
     </Space>

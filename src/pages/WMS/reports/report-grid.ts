@@ -1,21 +1,21 @@
-// Turns a daily report into the timeframe grids: one block per brand,
-// product rows, one column per day (or month, for long periods) that had
-// any sacks, row totals and a Total Sacks footer. The screen and the PDF
-// both render from this, so they always show the same figures.
+// Shapes report data for display. The screen and the PDF both render from
+// these, so they always show the same figures.
+//
+// Stock summary: one timeframe grid per brand — product rows, a column per
+// arrival day (or month, for long periods), row totals and a Total Sacks
+// footer. Receiving: received lines grouped per supplier, with subtotals.
 
 import dayjs, { type Dayjs } from "dayjs";
 
-import type { DailyReport, DailyReportKind, ProductLabel } from "../../../queries/types";
-import { fmtInt } from "../type-format/format";
+import type { InboundReport, ProductLabel, ReceivingRow } from "../../../queries/types";
+import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import type { PrintSection } from "./print-report";
 
 /** Periods longer than this get a column per month instead of per day. */
 const MAX_DAY_COLUMNS = 31;
 
-export const REPORT_KIND_LABEL: Record<DailyReportKind, string> = {
-  purchase: "Purchase Order",
-  sales: "Sales",
-};
+/** Table dates everywhere in reports: 08/17/2026. */
+export const fmtReportDate = (date: string) => dayjs(date).format("MM/DD/YYYY");
 
 /**
  * Row label colors, one per variety within a brand (Blue, Orange, …).
@@ -23,11 +23,13 @@ export const REPORT_KIND_LABEL: Record<DailyReportKind, string> = {
  */
 const VARIETY_COLORS = ["#3b82f6", "#f59e0b", "#ec4899", "#10b981", "#8b5cf6", "#ef4444"];
 
+// ---- stock summary (inbound grid) ---------------------------------
+
 export interface GridColumn {
   key: string;
   /** Small line above: weekday, or year for month columns. */
   top: string;
-  /** Main line: "Aug 17", or "Sep". */
+  /** Main line: "08/17/2026", or "Sep". */
   label: string;
 }
 
@@ -61,7 +63,7 @@ const rowLabel = (p: ProductLabel) => [p.variety, `${p.size_kg}kg`].filter(Boole
 function column(key: string, granularity: Granularity): GridColumn {
   const date = dayjs(key);
   return granularity === "day"
-    ? { key, top: date.format("ddd"), label: date.format("MMM D") }
+    ? { key, top: date.format("ddd"), label: fmtReportDate(key) }
     : { key, top: date.format("YYYY"), label: date.format("MMM") };
 }
 
@@ -69,7 +71,7 @@ function column(key: string, granularity: Granularity): GridColumn {
  * `keepEmpty` keeps brands with no sacks, for when the user picked those
  * products on purpose; otherwise only brands with figures are shown.
  */
-export function buildGrids(report: DailyReport, granularity: Granularity, keepEmpty: boolean): BrandGrid[] {
+export function buildGrids(report: InboundReport, granularity: Granularity, keepEmpty: boolean): BrandGrid[] {
   const bucket = (date: string) => (granularity === "day" ? date : `${date.slice(0, 7)}-01`);
   const sacksByProduct = new Map<string, Map<string, number>>();
   for (const cell of report.cells) {
@@ -112,10 +114,10 @@ export function buildGrids(report: DailyReport, granularity: Granularity, keepEm
 /** Blank for zero inside the grid, like a hand-kept sheet. */
 export const cellText = (value: number) => (value ? fmtInt(value) : "");
 
-export function gridPrintSection(grid: BrandGrid, kind: DailyReportKind): PrintSection {
+export function gridPrintSection(grid: BrandGrid): PrintSection {
   return {
     title: `${grid.brand} Timeframe`,
-    subtitle: REPORT_KIND_LABEL[kind],
+    subtitle: "Inbound",
     columns: [
       { label: "Kind" },
       ...grid.columns.map((c) => ({ top: c.top, label: c.label, align: "right" as const })),
@@ -126,5 +128,76 @@ export function gridPrintSection(grid: BrandGrid, kind: DailyReportKind): PrintS
       cells: [row.label, ...row.values.map(cellText), fmtInt(row.total)],
     })),
     totals: ["Total Sacks", ...grid.totals.map(fmtInt), fmtInt(grid.grandTotal)],
+  };
+}
+
+// ---- receiving (per supplier) ---------------------------------------
+
+export interface SupplierGroup {
+  supplierId: string;
+  supplier: string;
+  rows: ReceivingRow[];
+  declared: number;
+  counted: number;
+  variance: number;
+  value: number;
+}
+
+/** Rows arrive sorted by supplier, so grouping keeps that order. */
+export function groupBySupplier(rows: ReceivingRow[]): SupplierGroup[] {
+  const groups = new Map<string, SupplierGroup>();
+  for (const row of rows) {
+    const group = groups.get(row.supplier_id) ?? {
+      supplierId: row.supplier_id,
+      supplier: row.supplier,
+      rows: [],
+      declared: 0,
+      counted: 0,
+      variance: 0,
+      value: 0,
+    };
+    group.rows.push(row);
+    group.declared += row.declared_qty;
+    group.counted += row.actual_qty;
+    group.variance += row.variance;
+    group.value += row.value ?? 0;
+    groups.set(row.supplier_id, group);
+  }
+  return [...groups.values()];
+}
+
+export const sourceText = (row: ReceivingRow) =>
+  [row.source === "SHIPMENT" ? "Shipment" : "Local", row.reference, row.container_no].filter(Boolean).join(" · ");
+
+const signed = (v: number) => (v > 0 ? `+${fmtInt(v)}` : fmtInt(v));
+
+export function receivingPrintSection(group: SupplierGroup): PrintSection {
+  return {
+    title: group.supplier,
+    subtitle: `${group.rows.length} ${group.rows.length === 1 ? "line" : "lines"} received`,
+    layout: "list",
+    columns: [
+      { label: "Date" },
+      { label: "Source" },
+      { label: "Product" },
+      { label: "Declared", align: "right" },
+      { label: "Counted", align: "right" },
+      { label: "Variance", align: "right" },
+      { label: "Price / sack", align: "right" },
+      { label: "Value", align: "right" },
+    ],
+    rows: group.rows.map((r) => ({
+      cells: [
+        fmtReportDate(r.date),
+        sourceText(r),
+        fmtProduct({ ...r }),
+        fmtInt(r.declared_qty),
+        fmtInt(r.actual_qty),
+        signed(r.variance),
+        fmtMoney(r.price_per_sack),
+        fmtMoney(r.value),
+      ],
+    })),
+    totals: ["Subtotal", "", "", fmtInt(group.declared), fmtInt(group.counted), signed(group.variance), "", fmtMoney(group.value)],
   };
 }

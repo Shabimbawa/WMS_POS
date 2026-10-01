@@ -1,11 +1,32 @@
 import { useMemo } from "react";
-import { Flex, Typography } from "antd";
+import { Flex, Tag, Typography } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
-import type { DailyReportKind } from "../../../queries/types";
-import { fmtInt } from "../type-format/format";
-import { cellText, REPORT_KIND_LABEL, type BrandGrid } from "./report-grid";
+import type { ReceivingRow } from "../../../queries/types";
+import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import { cellText, fmtReportDate, type BrandGrid, type SupplierGroup } from "./report-grid";
+
+const PRIMARY = "var(--ant-color-primary, #1677ff)";
+const headerStyle = { fontWeight: 700, fontSize: 15, color: PRIMARY };
+
+const twoLineHeader = (top: string, label: string) => (
+  <div style={{ textAlign: "center", lineHeight: 1.25 }}>
+    <div style={{ fontWeight: 400, fontSize: 12, opacity: 0.75 }}>{top}</div>
+    <div style={{ ...headerStyle, whiteSpace: "nowrap" }}>{label}</div>
+  </div>
+);
+
+function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div style={{ borderBottom: "1px solid var(--ant-color-border, #d9d9d9)", paddingBottom: 10, marginBottom: 8 }}>
+      <Typography.Title level={5} style={{ margin: 0 }}>{title}</Typography.Title>
+      <Typography.Text type="secondary">{subtitle}</Typography.Text>
+    </div>
+  );
+}
+
+// ---- stock summary --------------------------------------------------
 
 /** A product row, or the Total Sacks footer row. */
 type GridTableRow = {
@@ -17,20 +38,12 @@ type GridTableRow = {
   isTotal: boolean;
 };
 
-const twoLineHeader = (top: string, label: string) => (
-  <div style={{ textAlign: "center", lineHeight: 1.25 }}>
-    <div style={{ fontWeight: 400, fontSize: 12, opacity: 0.75 }}>{top}</div>
-    <div style={{ fontWeight: 700, fontSize: 15, color: "var(--ant-color-primary, #1677ff)" }}>{label}</div>
-  </div>
-);
-
-const headerStyle = { fontWeight: 700, fontSize: 15, color: "var(--ant-color-primary, #1677ff)" };
-
 /**
- * One brand's timeframe: product rows, a column per day (or month) with
- * sacks, the row's total on the right and a Total Sacks row at the bottom.
+ * One brand's inbound timeframe: product rows, a column per arrival day
+ * (or month), the row's total on the right and a Total Sacks row at the
+ * bottom.
  */
-export function TimeframeGrid({ grid, kind }: { grid: BrandGrid; kind: DailyReportKind }) {
+export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
   const columns = useMemo<ColumnDef<GridTableRow, any>[]>(() => [
     {
       id: "label",
@@ -39,7 +52,7 @@ export function TimeframeGrid({ grid, kind }: { grid: BrandGrid; kind: DailyRepo
       size: 160,
       meta: { fixed: "left" },
       cell: (c) => (
-        <span style={{ fontWeight: 700, color: c.row.original.isTotal ? headerStyle.color : c.row.original.color }}>
+        <span style={{ fontWeight: 700, color: c.row.original.isTotal ? PRIMARY : c.row.original.color }}>
           {c.getValue<string>()}
         </span>
       ),
@@ -48,7 +61,7 @@ export function TimeframeGrid({ grid, kind }: { grid: BrandGrid; kind: DailyRepo
       id: col.key,
       header: () => twoLineHeader(col.top, col.label),
       accessorFn: (r) => r.values[i],
-      size: 96,
+      size: 110,
       cell: (c) => (
         <div style={{ textAlign: "center", fontWeight: c.row.original.isTotal ? 700 : undefined }}>
           {c.row.original.isTotal ? fmtInt(c.getValue<number>()) : cellText(c.getValue<number>())}
@@ -86,17 +99,129 @@ export function TimeframeGrid({ grid, kind }: { grid: BrandGrid; kind: DailyRepo
 
   return (
     <div>
-      <div style={{ borderBottom: "1px solid var(--ant-color-border, #d9d9d9)", paddingBottom: 10, marginBottom: 8 }}>
-        <Typography.Title level={5} style={{ margin: 0 }}>{grid.brand} Timeframe</Typography.Title>
-        <Typography.Text type="secondary">{REPORT_KIND_LABEL[kind]}</Typography.Text>
-      </div>
+      <SectionTitle title={`${grid.brand} Timeframe`} subtitle="Inbound" />
       {grid.columns.length ? (
         <DataTable data={data} columns={columns} />
       ) : (
         <Flex justify="center" style={{ padding: 16 }}>
-          <Typography.Text type="secondary">No sacks in this period</Typography.Text>
+          <Typography.Text type="secondary">Nothing received in this period</Typography.Text>
         </Flex>
       )}
+    </div>
+  );
+}
+
+// ---- receiving ------------------------------------------------------
+
+/** A received line, or the supplier's subtotal row. */
+type ReceivingTableRow = { line: ReceivingRow | null; group: SupplierGroup };
+
+const strongIfTotal = (row: ReceivingTableRow, text: string) =>
+  row.line ? text : <strong>{text}</strong>;
+
+const signed = (v: number) => (v > 0 ? `+${fmtInt(v)}` : fmtInt(v));
+
+const receivingColumns: ColumnDef<ReceivingTableRow, any>[] = [
+  {
+    id: "date",
+    header: "Date",
+    accessorFn: (r) => r.line?.date ?? "",
+    size: 110,
+    meta: { fixed: "left" },
+    cell: (c) =>
+      c.row.original.line ? fmtReportDate(c.row.original.line.date) : <strong style={{ color: PRIMARY }}>Subtotal</strong>,
+  },
+  {
+    id: "source",
+    header: "Source",
+    accessorFn: (r) => r.line?.source ?? "",
+    size: 260,
+    cell: (c) => {
+      const line = c.row.original.line;
+      if (!line) return null;
+      return (
+        <div style={{ whiteSpace: "nowrap" }}>
+          <Tag color={line.source === "SHIPMENT" ? "blue" : "green"} style={{ marginInlineEnd: 6 }}>
+            {line.source === "SHIPMENT" ? "Shipment" : "Local"}
+          </Tag>
+          {line.reference || <Typography.Text type="secondary">No reference</Typography.Text>}
+          {line.container_no && (
+            <Typography.Text type="secondary" style={{ fontFamily: "monospace", fontSize: 12 }}> · {line.container_no}</Typography.Text>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    id: "product",
+    header: "Product",
+    accessorFn: (r) => (r.line ? fmtProduct({ ...r.line }) : ""),
+    size: 220,
+  },
+  {
+    id: "declared",
+    header: "Declared",
+    accessorFn: (r) => r.line?.declared_qty ?? r.group.declared,
+    size: 100,
+    cell: (c) => <div style={{ textAlign: "right" }}>{strongIfTotal(c.row.original, fmtInt(c.getValue<number>()))}</div>,
+  },
+  {
+    id: "counted",
+    header: "Counted",
+    accessorFn: (r) => r.line?.actual_qty ?? r.group.counted,
+    size: 100,
+    cell: (c) => <div style={{ textAlign: "right" }}>{strongIfTotal(c.row.original, fmtInt(c.getValue<number>()))}</div>,
+  },
+  {
+    id: "variance",
+    header: "Variance",
+    accessorFn: (r) => r.line?.variance ?? r.group.variance,
+    size: 100,
+    cell: (c) => {
+      const v = c.getValue<number>();
+      return (
+        <div
+          style={{
+            textAlign: "right",
+            color: v < 0 ? "var(--ant-color-error, #ff4d4f)" : v > 0 ? "var(--ant-color-warning, #faad14)" : undefined,
+            opacity: v === 0 ? 0.45 : 1,
+          }}
+        >
+          {strongIfTotal(c.row.original, signed(v))}
+        </div>
+      );
+    },
+  },
+  {
+    id: "price",
+    header: "Price / sack",
+    accessorFn: (r) => r.line?.price_per_sack ?? null,
+    size: 120,
+    cell: (c) => <div style={{ textAlign: "right" }}>{c.row.original.line ? fmtMoney(c.getValue<number | null>()) : null}</div>,
+  },
+  {
+    id: "value",
+    header: "Value",
+    accessorFn: (r) => (r.line ? r.line.value : r.group.value),
+    size: 140,
+    meta: { fixed: "right" },
+    cell: (c) => <div style={{ textAlign: "right" }}><strong>{fmtMoney(c.getValue<number | null>())}</strong></div>,
+  },
+];
+
+/** One supplier's received lines, closed by a subtotal row. */
+export function SupplierReceivingTable({ group }: { group: SupplierGroup }) {
+  const data = useMemo<ReceivingTableRow[]>(
+    () => [...group.rows.map((line) => ({ line, group })), { line: null, group }],
+    [group],
+  );
+  return (
+    <div>
+      <SectionTitle
+        title={group.supplier}
+        subtitle={`${group.rows.length} ${group.rows.length === 1 ? "line" : "lines"} received`}
+      />
+      <DataTable data={data} columns={receivingColumns} />
     </div>
   );
 }

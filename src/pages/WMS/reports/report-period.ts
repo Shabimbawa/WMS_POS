@@ -36,16 +36,14 @@ export function resolvePeriod(
   }
 }
 
-/** "September 2026", "Week of Sep 27, 2026", or an explicit range. */
+/** "September 2026", "2026", or "09/27/2026 – 10/03/2026". */
 export function describePeriod(kind: PeriodKind, [from, to]: [Dayjs, Dayjs]): string {
-  const range = `${from.format("MMM D, YYYY")} – ${to.format("MMM D, YYYY")}`;
+  const range = `${from.format("MM/DD/YYYY")} – ${to.format("MM/DD/YYYY")}`;
   switch (kind) {
     case "monthly":
       return from.format("MMMM YYYY");
     case "yearly":
       return from.format("YYYY");
-    case "weekly":
-      return `Week of ${from.format("MMM D, YYYY")} (${range})`;
     default:
       return range;
   }
