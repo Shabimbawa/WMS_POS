@@ -13,9 +13,10 @@ import {
 } from "../type-format/format";
 import { fmtTableDate } from "../../../common/utils/util";
 import { ContainerActions } from "./container-actions";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 /** Rows here are packing lists, with containers nested underneath. */
-export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
+export const containerColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] => [
   {
     id: "date_list_received",
     header: "List received",
@@ -52,13 +53,13 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
           max={4}
           layout="inline"
           getKey={(ct) => ct.id}
-          title={`${list.length} containers`}
+          title={`${list.length} ${t("containers")}`}
           renderItem={(ct) => (
             <Tag
               color={STATUS_COLOR[ct.status]}
               style={{ margin: 0, fontFamily: "monospace" }}
             >
-              {ct.container_no ?? "no box"}
+              {ct.container_no ?? t("No box")}
             </Tag>
           )}
         />
@@ -83,7 +84,7 @@ export const containerColumns: ColumnDef<ShipmentRow, any>[] = [
           items={[...brands]}
           max={2}
           getKey={(b) => b}
-          title={`${brands.size} brands`}
+          title={`${brands.size} ${t("brands")}`}
           renderItem={(b) => b}
         />
       );
@@ -118,7 +119,7 @@ type ShipmentContainer = ShipmentRow["container"][number];
 const dash = <span style={{ opacity: 0.45 }}>—</span>;
 
 /** One row per container inside a packing list, shown when it's expanded. */
-export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
+export const shipmentContainerColumns = (t: Translate): ColumnDef<ShipmentContainer, any>[] => [
   {
     id: "container_no",
     header: "Container no.",
@@ -126,7 +127,7 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
     size: 150,
     cell: (c) => (
       <span style={{ fontFamily: "monospace" }}>
-        {c.getValue<string | null>() ?? "no box"}
+        {c.getValue<string | null>() ?? t("No box")}
       </span>
     ),
   },
@@ -137,7 +138,7 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
     size: 110,
     cell: (c) => (
       <Tag color={STATUS_COLOR[c.getValue<string>()]} style={{ margin: 0 }}>
-        {STATUS_LABEL[c.getValue<ContainerStatus>()]}
+        {t(STATUS_LABEL[c.getValue<ContainerStatus>()])}
       </Tag>
     ),
   },
@@ -156,7 +157,7 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
           items={items}
           max={3}
           getKey={(i) => i.id}
-          title={`${items.length} brands`}
+          title={`${items.length} ${t("brands")}`}
           renderItem={(i) => {
             const counted =
               i.actual_qty_sacks !== null && i.actual_qty_sacks !== i.qty_sacks
@@ -239,7 +240,8 @@ export const shipmentContainerColumns: ColumnDef<ShipmentContainer, any>[] = [
 ];
 
 export function ContainerTable({ data }: { data: ShipmentRow[] }) {
-  const columns = useMemo(() => containerColumns, []);
+  const { t } = useLanguage();
+  const columns = useMemo(() => containerColumns(t), [t]);
   return (
     <DataTable
       data={data}
@@ -248,7 +250,7 @@ export function ContainerTable({ data }: { data: ShipmentRow[] }) {
         shipment.container.length ? (
           <DataTable
             data={shipment.container}
-            columns={shipmentContainerColumns}
+            columns={shipmentContainerColumns(t)}
           />
         ) : null
       }

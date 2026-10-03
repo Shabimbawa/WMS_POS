@@ -20,10 +20,12 @@ import {
   useOpenQuestions,
 } from "../../../queries/useHooks";
 import { OpenQuestionsTable, VarianceTable } from "./discrepancies-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 type View = "variance" | "questions";
 
 export default function DiscrepanciesPage() {
+  const { t } = useLanguage();
 
   const [view, setView] = useState<View>("variance");
   const [mismatchOnly, setMismatchOnly] = useState(true);
@@ -48,16 +50,16 @@ export default function DiscrepanciesPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Discrepancies
+          {t("Discrepancies")}
         </Typography.Title>
         <Button onClick={() => active.refetch()} loading={active.isFetching}>
-          Refresh
+          {t("Refresh")}
         </Button>
       </Flex>
       <Typography.Text type="secondary">
         {view === "variance"
-          ? "Declared vs counted sacks per unloaded container. Negative variance is a shortfall."
-          : "Issues logged as Other. They change no quantities and stay here until re-logged under a real reason."}
+          ? t("Declared vs counted sacks per unloaded container. Negative variance is a shortfall.")
+          : t("Issues logged as Other. They change no quantities and stay here until re-logged under a real reason.")}
       </Typography.Text>
 
       <Card size="small">
@@ -66,11 +68,11 @@ export default function DiscrepanciesPage() {
             value={view}
             onChange={(v) => reset(setView)(v as View)}
             options={[
-              { label: "Variance", value: "variance" },
+              { label: t("Variance"), value: "variance" },
               {
                 label: (
                   <Flex align="center" gap={6}>
-                    Open questions
+                    {t("Open questions")}
                     <Badge count={questionCount} size="small" />
                   </Flex>
                 ),
@@ -85,7 +87,7 @@ export default function DiscrepanciesPage() {
                 checked={mismatchOnly}
                 onChange={reset(setMismatchOnly)}
               />
-              <Typography.Text>Mismatches only</Typography.Text>
+              <Typography.Text>{t("Mismatches only")}</Typography.Text>
             </Flex>
           )}
         </Flex>
@@ -95,8 +97,8 @@ export default function DiscrepanciesPage() {
         <Alert
           type="error"
           showIcon
-          message="Could not load discrepancies"
-          description={(active.error as Error)?.message}
+          message={t("Could not load discrepancies")}
+          description={t((active.error as Error)?.message)}
         />
       ) : active.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
@@ -104,8 +106,8 @@ export default function DiscrepanciesPage() {
         <Empty
           description={
             view === "variance"
-              ? "No unloaded containers with a variance"
-              : "No open questions"
+              ? t("No unloaded containers with a variance")
+              : t("No open questions")
           }
         />
       ) : (
@@ -126,7 +128,7 @@ export default function DiscrepanciesPage() {
                 setPage(p);
                 setPageSize(ps);
               }}
-              showTotal={(t, r) => `${r[0]}–${r[1]} of ${t}`}
+              showTotal={(total, r) => t("{from}–{to} of {total}", { from: r[0], to: r[1], total })}
             />
           </Flex>
         </div>

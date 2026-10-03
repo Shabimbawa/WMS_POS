@@ -34,6 +34,7 @@ import {
   type DraftItem,
 } from "../container/create-shipment-table";
 import { CreateSupplierButton } from "../supplier/create-supplier-button";
+import { useLanguage } from "../../../common/context/language-context";
 
 type ItemValues = {
   product_category_id: string;
@@ -48,17 +49,18 @@ function ItemFields({
   products: ProductCategory[];
   taken: Set<string>;
 }) {
+  const { t } = useLanguage();
   return (
     <>
       <Form.Item
         name="product_category_id"
-        label="Product"
+        label={t("Product")}
         rules={[
-          { required: true, message: "Pick a product" },
+          { required: true, message: t("Pick a product") },
           {
             validator: (_, v: string | undefined) =>
               v && taken.has(v)
-                ? Promise.reject(new Error("Already on this delivery"))
+                ? Promise.reject(new Error(t("Already on this delivery")))
                 : Promise.resolve(),
           },
         ]}
@@ -66,21 +68,21 @@ function ItemFields({
         <Select
           showSearch
           optionFilterProp="label"
-          placeholder="Search by code or brand"
+          placeholder={t("Search by code or brand")}
           options={products.map((p) => ({ label: fmtProduct(p), value: p.id }))}
         />
       </Form.Item>
       <Form.Item
         name="qty_sacks"
-        label="Sacks counted"
-        rules={[{ required: true, message: "Enter the counted quantity" }]}
+        label={t("Sacks counted")}
+        rules={[{ required: true, message: t("Enter the counted quantity") }]}
       >
         <InputNumber min={1} precision={0} style={{ width: "100%" }} />
       </Form.Item>
       <Form.Item
         name="price_per_sack"
-        label="Price / sack"
-        extra="What it cost to buy. Optional."
+        label={t("Price / sack")}
+        extra={t("What it cost to buy. Optional.")}
       >
         <InputNumber min={0} precision={2} prefix="₱" style={{ width: "100%" }} />
       </Form.Item>
@@ -93,6 +95,7 @@ function ItemFields({
  * declared quantities — what is entered here is what arrived.
  */
 export default function CreateDeliveryPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
@@ -157,10 +160,10 @@ export default function CreateDeliveryPage() {
   const renderActions = (item: DraftItem) => (
     <Flex gap={4} justify="end">
       <CommonModalForm<ItemValues>
-        title="Edit item"
+        title={t("Edit item")}
         triggerLabel={<EditOutlined />}
         triggerButtonType="text"
-        okText="Save"
+        okText={t("Save")}
         initialValues={{
           product_category_id: item.product_category_id,
           qty_sacks: item.qty_sacks,
@@ -175,8 +178,8 @@ export default function CreateDeliveryPage() {
         />
       </CommonModalForm>
       <Popconfirm
-        title="Remove this item?"
-        okText="Remove"
+        title={t("Remove this item?")}
+        okText={t("Remove")}
         okButtonProps={{ danger: true }}
         onConfirm={() => removeItem(item.key)}
       >
@@ -201,7 +204,7 @@ export default function CreateDeliveryPage() {
           price_per_sack: item.price_per_sack,
         })),
       });
-      msg.success("Delivery logged — stock updated");
+      msg.success(t("Delivery logged — stock updated"));
       navigate("/deliveries");
     } catch (e) {
       showError(e, "Could not log delivery");
@@ -214,11 +217,11 @@ export default function CreateDeliveryPage() {
       return;
     }
     Modal.confirm({
-      title: "Discard this delivery?",
-      content: "Nothing is saved and no stock moves.",
-      okText: "Discard",
+      title: t("Discard this delivery?"),
+      content: t("Nothing is saved and no stock moves."),
+      okText: t("Discard"),
       okButtonProps: { danger: true },
-      cancelText: "Keep editing",
+      cancelText: t("Keep editing"),
       onOk: () => navigate("/deliveries"),
     });
   };
@@ -230,18 +233,18 @@ export default function CreateDeliveryPage() {
 
       <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Log local delivery
+          {t("Log local delivery")}
         </Typography.Title>
         <Typography.Text type="secondary">
-          Counted as it came off the truck. Submitting moves stock immediately.
+          {t("Counted as it came off the truck. Submitting moves stock immediately.")}
         </Typography.Text>
 
         <Card size="small">
           <Flex wrap gap={12} align="start">
             <Form layout="vertical" style={{ marginBottom: 0 }}>
-              <Form.Item label="Supplier" required style={{ marginBottom: 0 }}>
+              <Form.Item label={t("Supplier")} required style={{ marginBottom: 0 }}>
                 <Select
-                  placeholder="Select local supplier"
+                  placeholder={t("Select local supplier")}
                   style={{ minWidth: 240 }}
                   loading={loadingSuppliers}
                   value={supplierId}
@@ -264,7 +267,7 @@ export default function CreateDeliveryPage() {
               </Form.Item>
             </Form>
             <Form layout="vertical">
-              <Form.Item label="Date received" style={{ marginBottom: 0 }}>
+              <Form.Item label={t("Date received")} style={{ marginBottom: 0 }}>
                 <DatePicker
                   value={dateReceived}
                   allowClear={false}
@@ -274,9 +277,9 @@ export default function CreateDeliveryPage() {
               </Form.Item>
             </Form>
             <Form layout="vertical">
-              <Form.Item label="Reference" style={{ marginBottom: 0 }}>
+              <Form.Item label={t("Reference")} style={{ marginBottom: 0 }}>
                 <Input
-                  placeholder="Delivery receipt no. (optional)"
+                  placeholder={t("Delivery receipt no. (optional)")}
                   style={{ minWidth: 220 }}
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
@@ -289,16 +292,16 @@ export default function CreateDeliveryPage() {
 
         <Card
           size="small"
-          title="Items counted"
+          title={t("Items counted")}
           extra={
             <CommonModalForm<ItemValues>
-              title="Add item"
+              title={t("Add item")}
               triggerLabel={
                 <>
-                  <PlusOutlined /> Add Item
+                  <PlusOutlined /> {t("Add Item")}
                 </>
               }
-              okText="Add"
+              okText={t("Add")}
               onSave={addItem}
             >
               <ItemFields products={products} taken={taken} />
@@ -312,24 +315,24 @@ export default function CreateDeliveryPage() {
               renderActions={renderActions}
             />
           ) : (
-            <Empty description="No items yet" />
+            <Empty description={t("No items yet")} />
           )}
         </Card>
 
         <Flex justify="space-between" align="center" wrap gap={8}>
           <Typography.Text type="secondary">
-            {fmtInt(items.length)} items · {fmtInt(totals.sacks)} sacks ·{" "}
+            {fmtInt(items.length)} {t("items")} · {fmtInt(totals.sacks)} {t("sacks")} ·{" "}
             {fmtMoney(totals.value)}
           </Typography.Text>
           <Flex gap={8}>
-            <Button onClick={cancel}>Cancel</Button>
+            <Button onClick={cancel}>{t("Cancel")}</Button>
             <Button
               type="primary"
               onClick={submit}
               disabled={!canSubmit}
               loading={create.isPending}
             >
-              Log delivery
+              {t("Log delivery")}
             </Button>
           </Flex>
         </Flex>
@@ -337,7 +340,7 @@ export default function CreateDeliveryPage() {
 
       <Card
         size="small"
-        title="Registered products"
+        title={t("Registered products")}
         style={{ width: 380, flexShrink: 0, position: "sticky", top: 0 }}
       >
         {loadingProducts ? (

@@ -4,8 +4,9 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../../../common/items/table/table";
 import type { Cashier } from "../../../queries/posTypes";
 import { CashierActions } from "./cashier-actions";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
-const cashierColumns: ColumnDef<Cashier, any>[] = [
+const cashierColumns = (t: Translate): ColumnDef<Cashier, any>[] => [
   {
     id: "name",
     header: "Name",
@@ -19,9 +20,9 @@ const cashierColumns: ColumnDef<Cashier, any>[] = [
     size: 120,
     cell: (c) =>
       c.getValue<boolean>() ? (
-        <Tag color="success" style={{ margin: 0 }}>Active</Tag>
+        <Tag color="success" style={{ margin: 0 }}>{t("Active")}</Tag>
       ) : (
-        <Tag style={{ margin: 0 }}>Inactive</Tag>
+        <Tag style={{ margin: 0 }}>{t("Inactive")}</Tag>
       ),
   },
   {
@@ -35,5 +36,6 @@ const cashierColumns: ColumnDef<Cashier, any>[] = [
 ];
 
 export function CashierTable({ data }: { data: Cashier[] }) {
-  return <DataTable data={data} columns={cashierColumns} />;
+  const { t } = useLanguage();
+  return <DataTable data={data} columns={cashierColumns(t)} />;
 }

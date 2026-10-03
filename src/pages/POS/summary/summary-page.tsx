@@ -20,6 +20,7 @@ import { useOrderSlipSummary } from "../../../queries/useHooks";
 import { fmtInt, fmtMoney, posToday } from "../type-format/format";
 import { CashierDayCard } from "./summary-card";
 import { SummarySlipsDrawer, type SummarySelection } from "./summary-slips-drawer";
+import { useLanguage } from "../../../common/context/language-context";
 
 const { RangePicker } = DatePicker;
 
@@ -33,6 +34,7 @@ const defaultRange = (): [Dayjs, Dayjs] => [posToday(), posToday()];
  * exporting it to a spreadsheet.
  */
 export default function OrderSlipSummaryPage() {
+  const { t } = useLanguage();
   const [range, setRange] = useState<[Dayjs, Dayjs]>(defaultRange);
   const [selection, setSelection] = useState<SummarySelection | null>(null);
 
@@ -59,9 +61,9 @@ export default function OrderSlipSummaryPage() {
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Typography.Title level={4} style={{ margin: 0 }}>Daily summary</Typography.Title>
+      <Typography.Title level={4} style={{ margin: 0 }}>{t("Daily Summary")}</Typography.Title>
       <Typography.Text type="secondary">
-        Order slips per cashier per day. Click a cashier to see their slips for that day.
+        {t("Order slips per cashier per day. Click a cashier to see their slips for that day.")}
       </Typography.Text>
 
       <Card size="small">
@@ -72,10 +74,10 @@ export default function OrderSlipSummaryPage() {
             onChange={(value) => value && setRange(value as [Dayjs, Dayjs])}
             format="MMMM DD, YYYY"
           />
-          <Tooltip title="Back to today">
+          <Tooltip title={t("Back to today")}>
             <Button
               icon={<UndoOutlined />}
-              aria-label="Reset dates to today"
+              aria-label={t("Reset dates to today")}
               disabled={isDefaultRange}
               onClick={() => setRange(defaultRange())}
             />
@@ -86,9 +88,9 @@ export default function OrderSlipSummaryPage() {
       {isPending ? (
         <Skeleton active paragraph={{ rows: 8 }} />
       ) : isError ? (
-        <Alert type="error" showIcon message="Could not load the summary" description={error.message} />
+        <Alert type="error" showIcon message={t("Could not load the summary")} description={t(error.message)} />
       ) : !days.length ? (
-        <Empty description="No order slips in this date range" />
+        <Empty description={t("No order slips in this date range")} />
       ) : (
         <Flex vertical gap={24} style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
           {days.map(([date, cashiers]) => {
@@ -101,7 +103,7 @@ export default function OrderSlipSummaryPage() {
                     {DateParser(date)}
                   </Typography.Title>
                   <Typography.Text type="secondary">
-                    {fmtInt(slipCount)} {slipCount === 1 ? "slip" : "slips"} · {fmtMoney(total)}
+                    {fmtInt(slipCount)} {t(slipCount === 1 ? "slip" : "slips")} · {fmtMoney(total)}
                   </Typography.Text>
                 </Flex>
                 {/* Stretch so cards on one line share a height. */}

@@ -6,6 +6,7 @@ import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
 import { logout } from '../../../queries/auth'
 import { queryClient } from '../../../utils/query-client'
+import { LanguageToggle, useLanguage } from '../../context/language-context'
 const { Header } = Layout
 const { Text } = Typography
 
@@ -14,6 +15,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ onSignOut }: TopbarProps) {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const { mode, toggleTheme } = useTheme()
   const { data: profile, email } = useCurrentProfile()
@@ -45,7 +47,7 @@ export function Topbar({ onSignOut }: TopbarProps) {
 
         <Flex vertical style={{ borderLeftWidth: 0.5, borderLeftStyle: 'solid', borderLeftColor: 'var(--text)', paddingLeft: 16 }}>
           <Typography style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.12em",
-            textTransform: "uppercase", color: "var(--text)" }}>{profile?.roles === 'warehouse_admin' ? 'Warehouse Management System' : 'POS System'} </Typography>
+            textTransform: "uppercase", color: "var(--text)" }}>{t(profile?.roles === 'warehouse_admin' ? 'Warehouse Management System' : 'POS System')} </Typography>
           <Typography style={{ fontSize: 20, fontWeight: 600, color: 'white',   fontFamily: "Georgia, serif" }}>Wensor Trading IMS</Typography>
         </Flex>
       </Flex>
@@ -58,10 +60,11 @@ export function Topbar({ onSignOut }: TopbarProps) {
           </Text>
           {profile?.roles && (
             <Text style={{ color: 'var(--text)', fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              {profile.roles}
+              {t(profile.roles)}
             </Text>
           )}
         </Flex>
+        <LanguageToggle compact />
         <Switch
               size='small'
               checked={mode === 'dark'}
@@ -75,7 +78,7 @@ export function Topbar({ onSignOut }: TopbarProps) {
           type="text"
           danger
         >
-          Sign Out
+          {t('Sign Out')}
         </Button>
       </Space>
     </Header>

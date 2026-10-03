@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { ItemType } from 'antd/es/menu/interface'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
 import { NAV_ITEMS, navItemForPath } from './nav-items'
+import { useLanguage } from '../../context/language-context'
 
 type SidebarProps = {
   collapsed: boolean
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
   const { data: profile } = useCurrentProfile()
@@ -17,7 +19,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     ? NAV_ITEMS.filter((item) => item.roles.includes(profile.roles)).map((item) => ({
         key: item.key,
         icon: item.icon,
-        label: collapsed ? null : item.label,
+        label: collapsed ? null : t(item.label),
         onClick: () => navigate(item.path),
       }))
     : []

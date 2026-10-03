@@ -44,6 +44,7 @@ import {
   type PeriodKind,
 } from "./report-period";
 import { SupplierReceivingTable, TimeframeGrid } from "./reports-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 const { RangePicker } = DatePicker;
 
@@ -70,8 +71,8 @@ const SOURCE_OPTIONS = [
   { label: "Local", value: "LOCAL" },
 ];
 
-const sourceLine = (source: SourceFilter) =>
-  source === "ALL" ? null : `Source: ${source === "SHIPMENT" ? "shipments only" : "local deliveries only"}`;
+const sourceLine = (source: SourceFilter, t: (text: string) => string) =>
+  source === "ALL" ? null : `${t("Source")}: ${t(source === "SHIPMENT" ? "shipments only" : "local deliveries only")}`;
 
 /** What the last Generate press asked for; the tables show exactly this. */
 type Applied =
@@ -79,6 +80,7 @@ type Applied =
   | { type: "receiving"; params: ReceivingParams; subtitle: string[] };
 
 export default function ReportsPage() {
+  const { t, language } = useLanguage();
   const [reportType, setReportType] = useState<ReportType>("stock");
   const [source, setSource] = useState<SourceFilter>("ALL");
   // Stock summary filters
@@ -103,20 +105,20 @@ export default function ReportsPage() {
   const supplierOptions = useMemo(
     () =>
       (suppliers ?? []).map((s) => ({
-        label: `${s.name} (${s.kind === "LOCAL" ? "local" : "international"})`,
+        label: `${s.name} (${t(s.kind === "LOCAL" ? "Local" : "International")})`,
         value: s.id,
       })),
-    [suppliers],
+    [suppliers, t],
   );
 
   const generate = () => {
     if (reportType === "stock") {
       const subtitle = [
-        `Period: ${describePeriod(periodKind, range)}`,
+        `${t("Period")}: ${describePeriod(periodKind, range)}`,
         productIds.length
-          ? `Products: ${productIds.map((id) => productOptions.find((o) => o.value === id)?.label ?? id).join(", ")}`
-          : "Products: all",
-        sourceLine(source),
+          ? `${t("Products")}: ${productIds.map((id) => productOptions.find((o) => o.value === id)?.label ?? id).join(", ")}`
+          : `${t("Products")}: ${t("All")}`,
+        sourceLine(source, t),
       ].filter((line): line is string => Boolean(line));
       setApplied({
         type: "stock",
@@ -133,9 +135,9 @@ export default function ReportsPage() {
     } else {
       const [from, to] = receivingRange;
       const subtitle = [
-        `Date range: ${fmtReportDate(toIsoDate(from))} – ${fmtReportDate(toIsoDate(to))}`,
-        `Supplier: ${supplierId ? (suppliers?.find((s) => s.id === supplierId)?.name ?? "") : "all"}`,
-        sourceLine(source),
+        `${t("Date range")}: ${fmtReportDate(toIsoDate(from))} – ${fmtReportDate(toIsoDate(to))}`,
+        `${t("Supplier")}: ${supplierId ? (suppliers?.find((s) => s.id === supplierId)?.name ?? "") : t("All")}`,
+        sourceLine(source, t),
       ].filter((line): line is string => Boolean(line));
       setApplied({
         type: "receiving",
@@ -167,15 +169,17 @@ export default function ReportsPage() {
     const report: PrintableReport =
       applied.type === "stock"
         ? {
-          title: "Stock Summary (Inbound)",
+          title: t("Stock Summary (Inbound)"),
           subtitle: applied.subtitle,
-          sections: grids.map(gridPrintSection),
+          sections: grids.map((grid) => gridPrintSection(grid, t)),
           pagePerSection: true,
+          language,
         }
         : {
-          title: "Receiving Report",
+          title: t("Receiving Report"),
           subtitle: applied.subtitle,
-          sections: supplierGroups.map(receivingPrintSection),
+          sections: supplierGroups.map((group) => receivingPrintSection(group, t)),
+          language,
         };
     printReport(report);
   };
@@ -191,7 +195,7 @@ export default function ReportsPage() {
             allowClear={false}
             format="MM/DD/YYYY"
             onChange={(d) => d && setAnchor(d)}
-            placeholder="Start date"
+            placeholder={t("Start date")}
           />
         );
       case "monthly":
@@ -225,23 +229,22 @@ export default function ReportsPage() {
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center" wrap gap={12}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Generate Reports</Typography.Title>
+        <Typography.Title level={4} style={{ margin: 0 }}>{t("Generate Reports")}</Typography.Title>
         <Button icon={<FilePdfOutlined />} disabled={!hasResults || active.isFetching} onClick={exportPdf}>
-          Export PDF / Print
+          {t("Export PDF / Print")}
         </Button>
       </Flex>
       <Typography.Text type="secondary">
-        Pick a report and filters, then Generate. Export opens the print dialog; choose "Save as PDF" to save a file.
-        Only received stock is counted: pending or cancelled containers and voided deliveries are left out.
+        {t('Pick a report and filters, then Generate. Export opens the print dialog; choose "Save as PDF" to save a file. Only received stock is counted: pending or cancelled containers and voided deliveries are left out.')}
       </Typography.Text>
 
       <Card size="small">
         <Form layout="vertical">
-          <Form.Item label="Report" style={{ marginBottom: 12 }} extra={REPORT_OPTIONS.find((o) => o.value === reportType)?.description}>
+          <Form.Item label={t("Report")} style={{ marginBottom: 12 }} extra={t(REPORT_OPTIONS.find((o) => o.value === reportType)?.description ?? "")}>
             <Segmented
               value={reportType}
               onChange={(value) => setReportType(value as ReportType)}
-              options={REPORT_OPTIONS.map(({ label, value }) => ({ label, value }))}
+              options={REPORT_OPTIONS.map(({ label, value }) => ({ label: t(label), value }))}
             />
           </Form.Item>
 
@@ -249,7 +252,7 @@ export default function ReportsPage() {
             {reportType === "stock" ? (
               <>
                 <Form.Item
-                  label="Period"
+                  label={t("Period")}
                   style={{ marginBottom: 0 }}
                   extra={`${describePeriod(periodKind, range)}${granularityFor(range) === "month" ? " · one column per month" : ""}`}
                 >
@@ -257,19 +260,19 @@ export default function ReportsPage() {
                     <Segmented
                       value={periodKind}
                       onChange={(value) => setPeriodKind(value as PeriodKind)}
-                      options={PERIOD_OPTIONS}
+                      options={PERIOD_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
                     />
                     {periodPicker}
                   </Flex>
                 </Form.Item>
-                <Form.Item label="Products" style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
+                <Form.Item label={t("Products")} style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
                   <Select
                     mode="multiple"
                     allowClear
                     showSearch
                     optionFilterProp="label"
                     maxTagCount="responsive"
-                    placeholder="All products"
+                    placeholder={t("All products")}
                     loading={loadingProducts}
                     value={productIds}
                     onChange={setProductIds}
@@ -279,7 +282,7 @@ export default function ReportsPage() {
               </>
             ) : (
               <>
-                <Form.Item label="Date range" style={{ marginBottom: 0 }}>
+                <Form.Item label={t("Date range")} style={{ marginBottom: 0 }}>
                   <RangePicker
                     value={receivingRange}
                     allowClear={false}
@@ -287,12 +290,12 @@ export default function ReportsPage() {
                     onChange={(v) => v?.[0] && v[1] && setReceivingRange([v[0], v[1]])}
                   />
                 </Form.Item>
-                <Form.Item label="Supplier" style={{ marginBottom: 0, minWidth: 280, flex: 1 }}>
+                <Form.Item label={t("Supplier")} style={{ marginBottom: 0, minWidth: 280, flex: 1 }}>
                   <Select
                     allowClear
                     showSearch
                     optionFilterProp="label"
-                    placeholder="All suppliers"
+                    placeholder={t("All suppliers")}
                     loading={loadingSuppliers}
                     value={supplierId}
                     onChange={setSupplierId}
@@ -302,45 +305,45 @@ export default function ReportsPage() {
               </>
             )}
 
-            <Form.Item label="Source" style={{ marginBottom: 0 }}>
-              <Segmented value={source} onChange={(value) => setSource(value as SourceFilter)} options={SOURCE_OPTIONS} />
+            <Form.Item label={t("Source")} style={{ marginBottom: 0 }}>
+              <Segmented value={source} onChange={(value) => setSource(value as SourceFilter)} options={SOURCE_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))} />
             </Form.Item>
 
             <Button type="primary" icon={<TableOutlined />} onClick={generate}>
-              Generate
+              {t("Generate")}
             </Button>
           </Flex>
         </Form>
       </Card>
 
       {!applied ? (
-        <Empty description="Choose filters and press Generate" />
+        <Empty description={t("Choose filters and press Generate")} />
       ) : active.isError ? (
-        <Alert type="error" showIcon message="Could not generate report" description={(active.error as Error).message} />
+        <Alert type="error" showIcon message={t("Could not generate report")} description={t((active.error as Error).message)} />
       ) : active.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !hasResults ? (
-        <Empty description="Nothing was received for these filters" />
+        <Empty description={t("Nothing was received for these filters")} />
       ) : (
         <Space direction="vertical" size="middle" style={{ width: "100%", opacity: active.isFetching ? 0.6 : 1 }}>
           <Card size="small">
             {applied.type === "stock" ? (
               <Flex wrap gap={32} align="center">
-                <Statistic title="Brands" value={grids.length} />
-                <Statistic title={applied.granularity === "day" ? "Days with arrivals" : "Months with arrivals"} value={activeColumns} />
-                <Statistic title="Sacks received" value={fmtInt(grandTotal)} />
+                <Statistic title={t("Brands")} value={grids.length} />
+                <Statistic title={t(applied.granularity === "day" ? "Days with arrivals" : "Months with arrivals")} value={activeColumns} />
+                <Statistic title={t("Sacks received")} value={fmtInt(grandTotal)} />
                 <Typography.Text type="secondary" style={{ marginLeft: "auto" }}>{applied.subtitle[0]}</Typography.Text>
               </Flex>
             ) : (
               <Flex wrap gap={32} align="center">
-                <Statistic title="Suppliers" value={supplierGroups.length} />
-                <Statistic title="Lines" value={receivedTotals.lines} />
-                <Statistic title="Sacks counted" value={fmtInt(receivedTotals.counted)} />
+                <Statistic title={t("Suppliers")} value={supplierGroups.length} />
+                <Statistic title={t("Lines")} value={receivedTotals.lines} />
+                <Statistic title={t("Sacks counted")} value={fmtInt(receivedTotals.counted)} />
                 <Statistic
-                  title="Variance"
+                  title={t("Variance")}
                   value={`${receivedTotals.variance > 0 ? "+" : ""}${fmtInt(receivedTotals.variance)}`}
                 />
-                <Statistic title="Value" value={fmtMoney(receivedTotals.value)} />
+                <Statistic title={t("Value")} value={fmtMoney(receivedTotals.value)} />
                 <Typography.Text type="secondary" style={{ marginLeft: "auto" }}>{applied.subtitle[0]}</Typography.Text>
               </Flex>
             )}

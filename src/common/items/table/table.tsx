@@ -11,6 +11,7 @@ import {
 
 import { ConfigProvider, Table } from 'antd'
 import type { ReactNode } from 'react'
+import { useLanguage } from '../../context/language-context'
 
 declare module '@tanstack/react-table' {
   // The type parameters must match TanStack's declaration exactly for the
@@ -48,6 +49,7 @@ export function DataTable<TData>({
   columnVisibility,
   renderExpanded,
 }: DataTableProps<TData>) {
+  const { t } = useLanguage()
   const table = useReactTable({
     data,
     columns,
@@ -64,7 +66,9 @@ export function DataTable<TData>({
     key: header.id,
     title: header.isPlaceholder
       ? null
-      : flexRender(header.column.columnDef.header, header.getContext()),
+      : typeof header.column.columnDef.header === 'string'
+        ? t(header.column.columnDef.header)
+        : flexRender(header.column.columnDef.header, header.getContext()),
     dataIndex: header.id,
     width: header.column.columnDef.size,
     fixed: header.column.columnDef.meta?.fixed,

@@ -37,6 +37,7 @@ import {
   type DraftItem,
 } from "./create-shipment-table";
 import { CreateSupplierButton } from "../supplier/create-supplier-button";
+import { useLanguage } from "../../../common/context/language-context";
 
 // ---- form value shapes -------------------------------------------
 
@@ -73,17 +74,18 @@ const toItemFields = (v: ItemValues) => ({
 // ---- modal forms ---------------------------------------------------
 
 function ContainerFormFields() {
+  const { t } = useLanguage();
   return (
     <>
-      <Form.Item name="container_no" label="Container no.">
+      <Form.Item name="container_no" label={t("Container no.")}>
         <Input
-          placeholder="e.g. OCLU1395985 — leave blank if none"
+          placeholder={t("e.g. OCLU1395985 — leave blank if none")}
           style={{ fontFamily: "monospace" }}
         />
       </Form.Item>
       <Form.Item
         name="is_company_truck"
-        label="Hauled by our own truck"
+        label={t("Hauled by our own truck")}
         valuePropName="checked"
         initialValue={false}
       >
@@ -101,18 +103,19 @@ function ItemFormFields({
   /** Products already on this container, excluding the line being edited. */
   takenProductIds: Set<string>;
 }) {
+  const { t } = useLanguage();
   return (
     <>
       <Form.Item
         name="product_category_id"
-        label="Product"
+        label={t("Product")}
         rules={[
-          { required: true, message: "Pick a product" },
+          { required: true, message: t("Pick a product") },
           {
             validator: (_, id: string) =>
               id && takenProductIds.has(id)
                 ? Promise.reject(
-                    new Error("This product is already on this container"),
+                    new Error(t("This product is already on this container")),
                   )
                 : Promise.resolve(),
           },
@@ -121,25 +124,25 @@ function ItemFormFields({
         <Select
           showSearch
           optionFilterProp="label"
-          placeholder="Search by code or brand"
+          placeholder={t("Search by code or brand")}
           options={products.map((p) => ({ label: fmtProduct(p), value: p.id }))}
         />
       </Form.Item>
       <Flex gap={12}>
         <Form.Item
           name="qty_sacks"
-          label="Sacks"
-          rules={[{ required: true, message: "Enter a quantity" }]}
+          label={t("Sacks")}
+          rules={[{ required: true, message: t("Enter a quantity") }]}
           style={{ flex: 1 }}
         >
           <InputNumber min={1} precision={0} style={{ width: "100%" }} />
         </Form.Item>
-        <Form.Item name="price_per_sack" label="Price / sack" style={{ flex: 1 }}>
+        <Form.Item name="price_per_sack" label={t("Price / sack")} style={{ flex: 1 }}>
           <InputNumber
             min={0}
             precision={2}
             prefix="₱"
-            placeholder="Optional"
+            placeholder={t("Optional")}
             style={{ width: "100%" }}
           />
         </Form.Item>
@@ -151,6 +154,7 @@ function ItemFormFields({
 // ---- page ----------------------------------------------------------
 
 export default function CreateShipmentPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
@@ -227,7 +231,7 @@ export default function CreateShipmentPage() {
   const renderItemActions = (container: DraftContainer) => (item: DraftItem) => (
       <Flex gap={4} justify="end">
         <CommonModalForm<ItemValues>
-          title="Edit item"
+          title={t("Edit item")}
           triggerLabel={<EditOutlined />}
           triggerButtonType="text"
           initialValues={{
@@ -243,8 +247,8 @@ export default function CreateShipmentPage() {
           />
         </CommonModalForm>
         <Popconfirm
-          title="Remove this item?"
-          okText="Remove"
+          title={t("Remove this item?")}
+          okText={t("Remove")}
           okButtonProps={{ danger: true }}
           onConfirm={() => removeItem(container.key, item.key)}
         >
@@ -283,7 +287,7 @@ export default function CreateShipmentPage() {
           })),
         })),
       });
-      msg.success("Shipment registered");
+      msg.success(t("Shipment registered"));
       navigate("/containers");
     } catch (e) {
       showError(e, "Could not register shipment");
@@ -296,11 +300,11 @@ export default function CreateShipmentPage() {
       return;
     }
     Modal.confirm({
-      title: "Discard this shipment?",
-      content: "Everything entered on this page will be lost.",
-      okText: "Discard",
+      title: t("Discard this shipment?"),
+      content: t("Everything entered on this page will be lost."),
+      okText: t("Discard"),
       okButtonProps: { danger: true },
-      cancelText: "Keep editing",
+      cancelText: t("Keep editing"),
       onOk: () => navigate("/containers"),
     });
   };
@@ -314,14 +318,14 @@ export default function CreateShipmentPage() {
       <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
         <Flex justify="space-between" align="center">
           <Typography.Title level={4} style={{ margin: 0 }}>
-            Register shipment
+            {t("Register Shipment")}
           </Typography.Title>
           <Typography.Text type="secondary">
-            {fmtInt(containers.length)} containers · {fmtInt(allSacks)} sacks
+            {fmtInt(containers.length)} {t("containers")} · {fmtInt(allSacks)} {t("sacks")}
           </Typography.Text>
         </Flex>
 
-        <Card size="small" title="Packing list">
+        <Card size="small" title={t("Packing list")}>
           <Form
             form={form}
             layout="vertical"
@@ -330,14 +334,14 @@ export default function CreateShipmentPage() {
             <Flex wrap gap={12}>
               <Form.Item
                 name="supplier_id"
-                label="Supplier"
-                rules={[{ required: true, message: "Pick a supplier" }]}
+                label={t("Supplier")}
+                rules={[{ required: true, message: t("Pick a supplier") }]}
                 style={{ flex: 1, minWidth: 220, marginBottom: 0 }}
               >
                 <Select
                   showSearch
                   optionFilterProp="label"
-                  placeholder="Select supplier"
+                  placeholder={t("Select supplier")}
                   loading={loadingSuppliers}
                   options={suppliers?.map((s) => ({
                     label: s.name,
@@ -353,8 +357,8 @@ export default function CreateShipmentPage() {
               </Form.Item>
               <Form.Item
                 name="date_list_received"
-                label="List received"
-                rules={[{ required: true, message: "Pick a date" }]}
+                label={t("List received")}
+                rules={[{ required: true, message: t("Pick a date") }]}
                 style={{ minWidth: 200, marginBottom: 0 }}
               >
                 <DatePicker
@@ -365,7 +369,7 @@ export default function CreateShipmentPage() {
               </Form.Item>
               <Form.Item
                 name="reference"
-                label="Reference"
+                label={t("Reference")}
                 style={{ flex: 1, minWidth: 200, marginBottom: 0 }}
               >
                 <Input placeholder="e.g. PL-2026-0915 (optional)" />
@@ -382,21 +386,21 @@ export default function CreateShipmentPage() {
               <Flex align="center" gap={8}>
                 <Typography.Text type="secondary">#{index + 1}</Typography.Text>
                 <span style={{ fontFamily: "monospace" }}>
-                  {container.container_no ?? "No container no."}
+                  {container.container_no ?? t("No container no.")}
                 </span>
-                {container.is_company_truck && <Tag color="blue">Own truck</Tag>}
+                {container.is_company_truck && <Tag color="blue">{t("Own truck")}</Tag>}
               </Flex>
             }
             extra={
               <Flex gap={8} align="center">
                 <CommonModalForm<ItemValues>
-                  title="Add item"
+                  title={t("Add item")}
                   triggerLabel={
                     <>
-                      <PlusOutlined /> Add New Item
+                      <PlusOutlined /> {t("Add New Item")}
                     </>
                   }
-                  okText="Add"
+                  okText={t("Add")}
                   onSave={(v) => addItem(container.key, v)}
                 >
                   <ItemFormFields
@@ -405,7 +409,7 @@ export default function CreateShipmentPage() {
                   />
                 </CommonModalForm>
                 <CommonModalForm<ContainerValues>
-                  title="Edit container"
+                  title={t("Edit container")}
                   triggerLabel={<EditOutlined />}
                   triggerButtonType="default"
                   initialValues={{
@@ -417,9 +421,9 @@ export default function CreateShipmentPage() {
                   <ContainerFormFields />
                 </CommonModalForm>
                 <Popconfirm
-                  title="Remove this container?"
-                  description="Its items are removed with it."
-                  okText="Remove"
+                  title={t("Remove this container?")}
+                  description={t("Its items are removed with it.")}
+                  okText={t("Remove")}
                   okButtonProps={{ danger: true }}
                   onConfirm={() => removeContainer(container.key)}
                 >
@@ -437,36 +441,36 @@ export default function CreateShipmentPage() {
             ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="No items yet"
+                description={t("No items yet")}
               />
             )}
           </Card>
         ))}
 
         <CommonModalForm<ContainerValues>
-          title="Add container"
+          title={t("Add container")}
           triggerLabel={
             <>
-              <PlusOutlined /> Add New Container
+              <PlusOutlined /> {t("Add New Container")}
             </>
           }
           triggerButtonType="dashed"
           triggerButtonStyle={{ width: "100%", height: 48 }}
-          okText="Add"
+          okText={t("Add")}
           onSave={addContainer}
         >
           <ContainerFormFields />
         </CommonModalForm>
 
         <Flex justify="end" gap={8}>
-          <Button onClick={cancel}>Cancel</Button>
+          <Button onClick={cancel}>{t("Cancel")}</Button>
           <Button
             type="primary"
             onClick={submit}
             disabled={!canSubmit}
             loading={createShipment.isPending}
           >
-            Submit shipment
+            {t("Submit shipment")}
           </Button>
         </Flex>
       </Flex>
@@ -474,7 +478,7 @@ export default function CreateShipmentPage() {
       {/* ---- side: registered products reference ---- */}
       <Card
         size="small"
-        title="Registered products"
+        title={t("Registered products")}
         style={{ width: 380, flexShrink: 0, position: "sticky", top: 0 }}
       >
         {loadingProducts ? (

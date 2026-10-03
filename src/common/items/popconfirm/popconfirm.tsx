@@ -1,6 +1,7 @@
 import { Button, Popconfirm, type ButtonProps } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
+import { useLanguage } from '../../context/language-context'
 
 interface ConfirmDeleteButtonProps {
   onConfirm: () => void
@@ -31,18 +32,19 @@ export function ConfirmDeleteButton({
   size = 'small',
   children,
 }: ConfirmDeleteButtonProps) {
+  const { t } = useLanguage()
   return (
     <Popconfirm
-      title={title}
-      description={description}
-      okText={okText}
-      cancelText={cancelText}
+      title={typeof title === 'string' ? t(title) : title}
+      description={typeof description === 'string' ? t(description) : description}
+      okText={t(okText)}
+      cancelText={t(cancelText)}
       okButtonProps={{ danger: true }}
       onConfirm={onConfirm}
       disabled={disabled}
     >
       <Button size={size} danger loading={loading} disabled={disabled} icon={children ? undefined : <DeleteOutlined />}>
-        {children ?? 'Delete'}
+        {children ?? t('Delete')}
       </Button>
     </Popconfirm>
   )
@@ -82,12 +84,13 @@ export function ConfirmActionButton({
   icon,
   children,
 }: ConfirmActionButtonProps) {
+  const { t } = useLanguage()
   return (
     <Popconfirm
-      title={title}
-      description={description}
-      okText={okText}
-      cancelText={cancelText}
+      title={typeof title === 'string' ? t(title) : title}
+      description={typeof description === 'string' ? t(description) : description}
+      okText={t(okText)}
+      cancelText={t(cancelText)}
       okButtonProps={{ danger }}
       onConfirm={onConfirm}
       disabled={disabled}

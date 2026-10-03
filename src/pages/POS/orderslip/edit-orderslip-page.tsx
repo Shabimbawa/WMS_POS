@@ -6,8 +6,10 @@ import type { CreateOrderSlipInput } from "../../../queries/posTypes";
 import { canEditOrderSlip, fmtSlipNumber } from "../type-format/format";
 import { useOrderSlip, useUpdateOrderSlip } from "../../../queries/useHooks";
 import { OrderSlipForm } from "./orderslip-form";
+import { useLanguage } from "../../../common/context/language-context";
 
 export default function EditOrderSlipPage() {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
@@ -21,9 +23,9 @@ export default function EditOrderSlipPage() {
     return (
       <Result
         status="404"
-        title="Order slip not found"
-        subTitle={`No order slip exists with id "${id}".`}
-        extra={<Button onClick={() => navigate("/order-slip")}>Back to order slips</Button>}
+        title={t("Order slip not found")}
+        subTitle={t('No order slip exists with id "{id}".', { id: id ?? "" })}
+        extra={<Button onClick={() => navigate("/order-slip")}>{t("Back to order slips")}</Button>}
       />
     );
   }
@@ -36,16 +38,16 @@ export default function EditOrderSlipPage() {
     return (
       <Result
         status="warning"
-        title="This order slip can't be edited"
+        title={t("This order slip can't be edited")}
         subTitle={`Order slip ${fmtSlipNumber(slip)} is already paid. Only unpaid or partially paid slips can be changed.`}
-        extra={<Button onClick={() => navigate(detailPath)}>View order slip</Button>}
+        extra={<Button onClick={() => navigate(detailPath)}>{t("View order slip")}</Button>}
       />
     );
   }
 
   const submit = async (input: CreateOrderSlipInput) => {
     await update.mutateAsync({ id: slip.id, ...input });
-    msg.success("Order slip updated");
+    msg.success(t("Order slip updated"));
     navigate(detailPath);
   };
 
@@ -55,7 +57,7 @@ export default function EditOrderSlipPage() {
       <OrderSlipForm
         title={
           <>
-            Edit order slip{" "}
+            {t("Edit order slip")}{" "}
             <span style={{ fontFamily: "monospace" }}>{fmtSlipNumber(slip)}</span>
           </>
         }
@@ -74,9 +76,9 @@ export default function EditOrderSlipPage() {
           productId: i.article.id,
           quantity: i.quantity,
         }))}
-        submitLabel="Save changes"
+        submitLabel={t("Save changes")}
         submitting={update.isPending}
-        errorTitle="Could not update order slip"
+        errorTitle={t("Could not update order slip")}
         cancelTo={detailPath}
         onSubmit={submit}
       />

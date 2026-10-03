@@ -11,11 +11,12 @@ import {
   fmtKg,
   fmtProduct,
 } from "../type-format/format";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 const dash = <span style={{ opacity: 0.45 }}>—</span>;
 
 /** GET /stock/movements — every change to a balance, newest first. */
-export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
+export const stockLogColumns = (translate: Translate): ColumnDef<StockLogRow, any>[] => [
   {
     id: "occurred_at",
     header: "Date",
@@ -25,7 +26,7 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
     // occurred_at is when it happened; created_at is when it was recorded
     cell: (c) => (
       <Tooltip
-        title={`Recorded ${fmtTableDateTime(c.row.original.created_at)}`}
+        title={`${translate("Recorded")} ${fmtTableDateTime(c.row.original.created_at)}`}
       >
         {fmtTableDate(c.getValue<string>())}
       </Tooltip>
@@ -52,7 +53,7 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
       const t = c.row.original.movement_type;
       return (
         <Tag color={MOVEMENT_COLOR[t]} style={{ margin: 0 }}>
-          {MOVEMENT_LABEL[t]}
+          {translate(MOVEMENT_LABEL[t])}
         </Tag>
       );
     },
@@ -97,20 +98,20 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
       if (r.container_id) {
         return (
           <span style={{ fontFamily: "monospace" }}>
-            {r.container_no ?? "no box"}
+            {r.container_no ?? translate("No box")}
           </span>
         );
       }
       if (r.order_slip_id) {
         return (
           <span>
-            Slip{" "}
+            {translate("Slip")}{" "}
             {r.order_slip_date
               ? `${fmtTableDate(r.order_slip_date)} · `
               : ""}
             #{r.order_slip_number ?? "?"}
             {r.order_revision && r.order_revision > 1
-              ? ` (rev ${r.order_revision})`
+              ? ` (${translate("rev")} ${r.order_revision})`
               : ""}
           </span>
         );
@@ -139,5 +140,6 @@ export const stockLogColumns: ColumnDef<StockLogRow, any>[] = [
 ];
 
 export function StockLogTable({ data }: { data: StockLogRow[] }) {
-  return <DataTable data={data} columns={stockLogColumns} />;
+  const { t } = useLanguage();
+  return <DataTable data={data} columns={stockLogColumns(t)} />;
 }

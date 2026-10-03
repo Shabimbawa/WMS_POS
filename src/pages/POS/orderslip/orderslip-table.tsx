@@ -16,9 +16,10 @@ import {
 } from "../type-format/format";
 import { fmtTableDate } from "../../../common/utils/util";
 import { EditOrderSlipButton } from "./orderslip-actions";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 /** Rows here are order slips; the full line items live on the detail page. */
-const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
+const orderSlipColumns = (t: Translate): ColumnDef<OrderSlip, any>[] => [
   {
     id: "date",
     header: "Date",
@@ -86,7 +87,7 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
           items={items}
           max={2}
           getKey={(i) => i.id}
-          title={`${items.length} articles`}
+          title={`${items.length} ${t(items.length === 1 ? "article" : "articles")}`}
           renderItem={(i) => (
             <LabelValue label={fmtProduct(i.article)} value={`× ${fmtInt(i.quantity)}`} />
           )}
@@ -117,7 +118,7 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
             color={overdue ? "error" : PAYMENT_STATUS_COLOR[slip.status]}
             style={{ margin: 0 }}
           >
-            {PAYMENT_STATUS_LABEL[slip.status]}
+            {t(PAYMENT_STATUS_LABEL[slip.status])}
           </Tag>
           {slip.status !== "paid" && (
             <div
@@ -129,7 +130,7 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
                 opacity: overdue ? 1 : 0.6,
               }}
             >
-              {overdue ? "Overdue" : "Due"}{" "}
+              {t(overdue ? "Overdue" : "Due")}{" "}
               {fmtTableDate(slip.paymentDueDate)}
             </div>
           )}
@@ -156,6 +157,7 @@ const orderSlipColumns: ColumnDef<OrderSlip, any>[] = [
 ];
 
 export function OrderSlipTable({ data }: { data: OrderSlip[] }) {
-  const columns = useMemo(() => orderSlipColumns, []);
+  const { t } = useLanguage();
+  const columns = useMemo(() => orderSlipColumns(t), [t]);
   return <DataTable data={data} columns={columns} />;
 }

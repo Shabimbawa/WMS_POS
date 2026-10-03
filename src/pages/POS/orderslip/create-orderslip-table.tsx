@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../../../common/items/table/table";
 import type { CreateOrderSlipItem, Product } from "../../../queries/posTypes";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 // ---- draft shape -------------------------------------------------
 //
@@ -83,7 +84,7 @@ export function DraftOrderItemTable({
 
 // Kept narrow enough to fit the side card without scrolling sideways:
 // brand and variant share a column, and sizes sum under the card's width.
-const productColumns: ColumnDef<Product, any>[] = [
+const productColumns = (t: Translate): ColumnDef<Product, any>[] => [
   {
     id: "product",
     header: "Product",
@@ -107,12 +108,13 @@ const productColumns: ColumnDef<Product, any>[] = [
       return stock > 0 ? (
         fmtInt(stock)
       ) : (
-        <span style={{ color: "var(--ant-color-error, #ff4d4f)" }}>Out</span>
+        <span style={{ color: "var(--ant-color-error, #ff4d4f)" }}>{t("Out")}</span>
       );
     },
   },
 ];
 
 export function ProductPriceTable({ data }: { data: Product[] }) {
-  return <DataTable data={data} columns={productColumns} />;
+  const { t } = useLanguage();
+  return <DataTable data={data} columns={productColumns(t)} />;
 }

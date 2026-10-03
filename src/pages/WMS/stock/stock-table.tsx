@@ -6,9 +6,10 @@ import { DataTable } from "../../../common/items/table/table";
 import type { StockStatusRow } from "../../../queries/types";
 import { fmtInt, fmtKg, fmtMoney, fmtProduct } from "../type-format/format";
 import { ProductActions } from "./product-actions";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 /** GET /stock rows: a stock_balance joined to its product. */
-export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
+export const stockColumns = (t: Translate): ColumnDef<StockStatusRow, any>[] => [
   {
     id: "product",
     header: "Product",
@@ -22,7 +23,7 @@ export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
     accessorFn: (r) => r.product_category.is_available,
     size: 110,
     cell: (c) =>
-      c.getValue<boolean>() ? <Tag color="success">Yes</Tag> : <Tag>No</Tag>,
+      c.getValue<boolean>() ? <Tag color="success">{t("Yes")}</Tag> : <Tag>{t("No")}</Tag>,
   },
   {
     id: "remaining_qty",
@@ -79,6 +80,7 @@ export const stockColumns: ColumnDef<StockStatusRow, any>[] = [
 ];
 
 export function StockTable({ data }: { data: StockStatusRow[] }) {
-  const columns = useMemo(() => stockColumns, []);
+  const { t } = useLanguage();
+  const columns = useMemo(() => stockColumns(t), [t]);
   return <DataTable data={data} columns={columns} />;
 }

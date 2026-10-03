@@ -28,6 +28,7 @@ import { DateParser } from "../../../common/utils/util";
 import { lineAmount } from "../../../queries/pos";
 import { useOrderSlip } from "../../../queries/useHooks";
 import { DeleteOrderSlipButton, EditOrderSlipButton } from "./orderslip-actions";
+import { useLanguage } from "../../../common/context/language-context";
 
 const itemColumns: ColumnDef<OrderSlipItem, any>[] = [
   {
@@ -60,15 +61,17 @@ const itemColumns: ColumnDef<OrderSlipItem, any>[] = [
 ];
 
 function BackToList() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   return (
     <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/order-slip")}>
-      Back to order slips
+      {t("Back to order slips")}
     </Button>
   );
 }
 
 export default function OrderSlipDetailPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: slip, isLoading, isError } = useOrderSlip(id);
@@ -80,11 +83,11 @@ export default function OrderSlipDetailPage() {
     return (
       <Result
         status="success"
-        title="Order slip moved to Trash"
-        subTitle="Its sacks are back in stock. You can restore it from Trash within 30 days."
+        title={t("Order slip moved to Trash")}
+        subTitle={t("Its sacks are back in stock. You can restore it from Trash within 30 days.")}
         extra={[
           <BackToList key="back" />,
-          <Button key="trash" onClick={() => navigate("/order-slip/trash")}>Open Trash</Button>,
+          <Button key="trash" onClick={() => navigate("/order-slip/trash")}>{t("Open Trash")}</Button>,
         ]}
       />
     );
@@ -96,8 +99,8 @@ export default function OrderSlipDetailPage() {
     return (
       <Result
         status="404"
-        title="Order slip not found"
-        subTitle={`No order slip exists with id "${id}".`}
+        title={t("Order slip not found")}
+        subTitle={t('No order slip exists with id "{id}".', { id: id ?? "" })}
         extra={<BackToList />}
       />
     );
@@ -107,7 +110,7 @@ export default function OrderSlipDetailPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center" wrap gap={12}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Order slip{" "}
+          {t("Order slip")}{" "}
           <span style={{ fontFamily: "monospace" }}>{fmtSlipNumber(slip)}</span>
         </Typography.Title>
         <Flex gap={8}>
@@ -119,25 +122,25 @@ export default function OrderSlipDetailPage() {
 
       <Card size="small">
         <Descriptions column={{ xs: 1, sm: 2 }} size="small">
-          <Descriptions.Item label="Slip no.">#{slip.slipNumber}</Descriptions.Item>
-          <Descriptions.Item label="Date">{DateParser(slip.date)}</Descriptions.Item>
-          <Descriptions.Item label="Order by">{slip.orderBy || "—"}</Descriptions.Item>
-          <Descriptions.Item label="Cashier">
+          <Descriptions.Item label={t("Slip no.")}>#{slip.slipNumber}</Descriptions.Item>
+          <Descriptions.Item label={t("Date")}>{DateParser(slip.date)}</Descriptions.Item>
+          <Descriptions.Item label={t("Order by")}>{slip.orderBy || "—"}</Descriptions.Item>
+          <Descriptions.Item label={t("Cashier")}>
             {slip.cashier.name}
             {!slip.cashier.isActive && (
-              <Typography.Text type="secondary"> (inactive)</Typography.Text>
+              <Typography.Text type="secondary"> ({t("Inactive")})</Typography.Text>
             )}
           </Descriptions.Item>
-          <Descriptions.Item label="Address">{slip.address || "—"}</Descriptions.Item>
-          <Descriptions.Item label="Payment">
+          <Descriptions.Item label={t("Address")}>{slip.address || "—"}</Descriptions.Item>
+          <Descriptions.Item label={t("Payment")}>
             <Tag color={PAYMENT_STATUS_COLOR[slip.status]} style={{ margin: 0 }}>
-              {PAYMENT_STATUS_LABEL[slip.status]}
+              {t(PAYMENT_STATUS_LABEL[slip.status])}
             </Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Payment due">
+          <Descriptions.Item label={t("Payment due")}>
             <Space size={8}>
               {DateParser(slip.paymentDueDate)}
-              {isOverdue(slip) && <Tag color="error">Overdue</Tag>}
+              {isOverdue(slip) && <Tag color="error">{t("Overdue")}</Tag>}
             </Space>
           </Descriptions.Item>
         </Descriptions>
@@ -146,7 +149,7 @@ export default function OrderSlipDetailPage() {
       <Card size="small">
         <DataTable data={slip.items} columns={columns} />
         <Flex justify="end" gap={16} style={{ marginTop: 12, paddingInline: 12 }}>
-          <Typography.Text type="secondary">Total amount</Typography.Text>
+          <Typography.Text type="secondary">{t("Total amount")}</Typography.Text>
           <Typography.Text strong style={{ fontSize: 16 }}>
             {fmtMoney(slip.totalAmount)}
           </Typography.Text>

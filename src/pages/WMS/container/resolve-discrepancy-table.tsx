@@ -10,6 +10,7 @@ import {
   fmtInt,
   fmtProduct,
 } from "../type-format/format";
+import { useLanguage } from "../../../common/context/language-context";
 
 /**
  * One row on the resolve page: a declared container line, or an unlisted
@@ -43,6 +44,7 @@ export function DiscrepancyLineTable({
   lines,
   renderActions,
 }: DiscrepancyLineTableProps) {
+  const { t } = useLanguage();
   const columns = useMemo<ColumnDef<DiscrepancyLine, any>[]>(
     () => [
       {
@@ -67,11 +69,11 @@ export function DiscrepancyLineTable({
           const d = c.row.original.discrepancy;
           return d ? (
             <Tag color={REASON_COLOR[d.reason]} style={{ margin: 0 }}>
-              {REASON_LABEL[d.reason]}
+              {t(REASON_LABEL[d.reason])}
             </Tag>
           ) : (
             <Tag color="success" style={{ margin: 0 }}>
-              Matched
+              {t("Matched")}
             </Tag>
           );
         },
@@ -119,7 +121,7 @@ export function DiscrepancyLineTable({
         cell: (c) => renderActions(c.row.original),
       },
     ],
-    [renderActions],
+    [renderActions, t],
   );
 
   return <DataTable data={lines} columns={columns} />;

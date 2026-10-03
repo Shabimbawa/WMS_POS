@@ -27,6 +27,7 @@ import type {
   UpdateContainerStatusInput,
 } from "../../../queries/types";
 import { STATUS_LABEL } from "../type-format/format";
+import { useLanguage } from "../../../common/context/language-context";
 
 type ShipmentContainer = ShipmentRow["container"][number];
 
@@ -53,17 +54,18 @@ function StatusFields({
   form: FormInstance<StatusValues>;
   currentStatus: ContainerStatus;
 }) {
+  const { t } = useLanguage();
   const status = Form.useWatch("status", form);
   return (
     <>
       <Form.Item
         name="status"
-        label="Status"
-        rules={[{ required: true, message: "Pick a status" }]}
+        label={t("Status")}
+        rules={[{ required: true, message: t("Pick a status") }]}
       >
         <Select
           options={STATUS_OPTIONS[currentStatus].map((s) => ({
-            label: STATUS_LABEL[s],
+            label: t(STATUS_LABEL[s]),
             value: s,
           }))}
         />
@@ -71,8 +73,8 @@ function StatusFields({
       {status === "ARRIVED_AT_PORT" && (
         <Form.Item
           name="date_arrived_at_port"
-          label="Date arrived at port"
-          rules={[{ required: true, message: "Pick the port arrival date" }]}
+          label={t("Date arrived at port")}
+          rules={[{ required: true, message: t("Pick the port arrival date") }]}
         >
           <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
         </Form.Item>
@@ -80,8 +82,8 @@ function StatusFields({
       {status === "DELIVERED" && (
         <Form.Item
           name="date_delivered"
-          label="Date delivered"
-          rules={[{ required: true, message: "Pick the delivery date" }]}
+          label={t("Date delivered")}
+          rules={[{ required: true, message: t("Pick the delivery date") }]}
         >
           <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
         </Form.Item>
@@ -89,8 +91,8 @@ function StatusFields({
       {status === "CANCELLED" && (
         <Form.Item
           name="cancellation_reason"
-          label="Cancellation reason"
-          rules={[{ required: true, whitespace: true, message: "Enter a reason" }]}
+          label={t("Cancellation reason")}
+          rules={[{ required: true, whitespace: true, message: t("Enter a reason") }]}
         >
           <Input.TextArea rows={3} />
         </Form.Item>
@@ -105,6 +107,7 @@ export function ContainerActions({
 }: {
   container: ShipmentContainer;
 }) {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
@@ -130,7 +133,7 @@ export function ContainerActions({
         dateArrivedAtPort: v.date_arrived_at_port?.format("YYYY-MM-DD"),
         cancellationReason: v.cancellation_reason?.trim(),
       });
-      msg.success(`Marked ${STATUS_LABEL[v.status as ContainerStatus]}`);
+      msg.success(`${t("Marked")} ${t(STATUS_LABEL[v.status as ContainerStatus])}`);
     } catch (e) {
       showError(e, "Could not update status");
       throw e; // keeps the modal open
@@ -144,7 +147,7 @@ export function ContainerActions({
         dateUnloaded: unloadDate.format("YYYY-MM-DD"),
         discrepancies: [],
       });
-      msg.success("Container unloaded — all items matched");
+      msg.success(t("Container unloaded — all items matched"));
     } catch (e) {
       showError(e, "Could not unload container");
     }
@@ -156,10 +159,10 @@ export function ContainerActions({
       {errorHolder}
 
       <CommonModalForm<StatusValues>
-        title={`Update status · ${container.container_no ?? "no box"}`}
-        triggerLabel="Update status"
+        title={`${t("Update status")} · ${container.container_no ?? t("No box")}`}
+        triggerLabel={t("Update status")}
         triggerButtonType="default"
-        okText="Update"
+        okText={t("Update")}
         width={420}
         initialValues={{
           status: STATUS_OPTIONS[container.status][0],
@@ -171,13 +174,13 @@ export function ContainerActions({
         {(form) => <StatusFields form={form} currentStatus={container.status} />}
       </CommonModalForm>
 
-      <Tooltip title={canUnload ? undefined : "Mark as delivered first"}>
+      <Tooltip title={canUnload ? undefined : t("Mark as delivered first")}>
         <Popconfirm
           disabled={!canUnload}
-          title="Any discrepancies?"
+          title={t("Any discrepancies?")}
           description={
             <Flex vertical gap={6} style={{ marginTop: 4 }}>
-              <Typography.Text type="secondary">Date unloaded</Typography.Text>
+              <Typography.Text type="secondary">{t("Date unloaded")}</Typography.Text>
               <DatePicker
                 value={unloadDate}
                 allowClear={false}
@@ -194,8 +197,8 @@ export function ContainerActions({
               />
             </Flex>
           }
-          okText="Yes, resolve"
-          cancelText="No, all matched"
+          okText={t("Yes, resolve")}
+          cancelText={t("No, all matched")}
           // onConfirm/onCancel only fire from their buttons, never from
           // clicking outside, so dismissing never unloads by accident.
           onConfirm={() =>
@@ -207,7 +210,7 @@ export function ContainerActions({
           cancelButtonProps={{ loading: unload.isPending }}
         >
           <Button type="primary" disabled={!canUnload} loading={unload.isPending}>
-            Unload
+            {t("Unload")}
           </Button>
         </Popconfirm>
       </Tooltip>

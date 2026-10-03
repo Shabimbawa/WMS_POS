@@ -17,6 +17,7 @@ import { ErrorNotificationPopup } from "../../../common/items/notification/errro
 import type { StockStatusRow } from "../../../queries/types";
 import { useAdjustStock, useUpdateProduct } from "../../../queries/useHooks";
 import { fmtInt, fmtProduct } from "../type-format/format";
+import { useLanguage } from "../../../common/context/language-context";
 
 /** What both product modals collect. */
 export type ProductValues = {
@@ -37,45 +38,46 @@ const trimmed = (v: string | undefined) => v?.trim() || null;
  * container item and stock movement points at it.
  */
 export function ProductFields({ lockSize = false }: { lockSize?: boolean }) {
+  const { t } = useLanguage();
   return (
     <>
       <Flex gap={12}>
         <Form.Item
           name="brand"
-          label="Brand"
-          rules={[{ required: true, whitespace: true, message: "Enter a brand" }]}
+          label={t("Brand")}
+          rules={[{ required: true, whitespace: true, message: t("Enter a brand") }]}
           style={{ flex: 1 }}
         >
           <Input placeholder="e.g. Ganador" maxLength={200} />
         </Form.Item>
-        <Form.Item name="variety" label="Variety" style={{ flex: 1 }}>
-          <Input placeholder="Optional, e.g. Japonica" maxLength={200} />
+        <Form.Item name="variety" label={t("Variety")} style={{ flex: 1 }}>
+          <Input placeholder={t("Optional, e.g. Japonica")} maxLength={200} />
         </Form.Item>
       </Flex>
 
       <Flex gap={12}>
         <Form.Item
           name="sizeKg"
-          label="Size (kg)"
-          rules={[{ required: true, message: "Enter a sack size" }]}
-          extra={lockSize ? "Fixed after creation" : undefined}
+          label={t("Size (kg)")}
+          rules={[{ required: true, message: t("Enter a sack size") }]}
+          extra={lockSize ? t("Fixed after creation") : undefined}
           style={{ flex: 1 }}
         >
           <InputNumber min={0.001} disabled={lockSize} style={{ width: "100%" }} />
         </Form.Item>
         <Form.Item
           name="code"
-          label="Notebook code"
-          extra="Shorthand like G or P/LAMI"
+          label={t("Notebook code")}
+          extra={t("Shorthand like G or P/LAMI")}
           style={{ flex: 1 }}
         >
-          <Input placeholder="Optional" maxLength={50} />
+          <Input placeholder={t("Optional")} maxLength={50} />
         </Form.Item>
       </Flex>
 
       <Form.Item
         name="isAvailable"
-        label="Available for sale"
+        label={t("Available for sale")}
         valuePropName="checked"
         initialValue={false}
       >
@@ -84,14 +86,14 @@ export function ProductFields({ lockSize = false }: { lockSize?: boolean }) {
 
       <Form.Item
         name="sellingPrice"
-        label="Selling price / sack"
-        extra="POS hides products with no price. A price on an unavailable product is a leftover."
+        label={t("Selling price / sack")}
+        extra={t("POS hides products with no price. A price on an unavailable product is a leftover.")}
       >
         <InputNumber
           min={0}
           precision={2}
           prefix="₱"
-          placeholder="Optional"
+          placeholder={t("Optional")}
           style={{ width: "100%" }}
         />
       </Form.Item>
@@ -116,6 +118,7 @@ function AdjustFields({
   form: FormInstance<AdjustValues>;
   onHand: number;
 }) {
+  const { t } = useLanguage();
   const direction = Form.useWatch("direction", form) ?? "add";
   const quantity = Form.useWatch("quantity", form) ?? 0;
   const next = direction === "add" ? onHand + quantity : onHand - quantity;
@@ -123,34 +126,34 @@ function AdjustFields({
   return (
     <>
       <Typography.Paragraph type="secondary">
-        On hand now: <b>{fmtInt(onHand)}</b> sacks
+        {t("On hand now")}: <b>{fmtInt(onHand)}</b> {t("sacks")}
       </Typography.Paragraph>
 
-      <Form.Item name="direction" label="Direction">
+      <Form.Item name="direction" label={t("Direction")}>
         <Segmented
           options={[
-            { label: "Add", value: "add" },
-            { label: "Remove", value: "remove" },
+            { label: t("Add"), value: "add" },
+            { label: t("Remove"), value: "remove" },
           ]}
         />
       </Form.Item>
 
       <Form.Item
         name="quantity"
-        label="Sacks"
+        label={t("Sacks")}
         rules={[
-          { required: true, message: "Enter a quantity" },
+          { required: true, message: t("Enter a quantity") },
           {
             validator: (_, v: number | undefined) =>
               direction === "remove" && (v ?? 0) > onHand
                 ? Promise.reject(
-                    new Error(`Only ${fmtInt(onHand)} sacks are on hand`),
+                    new Error(t("Only {count} sacks are on hand", { count: fmtInt(onHand) })),
                   )
                 : Promise.resolve(),
           },
         ]}
         extra={
-          quantity > 0 ? `Balance becomes ${fmtInt(next)} sacks` : undefined
+          quantity > 0 ? t("Balance becomes {count} sacks", { count: fmtInt(next) }) : undefined
         }
       >
         <InputNumber min={1} precision={0} style={{ width: "100%" }} />
@@ -158,17 +161,17 @@ function AdjustFields({
 
       <Form.Item
         name="reason"
-        label="Reason"
+        label={t("Reason")}
         rules={[
-          { required: true, whitespace: true, message: "Enter a reason" },
-          { min: 3, message: "At least 3 characters" },
+          { required: true, whitespace: true, message: t("Enter a reason") },
+          { min: 3, message: t("At least 3 characters") },
         ]}
-        extra="Recorded on the movement — the only provenance a manual adjustment has."
+        extra={t("Recorded on the movement — the only provenance a manual adjustment has.")}
       >
         <Input.TextArea
           rows={3}
           maxLength={2000}
-          placeholder="e.g. Opening count, warehouse audit"
+          placeholder={t("e.g. Opening count, warehouse audit")}
         />
       </Form.Item>
     </>
@@ -177,6 +180,7 @@ function AdjustFields({
 
 /** Icon-only edit and stock-adjustment controls for one stock row. */
 export function ProductActions({ row }: { row: StockStatusRow }) {
+  const { t } = useLanguage();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
   const update = useUpdateProduct();
@@ -190,7 +194,7 @@ export function ProductActions({ row }: { row: StockStatusRow }) {
         quantityDelta: v.direction === "add" ? v.quantity : -v.quantity,
         reason: v.reason.trim(),
       });
-      msg.success(`Stock adjusted — ${fmtInt(remainingQty)} sacks on hand`);
+      msg.success(t("Stock adjusted — {count} sacks on hand", { count: fmtInt(remainingQty) }));
     } catch (e) {
       showError(e, "Could not adjust stock");
       throw e; // keeps the modal open
@@ -207,7 +211,7 @@ export function ProductActions({ row }: { row: StockStatusRow }) {
         isAvailable: v.isAvailable,
         sellingPrice: v.sellingPrice ?? null,
       });
-      msg.success("Product updated");
+      msg.success(t("Product updated"));
     } catch (e) {
       showError(e, "Could not update product");
       throw e; // keeps the modal open
@@ -219,13 +223,13 @@ export function ProductActions({ row }: { row: StockStatusRow }) {
       {msgHolder}
       {errorHolder}
 
-      <Tooltip title="Edit product">
+      <Tooltip title={t("Edit product")}>
         <span>
           <CommonModalForm<ProductValues>
-            title={`Edit ${fmtProduct(product)}`}
+            title={`${t("Edit")} ${fmtProduct(product)}`}
             triggerLabel={<EditOutlined />}
             triggerButtonType="text"
-            okText="Save"
+            okText={t("Save")}
             width={520}
             initialValues={{
               brand: product.brand,
@@ -242,13 +246,13 @@ export function ProductActions({ row }: { row: StockStatusRow }) {
         </span>
       </Tooltip>
 
-      <Tooltip title="Adjust stock">
+      <Tooltip title={t("Adjust stock")}>
         <span>
           <CommonModalForm<AdjustValues>
-            title={`Adjust stock · ${fmtProduct(product)}`}
+            title={`${t("Adjust stock")} · ${fmtProduct(product)}`}
             triggerLabel={<SlidersOutlined />}
             triggerButtonType="text"
-            okText="Save adjustment"
+            okText={t("Save adjustment")}
             width={480}
             initialValues={{ direction: "add" }}
             onSave={saveAdjustment}

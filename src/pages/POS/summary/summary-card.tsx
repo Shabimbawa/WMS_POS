@@ -9,6 +9,7 @@ import {
   PAYMENT_STATUS_COLOR,
   PAYMENT_STATUS_LABEL,
 } from "../type-format/format";
+import { useLanguage } from "../../../common/context/language-context";
 
 const STATUS_ORDER: PaymentStatus[] = ["paid", "partial", "unpaid"];
 
@@ -20,6 +21,7 @@ export function CashierDayCard({
   summary: CashierDaySummary;
   onOpen: () => void;
 }) {
+  const { t } = useLanguage();
   const totalSacks = summary.products.reduce((n, p) => n + p.sacks, 0);
 
   return (
@@ -31,21 +33,21 @@ export function CashierDayCard({
       title={
         <Flex align="center" gap={8}>
           <span>{summary.cashier.name}</span>
-          {!summary.cashier.isActive && <Tag style={{ margin: 0 }}>Inactive</Tag>}
+          {!summary.cashier.isActive && <Tag style={{ margin: 0 }}>{t("Inactive")}</Tag>}
         </Flex>
       }
       extra={
         <Typography.Text type="secondary">
-          {fmtInt(summary.slipCount)} {summary.slipCount === 1 ? "slip" : "slips"}
+          {fmtInt(summary.slipCount)} {t(summary.slipCount === 1 ? "slip" : "slips")}
         </Typography.Text>
       }
     >
       <Flex vertical gap={12}>
         <Descriptions column={1} size="small">
-          <Descriptions.Item label="Total amount">
+          <Descriptions.Item label={t("Total amount")}>
             <strong>{fmtMoney(summary.totalAmount)}</strong>
           </Descriptions.Item>
-          <Descriptions.Item label="Amount paid">
+          <Descriptions.Item label={t("Amount paid")}>
             {fmtMoney(summary.paidAmount)}
           </Descriptions.Item>
         </Descriptions>
@@ -53,15 +55,15 @@ export function CashierDayCard({
         <Flex gap={6} wrap>
           {STATUS_ORDER.map((status) => (
             <Tag key={status} color={PAYMENT_STATUS_COLOR[status]} style={{ margin: 0 }}>
-              {PAYMENT_STATUS_LABEL[status]}: {fmtInt(summary.statusCounts[status])}
+              {t(PAYMENT_STATUS_LABEL[status])}: {fmtInt(summary.statusCounts[status])}
             </Tag>
           ))}
         </Flex>
 
         <div>
           <Flex justify="space-between" style={{ marginBottom: 4 }}>
-            <Typography.Text type="secondary">Sacks per product</Typography.Text>
-            <Typography.Text type="secondary">{fmtInt(totalSacks)} total</Typography.Text>
+            <Typography.Text type="secondary">{t("Sacks per product")}</Typography.Text>
+            <Typography.Text type="secondary">{fmtInt(totalSacks)} {t("total")}</Typography.Text>
           </Flex>
           {/* Capped so a busy day doesn't stretch the card; the rest fold
               into a popover. */}
@@ -69,7 +71,7 @@ export function CashierDayCard({
             items={summary.products}
             max={5}
             getKey={(p) => p.productId}
-            title={`${summary.cashier.name} · ${summary.products.length} products`}
+            title={`${summary.cashier.name} · ${summary.products.length} ${t("products")}`}
             renderItem={(p) => (
               <LabelValue label={fmtProduct(p)} value={fmtInt(p.sacks)} />
             )}

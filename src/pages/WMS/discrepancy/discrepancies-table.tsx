@@ -15,26 +15,27 @@ import {
   fmtMoney,
   fmtProduct,
 } from "../type-format/format";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 const dash = <span style={{ opacity: 0.45 }}>—</span>;
 
 const signedSacks = (v: number) =>
   v > 0 ? `+${fmtInt(v)}` : fmtInt(v);
 
-const containerNoCell = (v: string | null) => (
-  <span style={{ fontFamily: "monospace" }}>{v ?? "no box"}</span>
+const containerNoCell = (v: string | null, t: Translate) => (
+  <span style={{ fontFamily: "monospace" }}>{v ?? t("No box")}</span>
 );
 
 // ---- v_container_variance ----------------------------------------
 
-const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
+const varianceColumns = (t: Translate): ColumnDef<ContainerVarianceRow, any>[] => [
   {
     id: "container_no",
     header: "Container",
     accessorFn: (r) => r.container_no,
     size: 150,
     meta: { fixed: "left" },
-    cell: (c) => containerNoCell(c.getValue<string | null>()),
+    cell: (c) => containerNoCell(c.getValue<string | null>(), t),
   },
   {
     id: "supplier",
@@ -67,7 +68,7 @@ const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
     cell: (c) => {
       const v = c.getValue<boolean | null>();
       if (v === null) return dash;
-      return v ? <Tag color="success">Yes</Tag> : <Tag color="error">No</Tag>;
+      return v ? <Tag color="success">{t("Yes")}</Tag> : <Tag color="error">{t("No")}</Tag>;
     },
   },
   {
@@ -110,7 +111,7 @@ const varianceColumns: ColumnDef<ContainerVarianceRow, any>[] = [
 ];
 
 /** The lines of one container, shown when its row is expanded. */
-const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
+const varianceItemColumns = (t: Translate): ColumnDef<ContainerVarianceItem, any>[] => [
   {
     id: "product",
     header: "Product",
@@ -166,7 +167,7 @@ const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
     size: 320,
     cell: (c) => {
       const list = c.row.original.discrepancies ?? [];
-      if (!list.length) return <Tag color="success">Matched</Tag>;
+      if (!list.length) return <Tag color="success">{t("Matched")}</Tag>;
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {list.map((d) => (
@@ -176,11 +177,11 @@ const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
               style={{ display: "flex", gap: 8, opacity: d.resolved_at ? 0.5 : 1 }}
             >
               <Tag color={REASON_COLOR[d.reason]} style={{ margin: 0 }}>
-                {REASON_LABEL[d.reason]}
+                {t(REASON_LABEL[d.reason])}
                 {d.actual_qty === null ? "" : ` ${fmtInt(d.actual_qty)}`}
               </Tag>
               <span style={{ whiteSpace: "normal" }}>{d.note ?? dash}</span>
-              {d.resolved_at && <Tag style={{ margin: 0 }}>resolved</Tag>}
+              {d.resolved_at && <Tag style={{ margin: 0 }}>{t("resolved")}</Tag>}
             </div>
           ))}
         </div>
@@ -190,13 +191,14 @@ const varianceItemColumns: ColumnDef<ContainerVarianceItem, any>[] = [
 ];
 
 export function VarianceTable({ data }: { data: ContainerVarianceRow[] }) {
+  const { t } = useLanguage();
   return (
     <DataTable
       data={data}
-      columns={varianceColumns}
+      columns={varianceColumns(t)}
       renderExpanded={(row) =>
         row.container_items?.length ? (
-          <DataTable data={row.container_items} columns={varianceItemColumns} />
+          <DataTable data={row.container_items} columns={varianceItemColumns(t)} />
         ) : null
       }
     />
@@ -205,7 +207,7 @@ export function VarianceTable({ data }: { data: ContainerVarianceRow[] }) {
 
 // ---- v_open_questions --------------------------------------------
 
-const openQuestionColumns: ColumnDef<OpenQuestionRow, any>[] = [
+const openQuestionColumns = (t: Translate): ColumnDef<OpenQuestionRow, any>[] => [
   {
     id: "created_at",
     header: "Logged",
@@ -219,7 +221,7 @@ const openQuestionColumns: ColumnDef<OpenQuestionRow, any>[] = [
     header: "Container",
     accessorFn: (r) => r.container_no,
     size: 150,
-    cell: (c) => containerNoCell(c.getValue<string | null>()),
+    cell: (c) => containerNoCell(c.getValue<string | null>(), t),
   },
   {
     id: "supplier",
@@ -254,5 +256,6 @@ const openQuestionColumns: ColumnDef<OpenQuestionRow, any>[] = [
 ];
 
 export function OpenQuestionsTable({ data }: { data: OpenQuestionRow[] }) {
-  return <DataTable data={data} columns={openQuestionColumns} />;
+  const { t } = useLanguage();
+  return <DataTable data={data} columns={openQuestionColumns(t)} />;
 }

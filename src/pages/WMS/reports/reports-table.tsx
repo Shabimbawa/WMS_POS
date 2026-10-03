@@ -6,6 +6,7 @@ import { DataTable } from "../../../common/items/table/table";
 import type { ReceivingRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import { cellText, fmtReportDate, type BrandGrid, type SupplierGroup } from "./report-grid";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 // Plain text color throughout: black on the light theme, like the sheets.
 const headerStyle = { fontWeight: 700, fontSize: 15 };
@@ -43,10 +44,11 @@ type GridTableRow = {
  * bottom.
  */
 export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
+  const { t } = useLanguage();
   const columns = useMemo<ColumnDef<GridTableRow, any>[]>(() => [
     {
       id: "label",
-      header: () => <span style={headerStyle}>Kind</span>,
+      header: () => <span style={headerStyle}>{t("Kind")}</span>,
       accessorFn: (r) => r.label,
       size: 160,
       meta: { fixed: "left" },
@@ -72,7 +74,7 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
     { id: "spacer", header: "", accessorFn: () => null, cell: () => null },
     {
       id: "total",
-      header: () => <div style={{ ...headerStyle, textAlign: "right", lineHeight: 1.25 }}>Total<br />Sacks</div>,
+      header: () => <div style={{ ...headerStyle, textAlign: "right", lineHeight: 1.25 }}>{t("Total")}<br />{t("Sacks")}</div>,
       accessorFn: (r) => r.total,
       size: 110,
       meta: { fixed: "right" },
@@ -82,7 +84,7 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
         </div>
       ),
     },
-  ], [grid]);
+  ], [grid, t]);
 
   const data = useMemo<GridTableRow[]>(() => [
     ...grid.rows.map((row) => ({
@@ -92,17 +94,17 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
       total: row.total,
       isTotal: false,
     })),
-    { key: "total", label: "Total Sacks", values: grid.totals, total: grid.grandTotal, isTotal: true },
-  ], [grid]);
+    { key: "total", label: t("Total Sacks"), values: grid.totals, total: grid.grandTotal, isTotal: true },
+  ], [grid, t]);
 
   return (
     <div>
-      <SectionTitle title={`${grid.brand} Timeframe`} subtitle="Inbound" />
+      <SectionTitle title={`${grid.brand} ${t("Timeframe")}`} subtitle={t("Inbound")} />
       {grid.columns.length ? (
         <DataTable data={data} columns={columns} />
       ) : (
         <Flex justify="center" style={{ padding: 16 }}>
-          <Typography.Text type="secondary">Nothing received in this period</Typography.Text>
+          <Typography.Text type="secondary">{t("Nothing received in this period")}</Typography.Text>
         </Flex>
       )}
     </div>
@@ -119,7 +121,7 @@ const strongIfTotal = (row: ReceivingTableRow, text: string) =>
 
 const signed = (v: number) => (v > 0 ? `+${fmtInt(v)}` : fmtInt(v));
 
-const receivingColumns: ColumnDef<ReceivingTableRow, any>[] = [
+const receivingColumns = (t: Translate): ColumnDef<ReceivingTableRow, any>[] => [
   {
     id: "date",
     header: "Date",
@@ -127,7 +129,7 @@ const receivingColumns: ColumnDef<ReceivingTableRow, any>[] = [
     size: 110,
     meta: { fixed: "left" },
     cell: (c) =>
-      c.row.original.line ? fmtReportDate(c.row.original.line.date) : <strong>Subtotal</strong>,
+      c.row.original.line ? fmtReportDate(c.row.original.line.date) : <strong>{t("Subtotal")}</strong>,
   },
   {
     id: "source",
@@ -140,9 +142,9 @@ const receivingColumns: ColumnDef<ReceivingTableRow, any>[] = [
       return (
         <div style={{ whiteSpace: "nowrap" }}>
           <Tag color={line.source === "SHIPMENT" ? "blue" : "green"} style={{ marginInlineEnd: 6 }}>
-            {line.source === "SHIPMENT" ? "Shipment" : "Local"}
+            {t(line.source === "SHIPMENT" ? "Shipment" : "Local")}
           </Tag>
-          {line.reference || <Typography.Text type="secondary">No reference</Typography.Text>}
+          {line.reference || <Typography.Text type="secondary">{t("No reference")}</Typography.Text>}
           {line.container_no && (
             <Typography.Text type="secondary" style={{ fontFamily: "monospace", fontSize: 12 }}> · {line.container_no}</Typography.Text>
           )}
@@ -209,6 +211,7 @@ const receivingColumns: ColumnDef<ReceivingTableRow, any>[] = [
 
 /** One supplier's received lines, closed by a subtotal row. */
 export function SupplierReceivingTable({ group }: { group: SupplierGroup }) {
+  const { t } = useLanguage();
   const data = useMemo<ReceivingTableRow[]>(
     () => [...group.rows.map((line) => ({ line, group })), { line: null, group }],
     [group],
@@ -217,9 +220,9 @@ export function SupplierReceivingTable({ group }: { group: SupplierGroup }) {
     <div>
       <SectionTitle
         title={group.supplier}
-        subtitle={`${group.rows.length} ${group.rows.length === 1 ? "line" : "lines"} received`}
+        subtitle={`${group.rows.length} ${t(group.rows.length === 1 ? "line" : "lines")} ${t("received")}`}
       />
-      <DataTable data={data} columns={receivingColumns} />
+      <DataTable data={data} columns={receivingColumns(t)} />
     </div>
   );
 }

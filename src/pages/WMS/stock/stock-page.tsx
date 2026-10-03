@@ -28,6 +28,7 @@ import { ErrorNotificationPopup } from "../../../common/items/notification/errro
 import { StockTable } from "./stock-table";
 import { ProductFields, type ProductValues } from "./product-actions";
 import { fmtInt } from "../type-format/format";
+import { useLanguage } from "../../../common/context/language-context";
 
 const SORT_FIELDS: { label: string; value: StockSortField }[] = [
   { label: "Updated", value: "updated_at" },
@@ -38,6 +39,7 @@ const SORT_FIELDS: { label: string; value: StockSortField }[] = [
 ];
 
 export default function StockPage() {
+  const { t } = useLanguage();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
   const { data: categories } = useProductCategories();
@@ -91,7 +93,7 @@ export default function StockPage() {
         isAvailable: v.isAvailable,
         sellingPrice: v.sellingPrice ?? null,
       });
-      msg.success("Product added");
+      msg.success(t("Product added"));
     } catch (e) {
       showError(e, "Could not add product");
       throw e; // keeps the modal open
@@ -105,20 +107,20 @@ export default function StockPage() {
 
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Stock status
+          {t("Stock status")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
-            Refresh
+            {t("Refresh")}
           </Button>
           <CommonModalForm<ProductValues>
-            title="Add product"
+            title={t("Add product")}
             triggerLabel={
               <>
-                <PlusOutlined /> Add Product
+                <PlusOutlined /> {t("Add product")}
               </>
             }
-            okText="Add"
+            okText={t("Add")}
             width={520}
             onSave={addProduct}
           >
@@ -127,15 +129,14 @@ export default function StockPage() {
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        On-hand sacks per product. Quantities are written by the stock ledger,
-        never edited here.
+        {t("On-hand sacks per product. Quantities are written by the stock ledger, never edited here.")}
       </Typography.Text>
 
       <Card size="small">
         <Flex wrap gap={12} align="center">
           <Select
             allowClear
-            placeholder="All brands"
+            placeholder={t("All brands")}
             style={{ minWidth: 180 }}
             value={brand}
             onChange={reset(setBrand)}
@@ -148,7 +149,7 @@ export default function StockPage() {
               onChange={reset(setInStockOnly)}
               size="small"
             />
-            <Typography.Text>Hide zero stock</Typography.Text>
+            <Typography.Text>{t("Hide zero stock")}</Typography.Text>
           </Flex>
 
           <Flex align="center" gap={8}>
@@ -157,27 +158,27 @@ export default function StockPage() {
               onChange={reset(setAvailableOnly)}
               size="small"
             />
-            <Typography.Text>Available only</Typography.Text>
+            <Typography.Text>{t("Available only")}</Typography.Text>
           </Flex>
 
           <Select
             style={{ minWidth: 150 }}
             value={sortBy}
             onChange={reset(setSortBy)}
-            options={SORT_FIELDS}
+            options={SORT_FIELDS.map((option) => ({ ...option, label: t(option.label) }))}
           />
 
           <Segmented
             value={sortDir}
             onChange={(v) => reset(setSortDir)(v as SortDir)}
             options={[
-              { label: "Asc", value: "asc" },
-              { label: "Desc", value: "desc" },
+              { label: t("Asc"), value: "asc" },
+              { label: t("Desc"), value: "desc" },
             ]}
           />
 
           <Statistic
-            title="Sacks on this page"
+            title={t("Sacks on this page")}
             value={fmtInt(pageSacks)}
             valueStyle={{ fontSize: 18 }}
           />
@@ -188,13 +189,13 @@ export default function StockPage() {
         <Alert
           type="error"
           showIcon
-          message="Could not load stock"
-          description={(error as Error)?.message}
+          message={t("Could not load stock")}
+          description={t((error as Error)?.message)}
         />
       ) : isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !data?.rows.length ? (
-        <Empty description="Nothing matches these filters" />
+        <Empty description={t("Nothing matches these filters")} />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
           <StockTable data={data.rows} />
@@ -209,7 +210,7 @@ export default function StockPage() {
                 setPage(p);
                 setPageSize(ps);
               }}
-              showTotal={(t, r) => `${r[0]}–${r[1]} of ${t}`}
+              showTotal={(total, r) => t("{from}–{to} of {total}", { from: r[0], to: r[1], total })}
             />
           </Flex>
         </div>

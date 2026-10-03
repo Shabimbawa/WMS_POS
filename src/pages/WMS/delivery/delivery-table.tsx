@@ -10,6 +10,7 @@ import { fmtTableDate } from "../../../common/utils/util";
 import type { LocalDeliveryRow } from "../../../queries/types";
 import { useVoidDelivery } from "../../../queries/useHooks";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 const dash = <span style={{ opacity: 0.45 }}>—</span>;
 
@@ -26,6 +27,7 @@ type VoidValues = { reason: string };
  * sacks have been sold. There is no edit: the record stays, marked voided.
  */
 function DeliveryActions({ delivery }: { delivery: LocalDeliveryRow }) {
+  const { t } = useLanguage();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
   const voidIt = useVoidDelivery();
@@ -33,7 +35,7 @@ function DeliveryActions({ delivery }: { delivery: LocalDeliveryRow }) {
   if (delivery.voided_at) {
     return (
       <Tooltip title={delivery.void_reason ?? undefined}>
-        <Tag style={{ margin: 0 }}>Voided</Tag>
+        <Tag style={{ margin: 0 }}>{t("Voided")}</Tag>
       </Tooltip>
     );
   }
@@ -41,7 +43,7 @@ function DeliveryActions({ delivery }: { delivery: LocalDeliveryRow }) {
   const save = async ({ reason }: VoidValues) => {
     try {
       await voidIt.mutateAsync({ id: delivery.id, reason: reason.trim() });
-      msg.success("Delivery voided — its stock has been reversed");
+      msg.success(t("Delivery voided — its stock has been reversed"));
     } catch (e) {
       showError(e, "Could not void delivery");
       throw e; // keeps the modal open
@@ -52,29 +54,29 @@ function DeliveryActions({ delivery }: { delivery: LocalDeliveryRow }) {
     <Flex gap={4} justify="end">
       {msgHolder}
       {errorHolder}
-      <Tooltip title="Void delivery">
+      <Tooltip title={t("Void delivery")}>
         <span>
           <CommonModalForm<VoidValues>
-            title="Void this delivery?"
+            title={t("Void this delivery?")}
             triggerLabel={<StopOutlined />}
             triggerButtonType="text"
-            okText="Void"
+            okText={t("Void")}
             width={460}
             onSave={save}
           >
             <Form.Item
               name="reason"
-              label="Reason"
+              label={t("Reason")}
               rules={[
-                { required: true, whitespace: true, message: "Enter a reason" },
-                { min: 3, message: "At least 3 characters" },
+                { required: true, whitespace: true, message: t("Enter a reason") },
+                { min: 3, message: t("At least 3 characters") },
               ]}
-              extra="The sacks this delivery added are removed from stock again."
+              extra={t("The sacks this delivery added are removed from stock again.")}
             >
               <Input.TextArea
                 rows={3}
                 maxLength={2000}
-                placeholder="e.g. Counted twice by mistake"
+                placeholder={t("e.g. Counted twice by mistake")}
               />
             </Form.Item>
           </CommonModalForm>
@@ -84,7 +86,7 @@ function DeliveryActions({ delivery }: { delivery: LocalDeliveryRow }) {
   );
 }
 
-const deliveryColumns: ColumnDef<LocalDeliveryRow, any>[] = [
+const deliveryColumns = (t: Translate): ColumnDef<LocalDeliveryRow, any>[] => [
   {
     id: "date_received",
     header: "Received",
@@ -120,7 +122,7 @@ const deliveryColumns: ColumnDef<LocalDeliveryRow, any>[] = [
           items={items}
           max={3}
           getKey={(i) => i.id}
-          title={`${items.length} products`}
+          title={`${items.length} ${t("products")}`}
           renderItem={(i) => (
             <LabelValue label={fmtProduct(i.product_category)} value={fmtInt(i.qty_sacks)} />
           )}
@@ -144,7 +146,7 @@ const deliveryColumns: ColumnDef<LocalDeliveryRow, any>[] = [
       const partial = c.row.original.items.some((i) => i.price_per_sack === null);
       const v = c.getValue<number>();
       return partial ? (
-        <Tooltip title="Some lines have no price recorded">
+        <Tooltip title={t("Some lines have no price recorded")}>
           <span style={{ opacity: 0.6 }}>{fmtMoney(v)}*</span>
         </Tooltip>
       ) : (
@@ -163,5 +165,6 @@ const deliveryColumns: ColumnDef<LocalDeliveryRow, any>[] = [
 ];
 
 export function DeliveryTable({ data }: { data: LocalDeliveryRow[] }) {
-  return <DataTable data={data} columns={deliveryColumns} />;
+  const { t } = useLanguage();
+  return <DataTable data={data} columns={deliveryColumns(t)} />;
 }

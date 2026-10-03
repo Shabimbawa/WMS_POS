@@ -37,6 +37,7 @@ import {
   type DraftOrderItem,
 } from "./create-orderslip-table";
 import { useCashiers, usePosProducts } from "../../../queries/useHooks";
+import { useLanguage } from "../../../common/context/language-context";
 
 // ---- form value shapes -------------------------------------------
 
@@ -73,6 +74,7 @@ function ItemFormFields({
    */
   notForSale: Map<string, number>;
 }) {
+  const { t } = useLanguage();
   const form = Form.useFormInstance<ItemValues>();
   const productId = Form.useWatch("productId", form);
   const savedMax = productId ? notForSale.get(productId) : undefined;
@@ -82,14 +84,14 @@ function ItemFormFields({
     <>
       <Form.Item
         name="productId"
-        label="Article"
+        label={t("Article")}
         rules={[
-          { required: true, message: "Pick an article" },
+          { required: true, message: t("Pick an article") },
           {
             validator: (_, id: string) =>
               id && takenProductIds.has(id)
                 ? Promise.reject(
-                    new Error("This article is already on the slip"),
+                    new Error(t("This article is already on the slip")),
                   )
                 : Promise.resolve(),
           },
@@ -98,14 +100,14 @@ function ItemFormFields({
         <Select
           showSearch
           optionFilterProp="label"
-          placeholder="Search by brand or variant"
+          placeholder={t("Search by brand or variant")}
           options={products.map((p) => {
             const max = notForSale.get(p.id);
             return {
               label: max !== undefined
-                ? `${fmtProduct(p)} — ${fmtMoney(p.unitPrice)} · no longer for sale`
+                ? `${fmtProduct(p)} — ${fmtMoney(p.unitPrice)} · ${t("no longer for sale")}`
                 : `${fmtProduct(p)} — ${fmtMoney(p.unitPrice)} · ${
-                  p.quantity > 0 ? `${fmtInt(p.quantity)} in stock` : "out of stock"
+                  p.quantity > 0 ? `${fmtInt(p.quantity)} ${t("in stock")}` : t("out of stock")
                 }`,
               value: p.id,
               disabled: max === undefined && p.quantity <= 0,
@@ -115,17 +117,17 @@ function ItemFormFields({
       </Form.Item>
       <Form.Item
         name="quantity"
-        label="Quantity"
+        label={t("Quantity")}
         dependencies={["productId"]}
         extra={
           savedMax !== undefined
-            ? `No longer for sale: keep up to ${fmtInt(savedMax)}, the quantity already on this slip`
+            ? t("No longer for sale: keep up to {count}, the quantity already on this slip", { count: fmtInt(savedMax) })
             : stock !== undefined
-              ? `${fmtInt(stock)} in stock`
+              ? `${fmtInt(stock)} ${t("in stock")}`
               : undefined
         }
         rules={[
-          { required: true, message: "Enter a quantity" },
+          { required: true, message: t("Enter a quantity") },
           // UX only — stock can change between here and submit, so the
           // backend has to re-check it when the slip is saved.
           {
@@ -134,8 +136,8 @@ function ItemFormFields({
                 ? Promise.reject(
                     new Error(
                       savedMax !== undefined
-                        ? `Can't go above the ${fmtInt(savedMax)} already on this slip`
-                        : `Only ${fmtInt(stock)} in stock`,
+                        ? t("Can't go above the {count} already on this slip", { count: fmtInt(savedMax) })
+                        : t("Only {count} in stock", { count: fmtInt(stock) }),
                     ),
                   )
                 : Promise.resolve(),
@@ -188,6 +190,7 @@ export function OrderSlipForm({
   cancelTo,
   onSubmit,
 }: OrderSlipFormProps) {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
 
@@ -201,9 +204,9 @@ export function OrderSlipForm({
     }
     return list.map((c) => ({
       value: c.id,
-      label: c.isActive ? c.name : `${c.name} (inactive)`,
+      label: c.isActive ? c.name : `${c.name} (${t("Inactive")})`,
     }));
-  }, [activeCashiers, currentCashier]);
+  }, [activeCashiers, currentCashier, t]);
 
   const { data: liveProducts = [] } = usePosProducts();
   // While editing, add the slip's existing quantities back to the displayed
@@ -270,7 +273,7 @@ export function OrderSlipForm({
   const renderItemActions = (item: DraftOrderItem) => (
     <Flex gap={4} justify="end">
       <CommonModalForm<ItemValues>
-        title="Edit article"
+        title={t("Edit article")}
         triggerLabel={<EditOutlined />}
         triggerButtonType="text"
         initialValues={{ productId: item.productId, quantity: item.quantity }}
@@ -283,8 +286,8 @@ export function OrderSlipForm({
         />
       </CommonModalForm>
       <Popconfirm
-        title="Remove this article?"
-        okText="Remove"
+        title={t("Remove this article?")}
+        okText={t("Remove")}
         okButtonProps={{ danger: true }}
         onConfirm={() => removeItem(item.key)}
       >
@@ -334,11 +337,11 @@ export function OrderSlipForm({
       return;
     }
     Modal.confirm({
-      title: "Discard your changes?",
-      content: "Everything entered on this page will be lost.",
-      okText: "Discard",
+      title: t("Discard your changes?"),
+      content: t("Everything entered on this page will be lost."),
+      okText: t("Discard"),
       okButtonProps: { danger: true },
-      cancelText: "Keep editing",
+      cancelText: t("Keep editing"),
       onOk: () => navigate(cancelTo),
     });
   };
@@ -354,24 +357,24 @@ export function OrderSlipForm({
             {title}
           </Typography.Title>
           <Typography.Text type="secondary">
-            {fmtInt(items.length)} articles · {fmtInt(totalQuantity)} qty
+            {fmtInt(items.length)} {t("articles")} · {fmtInt(totalQuantity)} {t("qty")}
           </Typography.Text>
         </Flex>
 
-        <Card size="small" title="Order details">
+        <Card size="small" title={t("Order details")}>
           <Form form={form} layout="vertical" initialValues={initialValues}>
             <Flex wrap gap={12}>
               <Form.Item
                 name="orderBy"
-                label="Order by"
+                label={t("Order by")}
                 style={{ flex: 1, minWidth: 220 }}
               >
-                <Input placeholder="Customer name (optional)" />
+                <Input placeholder={t("Customer name (optional)")} />
               </Form.Item>
               <Form.Item
                 name="date"
-                label="Date"
-                rules={[{ required: true, message: "Pick a date" }]}
+                label={t("Date")}
+                rules={[{ required: true, message: t("Pick a date") }]}
                 style={{ minWidth: 200 }}
               >
                 <DatePicker
@@ -384,25 +387,25 @@ export function OrderSlipForm({
             <Flex wrap gap={12}>
               <Form.Item
                 name="address"
-                label="Address"
+                label={t("Address")}
                 style={{ flex: 1, minWidth: 220 }}
               >
-                <Input placeholder="Delivery address (optional)" />
+                <Input placeholder={t("Delivery address (optional)")} />
               </Form.Item>
               <Form.Item
                 name="cashierId"
-                label="Cashier"
-                rules={[{ required: true, message: "Assign a cashier" }]}
+                label={t("Cashier")}
+                rules={[{ required: true, message: t("Assign a cashier") }]}
                 style={{ minWidth: 200 }}
               >
                 <Select
                   showSearch
                   optionFilterProp="label"
-                  placeholder="Select cashier"
+                  placeholder={t("Select cashier")}
                   loading={loadingCashiers}
                   options={cashierOptions}
                   notFoundContent={
-                    loadingCashiers ? undefined : "No active cashiers — add one on the Cashiers page"
+                    loadingCashiers ? undefined : t("No active cashiers — add one on the Cashiers page")
                   }
                 />
               </Form.Item>
@@ -410,28 +413,28 @@ export function OrderSlipForm({
             <Flex wrap gap={12}>
               <Form.Item
                 name="status"
-                label="Payment status"
-                rules={[{ required: true, message: "Pick a status" }]}
+                label={t("Payment status")}
+                rules={[{ required: true, message: t("Pick a status") }]}
                 style={{ flex: 1, minWidth: 200, marginBottom: 0 }}
               >
                 <Select
                   options={(
                     Object.keys(PAYMENT_STATUS_LABEL) as PaymentStatus[]
-                  ).map((s) => ({ label: PAYMENT_STATUS_LABEL[s], value: s }))}
+                  ).map((s) => ({ label: t(PAYMENT_STATUS_LABEL[s]), value: s }))}
                 />
               </Form.Item>
               {status !== "paid" && (
                 <Form.Item
                   name="paymentDueDate"
-                  label="Payment due"
+                  label={t("Payment due")}
                   dependencies={["date"]}
                   rules={[
-                    { required: true, message: "Pick a due date" },
+                    { required: true, message: t("Pick a due date") },
                     ({ getFieldValue }) => ({
                       validator: (_, v: Dayjs | undefined) =>
                         v && v.isBefore(getFieldValue("date"), "day")
                           ? Promise.reject(
-                              new Error("Can't be before the slip date"),
+                              new Error(t("Can't be before the slip date")),
                             )
                           : Promise.resolve(),
                     }),
@@ -451,16 +454,16 @@ export function OrderSlipForm({
 
         <Card
           size="small"
-          title="Articles"
+          title={t("Articles")}
           extra={
             <CommonModalForm<ItemValues>
-              title="Add article"
+              title={t("Add article")}
               triggerLabel={
                 <>
-                  <PlusOutlined /> Add Article
+                  <PlusOutlined /> {t("Add article")}
                 </>
               }
-              okText="Add"
+              okText={t("Add")}
               onSave={addItem}
             >
               <ItemFormFields
@@ -483,7 +486,7 @@ export function OrderSlipForm({
                 gap={16}
                 style={{ marginTop: 12, paddingInline: 12 }}
               >
-                <Typography.Text type="secondary">Total amount</Typography.Text>
+                <Typography.Text type="secondary">{t("Total amount")}</Typography.Text>
                 <Typography.Text strong style={{ fontSize: 16 }}>
                   {fmtMoney(totalAmount)}
                 </Typography.Text>
@@ -492,13 +495,13 @@ export function OrderSlipForm({
           ) : (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="No articles yet"
+              description={t("No articles yet")}
             />
           )}
         </Card>
 
         <Flex justify="end" gap={8}>
-          <Button onClick={cancel}>Cancel</Button>
+          <Button onClick={cancel}>{t("Cancel")}</Button>
           <Button
             type="primary"
             onClick={submit}
@@ -513,7 +516,7 @@ export function OrderSlipForm({
       {/* ---- side: price reference ---- */}
       <Card
         size="small"
-        title="Products"
+        title={t("Products")}
         style={{ width: 400, flexShrink: 0, position: "sticky", top: 0 }}
       >
         {/* paddingBottom: the antd table overhangs its box by 1px, which made

@@ -27,8 +27,10 @@ import {
   monthRangeParams,
   type MonthRange,
 } from "../../../common/items/date-range/month-range";
+import { useLanguage } from "../../../common/context/language-context";
 
 export default function ContainerPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind: "INTERNATIONAL" });
 
@@ -72,27 +74,26 @@ export default function ContainerPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Shipments
+          {t("Shipments")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
-            Refresh
+            {t("Refresh")}
           </Button>
           <Button type="primary" onClick={() => navigate("/containers/items")}>
-            Register Shipment
+            {t("Register Shipment")}
           </Button>
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        Packing lists with their containers. Only one date applies here, since
-        rows are lists rather than boxes.
+        {t("Packing lists with their containers. Only one date applies here, since rows are lists rather than boxes.")}
       </Typography.Text>
 
       <Card size="small">
         <Flex wrap gap={12} align="center">
           <Select
             allowClear
-            placeholder="All suppliers"
+            placeholder={t("All suppliers")}
             style={{ minWidth: 220 }}
             loading={loadingSuppliers}
             value={supplierId}
@@ -108,8 +109,8 @@ export default function ContainerPage() {
             value={sortDir}
             onChange={(v) => reset(setSortDir)(v as SortDir)}
             options={[
-              { label: "Newest", value: "desc" },
-              { label: "Oldest", value: "asc" },
+              { label: t("Newest"), value: "desc" },
+              { label: t("Oldest"), value: "asc" },
             ]}
           />
 
@@ -121,13 +122,13 @@ export default function ContainerPage() {
         <Alert
           type="error"
           showIcon
-          message="Could not load packing lists"
-          description={(error as Error)?.message}
+          message={t("Could not load packing lists")}
+          description={t((error as Error)?.message)}
         />
       ) : isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !data?.rows.length ? (
-        <Empty description="No packing lists in this date range" />
+        <Empty description={t("No packing lists in this date range")} />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
           <ContainerTable data={data.rows} />
@@ -142,7 +143,7 @@ export default function ContainerPage() {
                 setPage(p);
                 setPageSize(ps);
               }}
-              showTotal={(t, r) => `${r[0]}–${r[1]} of ${t}`}
+              showTotal={(total, r) => t("{from}–{to} of {total}", { from: r[0], to: r[1], total })}
             />
           </Flex>
         </div>

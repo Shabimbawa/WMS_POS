@@ -65,6 +65,44 @@ body {
   margin: 0;
 }
 
+.language-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.language-toggle button {
+  appearance: none;
+  border: 0;
+  padding: 4px 2px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  opacity: 0.72;
+}
+
+.language-toggle button.active {
+  color: #fff;
+  font-weight: 700;
+  opacity: 1;
+}
+
+.login-language-toggle {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 10;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgb(28 33 45 / 88%);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 16%);
+}
+
 h1,
 h2 {
   font-family: var(--heading);

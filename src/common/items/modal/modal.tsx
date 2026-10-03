@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Button, Form, Modal } from 'antd';
 import type { ButtonProps, FormInstance } from 'antd';
 import { confirmDiscardChanges } from '../../utils/confirmClose';
+import { useLanguage } from '../../context/language-context';
 
 type CommonModalFormProps<TValues extends Record<string, unknown> = Record<string, unknown>> = {
   title: ReactNode;
@@ -30,6 +31,7 @@ export default function CommonModalForm<TValues extends Record<string, unknown> 
   triggerButtonType = 'primary',
   triggerButtonStyle,
 }: CommonModalFormProps<TValues>) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [form] = Form.useForm<TValues>();
@@ -55,7 +57,7 @@ export default function CommonModalForm<TValues extends Record<string, unknown> 
     confirmDiscardChanges(form, () => {
       setOpen(false);
       form.resetFields();
-    });
+    }, t);
   };
 
   return (
@@ -64,11 +66,11 @@ export default function CommonModalForm<TValues extends Record<string, unknown> 
         {triggerLabel}
       </Button>
       <Modal
-        title={title}
+        title={typeof title === 'string' ? t(title) : title}
         open={open}
         onOk={handleOk}
-        okText={okText}
-        cancelText={cancelText}
+        okText={t(okText)}
+        cancelText={t(cancelText)}
         confirmLoading={confirmLoading}
         onCancel={handleCancel}
         width={width}

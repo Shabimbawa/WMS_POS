@@ -1,5 +1,6 @@
 import { Popover, Typography } from 'antd'
 import type { MouseEvent, ReactNode } from 'react'
+import { useLanguage } from '../../context/language-context'
 
 interface OverflowListProps<T> {
   items: T[]
@@ -31,6 +32,7 @@ export function OverflowList<T>({
   title,
   layout = 'vertical',
 }: OverflowListProps<T>) {
+  const { t } = useLanguage()
   // Folding away a single item saves nothing; show it instead.
   const visible = items.length <= max + 1 ? items : items.slice(0, max)
   const hidden = items.length - visible.length
@@ -67,7 +69,7 @@ export function OverflowList<T>({
             content={all}
           >
             <Typography.Link style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-              +{hidden} more
+              +{hidden} {t('more')}
             </Typography.Link>
           </Popover>
         </span>

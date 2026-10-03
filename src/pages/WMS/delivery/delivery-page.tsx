@@ -24,8 +24,10 @@ import {
   type MonthRange,
 } from "../../../common/items/date-range/month-range";
 import { DeliveryTable } from "./delivery-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 export default function DeliveryPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   // Only local suppliers deliver this way.
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({
@@ -70,28 +72,26 @@ export default function DeliveryPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Local deliveries
+          {t("Local Deliveries")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
-            Refresh
+            {t("Refresh")}
           </Button>
           <Button type="primary" onClick={() => navigate("/deliveries/new")}>
-            Log Delivery
+            {t("Log Delivery")}
           </Button>
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        Truck loads from local suppliers, counted as they arrive. There is no
-        packing list to compare against, so stock moves the moment one is
-        logged — a wrong count is corrected by voiding it.
+        {t("Truck loads from local suppliers, counted as they arrive. There is no packing list to compare against, so stock moves the moment one is logged — a wrong count is corrected by voiding it.")}
       </Typography.Text>
 
       <Card size="small">
         <Flex wrap gap={12} align="center">
           <Select
             allowClear
-            placeholder="All local suppliers"
+            placeholder={t("All local suppliers")}
             style={{ minWidth: 220 }}
             loading={loadingSuppliers}
             value={supplierId}
@@ -107,8 +107,8 @@ export default function DeliveryPage() {
             value={sortDir}
             onChange={(v) => reset(setSortDir)(v as SortDir)}
             options={[
-              { label: "Newest", value: "desc" },
-              { label: "Oldest", value: "asc" },
+              { label: t("Newest"), value: "desc" },
+              { label: t("Oldest"), value: "asc" },
             ]}
           />
 
@@ -118,7 +118,7 @@ export default function DeliveryPage() {
               checked={includeVoided}
               onChange={reset(setIncludeVoided)}
             />
-            <Typography.Text>Show voided</Typography.Text>
+            <Typography.Text>{t("Show voided")}</Typography.Text>
           </Flex>
         </Flex>
       </Card>
@@ -127,13 +127,13 @@ export default function DeliveryPage() {
         <Alert
           type="error"
           showIcon
-          message="Could not load deliveries"
-          description={(error as Error)?.message}
+          message={t("Could not load deliveries")}
+          description={t((error as Error)?.message)}
         />
       ) : isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !data?.rows.length ? (
-        <Empty description="No deliveries in this date range" />
+        <Empty description={t("No deliveries in this date range")} />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
           <DeliveryTable data={data.rows} />
@@ -148,7 +148,7 @@ export default function DeliveryPage() {
                 setPage(p);
                 setPageSize(ps);
               }}
-              showTotal={(t, r) => `${r[0]}–${r[1]} of ${t}`}
+              showTotal={(total, r) => t("{from}–{to} of {total}", { from: r[0], to: r[1], total })}
             />
           </Flex>
         </div>

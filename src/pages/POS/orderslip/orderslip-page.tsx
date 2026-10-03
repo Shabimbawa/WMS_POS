@@ -21,11 +21,13 @@ import type { SortDir } from "../../../queries/posTypes";
 import { useOrderSlips } from "../../../queries/useHooks";
 import { posToday } from "../type-format/format";
 import { OrderSlipTable } from "./orderslip-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 const { RangePicker } = DatePicker;
 const defaultRange = (): [Dayjs, Dayjs] => [posToday().subtract(90, "day"), posToday()];
 
 export default function OrderSlipPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [range, setRange] = useState<[Dayjs, Dayjs]>(defaultRange);
@@ -55,25 +57,25 @@ export default function OrderSlipPage() {
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
-        <Typography.Title level={4} style={{ margin: 0 }}>Order slips</Typography.Title>
+        <Typography.Title level={4} style={{ margin: 0 }}>{t("Order slips")}</Typography.Title>
         <Flex gap={8}>
           <Button icon={<DeleteOutlined />} onClick={() => navigate("/order-slip/trash")}>
-            Trash
+            {t("Trash")}
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/order-slip/new")}>
-            New Order Slip
+            {t("New order slip")}
           </Button>
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        One row per order slip. Click a slip number to open it.
+        {t("One row per order slip. Click a slip number to open it.")}
       </Typography.Text>
 
       <Card size="small">
         <Flex wrap gap={12} align="center">
           <Input.Search
             allowClear
-            placeholder="Search customer, cashier or slip no."
+            placeholder={t("Search customer, cashier or slip no.")}
             style={{ width: 300 }}
             value={search}
             onChange={(event) => reset(setSearch)(event.target.value)}
@@ -92,17 +94,17 @@ export default function OrderSlipPage() {
           <Segmented
             value={sortDir}
             onChange={(value) => reset(setSortDir)(value as SortDir)}
-            options={[{ label: "Newest", value: "desc" }, { label: "Oldest", value: "asc" }]}
+            options={[{ label: t("Newest"), value: "desc" }, { label: t("Oldest"), value: "asc" }]}
           />
         </Flex>
       </Card>
 
       {isError ? (
-        <Alert type="error" showIcon message="Could not load order slips" description={(error as Error).message} />
+        <Alert type="error" showIcon message={t("Could not load order slips")} description={t((error as Error).message)} />
       ) : isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !data?.rows.length ? (
-        <Empty description="No order slips in this date range" />
+        <Empty description={t("No order slips in this date range")} />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
           <OrderSlipTable data={data.rows} />
@@ -117,7 +119,7 @@ export default function OrderSlipPage() {
                 setPage(nextPageSize !== pageSize ? 1 : nextPage);
                 setPageSize(nextPageSize);
               }}
-              showTotal={(total, bounds) => `${bounds[0]}–${bounds[1]} of ${total}`}
+              showTotal={(total, bounds) => t("{from}–{to} of {total}", { from: bounds[0], to: bounds[1], total })}
             />
           </Flex>
         </div>

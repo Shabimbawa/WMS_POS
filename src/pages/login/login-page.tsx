@@ -7,6 +7,7 @@ import { ErrorNotificationPopup } from '../../common/items/notification/errror-n
 import { currentUserQueryKey } from './auth-useQuery';
 import { getLandingPath } from '../../common/components/sidebar/nav-items';
 import { login } from '../../queries/auth';
+import { LanguageToggle, useLanguage } from '../../common/context/language-context';
 
 export interface LoginCredentials {
   email: string;
@@ -14,6 +15,7 @@ export interface LoginCredentials {
 }
 
 export default function LoginPage() {
+  const { t } = useLanguage();
   const {Title} = Typography;
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -51,7 +53,7 @@ export default function LoginPage() {
       queryClient.setQueryData(currentUserQueryKey, user);
       navigate(getLandingPath(user.role), { replace: true });
     } catch (error) {
-      showError(error, 'Login Failed');
+      showError(error, t('Login Failed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -62,16 +64,17 @@ export default function LoginPage() {
     return(
         <Flex style={containerStyle} component="form" onSubmit={handleLogin}>
             {contextHolder}
+            <div className="login-language-toggle"><LanguageToggle /></div>
 
             <Flex style={rightHalfStyle}>
                 <Flex style={cardStyle} className='loginContainer'>
 
-                        <Title level={1} style={{textAlign: 'left', marginBottom: 18, color: 'var(--brand)'}}>Login</Title>
+                        <Title level={1} style={{textAlign: 'left', marginBottom: 18, color: 'var(--brand)'}}>{t('Login')}</Title>
 
 
                     <Input
                         name="email"
-                        placeholder="Email"
+                        placeholder={t('Email')}
                         value={credentials.email}
                         onChange={handleInputChange}
                         autoComplete="username"
@@ -80,7 +83,7 @@ export default function LoginPage() {
 
                     <Input.Password
                         name="password"
-                        placeholder="Password"
+                        placeholder={t('Password')}
                         value={credentials.password}
                         onChange={handleInputChange}
                         autoComplete="current-password"
@@ -88,9 +91,9 @@ export default function LoginPage() {
                     />
 
                     <Button style={{ backgroundColor: 'var(--brand)', borderColor: 'var(--brand)', marginBottom: 10 }} type="primary" htmlType="submit" loading={isSubmitting} block>
-                        Login
+                        {t('Login')}
                     </Button>
-                    <Checkbox><Typography style={{fontSize: 11, color: 'var(--brand)', justifyContent: 'center', alignItems: 'center'  }}>Remember Me</Typography></Checkbox>
+                    <Checkbox><Typography style={{fontSize: 11, color: 'var(--brand)', justifyContent: 'center', alignItems: 'center'  }}>{t('Remember Me')}</Typography></Checkbox>
 
                 </Flex>
             </Flex>

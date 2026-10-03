@@ -5,6 +5,7 @@ import { DateParser } from "../../../common/utils/util";
 import type { Cashier } from "../../../queries/posTypes";
 import { useOrderSlips } from "../../../queries/useHooks";
 import { OrderSlipTable } from "../orderslip/orderslip-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 export type SummarySelection = { date: string; cashier: Cashier };
 
@@ -16,6 +17,7 @@ export function SummarySlipsDrawer({
   selection: SummarySelection | null;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   // The page keys this component by selection, so each card starts on page 1.
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -40,9 +42,9 @@ export function SummarySlipsDrawer({
       {isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : isError ? (
-        <Alert type="error" showIcon message="Could not load order slips" description={error.message} />
+        <Alert type="error" showIcon message={t("Could not load order slips")} description={t(error.message)} />
       ) : !data.rows.length ? (
-        <Empty description="No order slips" />
+        <Empty description={t("No order slips")} />
       ) : (
         <>
           <OrderSlipTable data={data.rows} />
@@ -57,7 +59,7 @@ export function SummarySlipsDrawer({
                 setPage(ps !== pageSize ? 1 : p);
                 setPageSize(ps);
               }}
-              showTotal={(t, r) => `${r[0]}–${r[1]} of ${t}`}
+              showTotal={(total, r) => t("{from}–{to} of {total}", { from: r[0], to: r[1], total })}
             />
           </Flex>
         </>

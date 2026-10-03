@@ -28,6 +28,7 @@ import {
   type MonthRange,
 } from "../../../common/items/date-range/month-range";
 import { MOVEMENT_LABEL, fmtInt, fmtProduct } from "../type-format/format";
+import { useLanguage } from "../../../common/context/language-context";
 
 type DirectionFilter = "all" | StockDirection;
 
@@ -45,6 +46,7 @@ const MOVEMENT_OPTIONS = (
 ).map((t) => ({ label: MOVEMENT_LABEL[t], value: t }));
 
 export default function StockLogPage() {
+  const { t } = useLanguage();
   const { data: products = [] } = useProductCategories();
 
   const [productCategoryId, setProductCategoryId] = useState<
@@ -92,15 +94,14 @@ export default function StockLogPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Inventory
+          {t("Inventory")}
         </Typography.Title>
         <Button onClick={() => refetch()} loading={isFetching}>
-          Refresh
+          {t("Refresh")}
         </Button>
       </Flex>
       <Typography.Text type="secondary">
-        Every movement behind the on-hand figures, newest first. Each row
-        carries the balance it left behind.
+        {t("Every movement behind the on-hand figures, newest first. Each row carries the balance it left behind.")}
       </Typography.Text>
 
       <Card size="small">
@@ -109,7 +110,7 @@ export default function StockLogPage() {
             allowClear
             showSearch
             optionFilterProp="label"
-            placeholder="All products"
+            placeholder={t("All products")}
             style={{ minWidth: 240 }}
             value={productCategoryId}
             onChange={reset(setProductCategoryId)}
@@ -121,20 +122,20 @@ export default function StockLogPage() {
 
           <Select
             allowClear
-            placeholder="All movements"
+            placeholder={t("All movements")}
             style={{ minWidth: 180 }}
             value={movementType}
             onChange={reset(setMovementType)}
-            options={MOVEMENT_OPTIONS}
+            options={MOVEMENT_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
           />
 
           <Segmented
             value={direction}
             onChange={(v) => reset(setDirection)(v as DirectionFilter)}
             options={[
-              { label: "All", value: "all" },
-              { label: "In", value: "IN" },
-              { label: "Out", value: "OUT" },
+              { label: t("All"), value: "all" },
+              { label: t("In"), value: "IN" },
+              { label: t("Out"), value: "OUT" },
             ]}
           />
 
@@ -144,13 +145,13 @@ export default function StockLogPage() {
             value={sortDir}
             onChange={(v) => reset(setSortDir)(v as SortDir)}
             options={[
-              { label: "Newest", value: "desc" },
-              { label: "Oldest", value: "asc" },
+              { label: t("Newest"), value: "desc" },
+              { label: t("Oldest"), value: "asc" },
             ]}
           />
 
           <Statistic
-            title="Net sacks on this page"
+            title={t("Net sacks on this page")}
             value={pageDelta > 0 ? `+${fmtInt(pageDelta)}` : fmtInt(pageDelta)}
             valueStyle={{ fontSize: 18 }}
           />
@@ -161,13 +162,13 @@ export default function StockLogPage() {
         <Alert
           type="error"
           showIcon
-          message="Could not load stock logs"
-          description={(error as Error)?.message}
+          message={t("Could not load stock logs")}
+          description={t((error as Error)?.message)}
         />
       ) : isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !data?.rows.length ? (
-        <Empty description="No movements in this date range" />
+        <Empty description={t("No movements in this date range")} />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
           <StockLogTable data={data.rows} />
@@ -182,7 +183,7 @@ export default function StockLogPage() {
                 setPage(p);
                 setPageSize(ps);
               }}
-              showTotal={(t, r) => `${r[0]}–${r[1]} of ${t}`}
+              showTotal={(total, r) => t("{from}–{to} of {total}", { from: r[0], to: r[1], total })}
             />
           </Flex>
         </div>

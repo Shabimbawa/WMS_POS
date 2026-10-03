@@ -5,6 +5,7 @@ import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import type { Supplier, SupplierKind } from "../../../queries/types";
 import { useCreateSupplier } from "../../../queries/useHooks";
+import { useLanguage } from "../../../common/context/language-context";
 
 type SupplierValues = {
   name: string;
@@ -30,6 +31,7 @@ export function CreateSupplierButton({
   kind?: SupplierKind;
   onCreated?: (supplier: Supplier) => void;
 }) {
+  const { t } = useLanguage();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder } = ErrorNotificationPopup();
   const create = useCreateSupplier();
@@ -41,7 +43,7 @@ export function CreateSupplierButton({
         code: values.code?.trim() || null,
         kind: kind ?? values.kind,
       });
-      msg.success(`Added supplier ${supplier.name}`);
+      msg.success(t("Added supplier {name}", { name: supplier.name }));
       onCreated?.(supplier);
     } catch (e) {
       showError(e, "Could not add supplier");
@@ -54,35 +56,35 @@ export function CreateSupplierButton({
       {msgHolder}
       {contextHolder}
       <CommonModalForm<SupplierValues>
-        title={kind ? `New ${kind === "LOCAL" ? "local" : "international"} supplier` : "New supplier"}
-        triggerLabel={<><PlusOutlined /> New supplier</>}
+        title={t(kind ? (kind === "LOCAL" ? "New local supplier" : "New international supplier") : "New supplier")}
+        triggerLabel={<><PlusOutlined /> {t("New supplier")}</>}
         triggerButtonType="default"
-        okText="Add supplier"
+        okText={t("Add supplier")}
         width={440}
         initialValues={{ kind: kind ?? "INTERNATIONAL" }}
         onSave={save}
       >
         <Form.Item
           name="name"
-          label="Name"
-          rules={[{ required: true, whitespace: true, message: "Enter the supplier's name" }]}
+          label={t("Name")}
+          rules={[{ required: true, whitespace: true, message: t("Enter the supplier's name") }]}
         >
           <Input maxLength={200} placeholder="e.g. Vinh Phat Rice Co." />
         </Form.Item>
-        <Form.Item name="code" label="Code" tooltip="Optional short code, unique across suppliers">
+        <Form.Item name="code" label={t("Code")} tooltip={t("Optional short code, unique across suppliers")}>
           <Input maxLength={50} placeholder="e.g. VPR" />
         </Form.Item>
         {!kind && (
           <Form.Item
             name="kind"
-            label="Type"
-            extra="Can't be changed once the supplier has shipments or deliveries."
+            label={t("Type")}
+            extra={t("Can't be changed once the supplier has shipments or deliveries.")}
             rules={[{ required: true }]}
           >
             <Radio.Group
               options={(["INTERNATIONAL", "LOCAL"] as const).map((value) => ({
                 value,
-                label: SUPPLIER_KIND_LABEL[value],
+                label: t(SUPPLIER_KIND_LABEL[value]),
               }))}
             />
           </Form.Item>

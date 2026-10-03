@@ -28,7 +28,10 @@ export const posTodayString = () => dayjs().tz(POS_TIMEZONE).format("YYYY-MM-DD"
 export const fmtSlipNumber = (s: Pick<OrderSlip, "date" | "slipNumber">) => {
   const date = dayjs(s.date);
   const sameYear = date.year() === posToday().year();
-  return `${date.format(sameYear ? "MMM D" : "MMM D, YYYY")} · #${s.slipNumber}`;
+  const format = dayjs.locale() === "zh-cn"
+    ? (sameYear ? "M月D日" : "YYYY年M月D日")
+    : (sameYear ? "MMM D" : "MMM D, YYYY");
+  return `${date.format(format)} · #${s.slipNumber}`;
 };
 
 const php = new Intl.NumberFormat("en-PH", {

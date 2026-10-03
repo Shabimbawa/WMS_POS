@@ -16,6 +16,7 @@ import {
   PAYMENT_STATUS_COLOR,
   PAYMENT_STATUS_LABEL,
 } from "../type-format/format";
+import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 /** Toasts from the page: a row's own holder would unmount with the row. */
 export interface TrashNotify {
@@ -27,6 +28,7 @@ const NotifyContext = createContext<TrashNotify | null>(null);
 
 /** Restore and delete-forever controls for one trashed slip. */
 function TrashActions({ slip }: { slip: TrashedOrderSlip }) {
+  const { t } = useLanguage();
   const notify = useContext(NotifyContext)!;
   const restore = useRestoreOrderSlip();
   const purge = usePurgeOrderSlip();
@@ -34,7 +36,7 @@ function TrashActions({ slip }: { slip: TrashedOrderSlip }) {
   const onRestore = async () => {
     try {
       await restore.mutateAsync(slip.id);
-      notify.success(`Restored ${fmtSlipNumber(slip)}`);
+      notify.success(t("Restored {slip}", { slip: fmtSlipNumber(slip) }));
     } catch (e) {
       notify.error(e, "Could not restore order slip");
     }
@@ -43,7 +45,7 @@ function TrashActions({ slip }: { slip: TrashedOrderSlip }) {
   const onPurge = async () => {
     try {
       await purge.mutateAsync(slip.id);
-      notify.success("Order slip deleted permanently");
+      notify.success(t("Order slip deleted permanently"));
     } catch (e) {
       notify.error(e, "Could not delete order slip");
     }
@@ -52,31 +54,31 @@ function TrashActions({ slip }: { slip: TrashedOrderSlip }) {
   return (
     <Flex gap={4} justify="end">
       <Popconfirm
-        title="Restore this order slip?"
-        description="Its sacks are deducted from stock again."
-        okText="Restore"
+        title={t("Restore this order slip?")}
+        description={t("Its sacks are deducted from stock again.")}
+        okText={t("Restore")}
         onConfirm={onRestore}
       >
-        <Tooltip title="Restore">
-          <Button type="text" icon={<RollbackOutlined />} aria-label="Restore" loading={restore.isPending} />
+        <Tooltip title={t("Restore")}>
+          <Button type="text" icon={<RollbackOutlined />} aria-label={t("Restore")} loading={restore.isPending} />
         </Tooltip>
       </Popconfirm>
       <Popconfirm
-        title="Delete this order slip permanently?"
-        description="It can't be restored afterwards. Stock is not affected."
-        okText="Delete forever"
+        title={t("Delete this order slip permanently?")}
+        description={t("It can't be restored afterwards. Stock is not affected.")}
+        okText={t("Delete forever")}
         okButtonProps={{ danger: true }}
         onConfirm={onPurge}
       >
-        <Tooltip title="Delete forever">
-          <Button type="text" danger icon={<DeleteOutlined />} aria-label="Delete forever" loading={purge.isPending} />
+        <Tooltip title={t("Delete forever")}>
+          <Button type="text" danger icon={<DeleteOutlined />} aria-label={t("Delete forever")} loading={purge.isPending} />
         </Tooltip>
       </Popconfirm>
     </Flex>
   );
 }
 
-const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
+const trashColumns = (t: Translate): ColumnDef<TrashedOrderSlip, any>[] => [
   {
     id: "slip",
     header: "Slip",
@@ -109,7 +111,7 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
       const items = c.row.original.items;
       return (
         <Popover
-          title="Articles"
+          title={t("Articles")}
           content={
             <Flex vertical gap={2} style={{ maxHeight: 280, overflowY: "auto" }}>
               {items.map((item) => (
@@ -122,7 +124,7 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
           }
         >
           <Typography.Link>
-            {items.length} {items.length === 1 ? "article" : "articles"}
+            {items.length} {t(items.length === 1 ? "article" : "articles")}
           </Typography.Link>
         </Popover>
       );
@@ -135,7 +137,7 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
     size: 100,
     cell: (c) => (
       <Tag color={PAYMENT_STATUS_COLOR[c.row.original.status]} style={{ margin: 0 }}>
-        {PAYMENT_STATUS_LABEL[c.row.original.status]}
+        {t(PAYMENT_STATUS_LABEL[c.row.original.status])}
       </Tag>
     ),
   },
@@ -150,7 +152,7 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
         <div>
           {fmtTableDateTime(slip.deletedAt)}
           {slip.deletedBy && (
-            <div style={{ fontSize: 12, opacity: 0.6 }}>by {slip.deletedBy}</div>
+            <div style={{ fontSize: 12, opacity: 0.6 }}>{t("by")} {slip.deletedBy}</div>
           )}
         </div>
       );
@@ -166,7 +168,7 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
       return (
         <Tooltip title={fmtTableDateTime(c.getValue<string>())}>
           <span style={{ color: days <= 3 ? "var(--ant-color-error, #ff4d4f)" : undefined }}>
-            {days === 0 ? "Today" : `In ${days} ${days === 1 ? "day" : "days"}`}
+            {days === 0 ? t("Today") : t("In {count} days", { count: days })}
           </span>
         </Tooltip>
       );
@@ -191,7 +193,8 @@ const trashColumns: ColumnDef<TrashedOrderSlip, any>[] = [
 ];
 
 export function OrderSlipTrashTable({ data, notify }: { data: TrashedOrderSlip[]; notify: TrashNotify }) {
-  const columns = useMemo(() => trashColumns, []);
+  const { t } = useLanguage();
+  const columns = useMemo(() => trashColumns(t), [t]);
   return (
     <NotifyContext.Provider value={notify}>
       <DataTable data={data} columns={columns} />

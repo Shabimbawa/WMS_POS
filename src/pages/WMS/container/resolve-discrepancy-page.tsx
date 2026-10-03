@@ -41,6 +41,7 @@ import {
   actualOf,
   type DiscrepancyLine,
 } from "./resolve-discrepancy-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 // ---- form value shapes -------------------------------------------
 
@@ -69,28 +70,29 @@ function LineIssueFields({
   form: FormInstance<LineIssueValues>;
   declared: number;
 }) {
+  const { t } = useLanguage();
   const reason = Form.useWatch("reason", form);
   const isOther = reason === "OTHER";
 
   return (
     <>
       <Typography.Paragraph type="secondary">
-        Declared on the packing list: <b>{fmtInt(declared)}</b> sacks
+        {t("Declared on the packing list")}: <b>{fmtInt(declared)}</b> {t("sacks")}
       </Typography.Paragraph>
       <Form.Item
         name="reason"
-        label="Reason"
-        rules={[{ required: true, message: "Pick a reason" }]}
+        label={t("Reason")}
+        rules={[{ required: true, message: t("Pick a reason") }]}
       >
-        <Select options={LINE_REASONS} />
+        <Select options={LINE_REASONS.map((option) => ({ ...option, label: t(option.label) }))} />
       </Form.Item>
       {!isOther && (
         <Form.Item
           name="actual_qty"
-          label="Actual sacks counted"
+          label={t("Actual sacks counted")}
           dependencies={["reason"]}
           rules={[
-            { required: true, message: "Enter the counted quantity" },
+            { required: true, message: t("Enter the counted quantity") },
             {
               validator: (_, v: number | undefined) => {
                 if (v === undefined || v === null) return Promise.resolve();
@@ -112,48 +114,49 @@ function LineIssueFields({
       )}
       <Form.Item
         name="note"
-        label="Note"
+        label={t("Note")}
         rules={
           isOther
-            ? [{ required: true, whitespace: true, message: "Explain the issue" }]
+            ? [{ required: true, whitespace: true, message: t("Explain the issue") }]
             : []
         }
         extra={
           isOther
-            ? "Other logs the note only — no quantity changes."
+            ? t("Other logs the note only — no quantity changes.")
             : undefined
         }
       >
-        <Input.TextArea rows={3} placeholder={isOther ? "Required" : "Optional"} />
+        <Input.TextArea rows={3} placeholder={t(isOther ? "Required" : "Optional")} />
       </Form.Item>
     </>
   );
 }
 
 function UnlistedFields({ products }: { products: ProductCategory[] }) {
+  const { t } = useLanguage();
   return (
     <>
       <Form.Item
         name="product_category_id"
-        label="Product"
-        rules={[{ required: true, message: "Pick a product" }]}
+        label={t("Product")}
+        rules={[{ required: true, message: t("Pick a product") }]}
       >
         <Select
           showSearch
           optionFilterProp="label"
-          placeholder="Search by code or brand"
+          placeholder={t("Search by code or brand")}
           options={products.map((p) => ({ label: fmtProduct(p), value: p.id }))}
         />
       </Form.Item>
       <Form.Item
         name="actual_qty"
-        label="Sacks counted"
-        rules={[{ required: true, message: "Enter the counted quantity" }]}
+        label={t("Sacks counted")}
+        rules={[{ required: true, message: t("Enter the counted quantity") }]}
       >
         <InputNumber min={1} precision={0} style={{ width: "100%" }} />
       </Form.Item>
-      <Form.Item name="note" label="Note">
-        <Input.TextArea rows={3} placeholder="Optional" />
+      <Form.Item name="note" label={t("Note")}>
+        <Input.TextArea rows={3} placeholder={t("Optional")} />
       </Form.Item>
     </>
   );
@@ -162,6 +165,7 @@ function UnlistedFields({ products }: { products: ProductCategory[] }) {
 // ---- page ----------------------------------------------------------
 
 export default function ResolveDiscrepancyPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { containerId } = useParams();
   const [searchParams] = useSearchParams();
@@ -266,7 +270,7 @@ export default function ResolveDiscrepancyPage() {
 
     const editModal = isUnlisted ? (
       <CommonModalForm<UnlistedValues>
-        title="Edit unlisted item"
+        title={t("Edit unlisted item")}
         triggerLabel={<EditOutlined />}
         triggerButtonType="text"
         initialValues={{
@@ -280,8 +284,8 @@ export default function ResolveDiscrepancyPage() {
       </CommonModalForm>
     ) : (
       <CommonModalForm<LineIssueValues>
-        title={`${d ? "Edit" : "Log"} issue · ${fmtProduct(line.product)}`}
-        triggerLabel={d ? <EditOutlined /> : "Log issue"}
+        title={`${t(d ? "Edit" : "Log")} ${t("issue")} · ${fmtProduct(line.product)}`}
+        triggerLabel={d ? <EditOutlined /> : t("Log issue")}
         triggerButtonType={d ? "text" : "default"}
         initialValues={
           d
@@ -303,9 +307,9 @@ export default function ResolveDiscrepancyPage() {
         {editModal}
         {d && (
           <Popconfirm
-            title={isUnlisted ? "Remove this unlisted item?" : "Clear this issue?"}
-            description={isUnlisted ? undefined : "The line goes back to matched."}
-            okText="Remove"
+            title={t(isUnlisted ? "Remove this unlisted item?" : "Clear this issue?")}
+            description={isUnlisted ? undefined : t("The line goes back to matched.")}
+            okText={t("Remove")}
             okButtonProps={{ danger: true }}
             onConfirm={() => removeDraft(line.key)}
           >
@@ -336,7 +340,7 @@ export default function ResolveDiscrepancyPage() {
             : d,
         ),
       });
-      msg.success("Container unloaded");
+      msg.success(t("Container unloaded"));
       navigate("/containers");
     } catch (e) {
       showError(e, "Could not unload container");
@@ -349,11 +353,11 @@ export default function ResolveDiscrepancyPage() {
       return;
     }
     Modal.confirm({
-      title: "Discard logged issues?",
-      content: "The container stays delivered and nothing is saved.",
-      okText: "Discard",
+      title: t("Discard logged issues?"),
+      content: t("The container stays delivered and nothing is saved."),
+      okText: t("Discard"),
       okButtonProps: { danger: true },
-      cancelText: "Keep editing",
+      cancelText: t("Keep editing"),
       onOk: () => navigate("/containers"),
     });
   };
@@ -367,9 +371,9 @@ export default function ResolveDiscrepancyPage() {
       <Alert
         type="error"
         showIcon
-        message="Could not load this container"
-        description={(error as Error)?.message}
-        action={<Button onClick={() => navigate("/containers")}>Back</Button>}
+        message={t("Could not load this container")}
+        description={t((error as Error)?.message)}
+        action={<Button onClick={() => navigate("/containers")}>{t("Back")}</Button>}
       />
     );
   }
@@ -381,10 +385,10 @@ export default function ResolveDiscrepancyPage() {
         showIcon
         message={
           container.status === "UNLOADED"
-            ? "This container is already unloaded"
-            : `Only delivered containers can be unloaded (this one is ${STATUS_LABEL[container.status]})`
+            ? t("This container is already unloaded")
+            : `${t("Only delivered containers can be unloaded")} (${t(STATUS_LABEL[container.status])})`
         }
-        action={<Button onClick={() => navigate("/containers")}>Back to shipments</Button>}
+        action={<Button onClick={() => navigate("/containers")}>{t("Back to shipments")}</Button>}
       />
     );
   }
@@ -403,10 +407,10 @@ export default function ResolveDiscrepancyPage() {
       <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
         <Flex vertical gap={4}>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            Resolve discrepancies
+            {t("Resolve discrepancies")}
           </Typography.Title>
           <Typography.Text type="secondary">
-            {shipment.supplier.name} · list received{" "}
+            {shipment.supplier.name} · {t("List received").toLowerCase()}{" "}
             {DateParser(shipment.date_list_received)}
             {shipment.reference ? ` · ${shipment.reference}` : ""}
             {container.date_delivered
@@ -415,9 +419,9 @@ export default function ResolveDiscrepancyPage() {
           </Typography.Text>
         </Flex>
 
-        <Card size="small" title="Unload">
+        <Card size="small" title={t("Unload")}>
           <Flex align="center" gap={12} wrap>
-            <Typography.Text>Date unloaded</Typography.Text>
+            <Typography.Text>{t("Date unloaded")}</Typography.Text>
             <DatePicker
               value={dateUnloaded}
               allowClear={false}
@@ -426,7 +430,7 @@ export default function ResolveDiscrepancyPage() {
               disabledDate={(d) => !!deliveredOn && d.isBefore(deliveredOn, "day")}
             />
             <Typography.Text type="secondary">
-              Lines without an issue are recorded as matching the packing list.
+              {t("Lines without an issue are recorded as matching the packing list.")}
             </Typography.Text>
           </Flex>
         </Card>
@@ -436,20 +440,20 @@ export default function ResolveDiscrepancyPage() {
           title={
             <Flex align="center" gap={8}>
               <span style={{ fontFamily: "monospace" }}>
-                {container.container_no ?? "No container no."}
+                {container.container_no ?? t("No container no.")}
               </span>
-              {container.is_company_truck && <Tag color="blue">Own truck</Tag>}
+              {container.is_company_truck && <Tag color="blue">{t("Own truck")}</Tag>}
             </Flex>
           }
           extra={
             <CommonModalForm<UnlistedValues>
-              title="Add unlisted item"
+              title={t("Add unlisted item")}
               triggerLabel={
                 <>
-                  <PlusOutlined /> Add unlisted item
+                  <PlusOutlined /> {t("Add unlisted item")}
                 </>
               }
-              okText="Add"
+              okText={t("Add")}
               onSave={(v) => saveUnlisted(v)}
             >
               <UnlistedFields products={unlistedOptions()} />
@@ -466,9 +470,9 @@ export default function ResolveDiscrepancyPage() {
             {variance > 0 ? `+${fmtInt(variance)}` : fmtInt(variance)}
           </Typography.Text>
           <Flex gap={8}>
-            <Button onClick={cancel}>Cancel</Button>
+            <Button onClick={cancel}>{t("Cancel")}</Button>
             <Button type="primary" onClick={submit} loading={unload.isPending}>
-              Submit unload
+              {t("Submit unload")}
             </Button>
           </Flex>
         </Flex>
@@ -477,7 +481,7 @@ export default function ResolveDiscrepancyPage() {
       {/* ---- side: registered products reference ---- */}
       <Card
         size="small"
-        title="Registered products"
+        title={t("Registered products")}
         style={{ width: 380, flexShrink: 0, position: "sticky", top: 0 }}
       >
         {loadingProducts ? (

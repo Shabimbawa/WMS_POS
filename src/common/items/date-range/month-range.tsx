@@ -1,5 +1,6 @@
 import { DatePicker } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { useLanguage } from "../../context/language-context";
 
 const { RangePicker } = DatePicker;
 
@@ -27,12 +28,13 @@ interface MonthRangePickerProps {
 }
 
 export function MonthRangePicker({ value, onChange }: MonthRangePickerProps) {
+  const { language } = useLanguage();
   return (
     <RangePicker
       picker="month"
       value={value}
       allowClear={false}
-      format="MMMM YYYY"
+      format={language === "zh" ? "YYYY年M月" : "MMMM YYYY"}
       onChange={(next) => next && onChange(next as MonthRange)}
     />
   );

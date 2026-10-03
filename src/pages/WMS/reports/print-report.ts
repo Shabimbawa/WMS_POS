@@ -38,6 +38,7 @@ export interface PrintableReport {
   sections: PrintSection[];
   /** Start every section after the first on a new page. */
   pagePerSection?: boolean;
+  language?: "en" | "zh";
 }
 
 const escapeHtml = (value: string) =>
@@ -91,7 +92,7 @@ function sectionHtml(section: PrintSection): string {
 }
 
 function buildHtml(report: PrintableReport): string {
-  const printedAt = new Date().toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  const printedAt = new Date().toLocaleString(report.language === "zh" ? "zh-CN" : "en-PH", { dateStyle: "medium", timeStyle: "short" });
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title>
 <style>${report.pagePerSection ? "section + section { page-break-before: always; }" : ""}</style>
@@ -132,9 +133,9 @@ function buildHtml(report: PrintableReport): string {
   <header>
     <h1>${escapeHtml(report.title)}</h1>
     ${report.subtitle.map((line) => `<p class="sub">${escapeHtml(line)}</p>`).join("")}
-    <p class="meta">Printed ${escapeHtml(printedAt)}</p>
+    <p class="meta">${report.language === "zh" ? "打印时间" : "Printed"} ${escapeHtml(printedAt)}</p>
   </header>
-  ${report.sections.length ? report.sections.map(sectionHtml).join("") : '<div class="empty">No data for these filters.</div>'}
+  ${report.sections.length ? report.sections.map(sectionHtml).join("") : `<div class="empty">${report.language === "zh" ? "没有符合筛选条件的数据。" : "No data for these filters."}</div>`}
 </body></html>`;
 }
 

@@ -12,6 +12,7 @@ import { fmtTableDate } from "../../../common/utils/util";
 import type { InboundReport, ProductLabel, ReceivingRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import type { PrintSection } from "./print-report";
+import type { Translate } from "../../../common/context/language-context";
 
 /** Periods longer than this get a column per month instead of per day. */
 const MAX_DAY_COLUMNS = 31;
@@ -107,19 +108,19 @@ export function buildGrids(report: InboundReport, granularity: Granularity, keep
 /** Blank for zero inside the grid, like a hand-kept sheet. */
 export const cellText = (value: number) => (value ? fmtInt(value) : "");
 
-export function gridPrintSection(grid: BrandGrid): PrintSection {
+export function gridPrintSection(grid: BrandGrid, t: Translate = (text) => text): PrintSection {
   return {
-    title: `${grid.brand} Timeframe`,
-    subtitle: "Inbound",
+    title: `${grid.brand} ${t("Timeframe")}`,
+    subtitle: t("Inbound"),
     columns: [
-      { label: "Kind" },
+      { label: t("Kind") },
       ...grid.columns.map((c) => ({ top: c.top, label: c.label, align: "right" as const })),
-      { label: "Total\nSacks", align: "right" as const },
+      { label: `${t("Total")}\n${t("Sacks")}`, align: "right" as const },
     ],
     rows: grid.rows.map((row) => ({
       cells: [row.label, ...row.values.map(cellText), fmtInt(row.total)],
     })),
-    totals: ["Total Sacks", ...grid.totals.map(fmtInt), fmtInt(grid.grandTotal)],
+    totals: [t("Total Sacks"), ...grid.totals.map(fmtInt), fmtInt(grid.grandTotal)],
   };
 }
 
@@ -158,30 +159,30 @@ export function groupBySupplier(rows: ReceivingRow[]): SupplierGroup[] {
   return [...groups.values()];
 }
 
-export const sourceText = (row: ReceivingRow) =>
-  [row.source === "SHIPMENT" ? "Shipment" : "Local", row.reference, row.container_no].filter(Boolean).join(" · ");
+export const sourceText = (row: ReceivingRow, t: Translate = (text) => text) =>
+  [t(row.source === "SHIPMENT" ? "Shipment" : "Local"), row.reference, row.container_no].filter(Boolean).join(" · ");
 
 const signed = (v: number) => (v > 0 ? `+${fmtInt(v)}` : fmtInt(v));
 
-export function receivingPrintSection(group: SupplierGroup): PrintSection {
+export function receivingPrintSection(group: SupplierGroup, t: Translate = (text) => text): PrintSection {
   return {
     title: group.supplier,
-    subtitle: `${group.rows.length} ${group.rows.length === 1 ? "line" : "lines"} received`,
+    subtitle: `${group.rows.length} ${t(group.rows.length === 1 ? "line" : "lines")} ${t("received")}`,
     layout: "list",
     columns: [
-      { label: "Date" },
-      { label: "Source" },
-      { label: "Product" },
-      { label: "Declared", align: "right" },
-      { label: "Counted", align: "right" },
-      { label: "Variance", align: "right" },
-      { label: "Price / sack", align: "right" },
-      { label: "Value", align: "right" },
+      { label: t("Date") },
+      { label: t("Source") },
+      { label: t("Product") },
+      { label: t("Declared"), align: "right" },
+      { label: t("Counted"), align: "right" },
+      { label: t("Variance"), align: "right" },
+      { label: t("Price / sack"), align: "right" },
+      { label: t("Value"), align: "right" },
     ],
     rows: group.rows.map((r) => ({
       cells: [
         fmtReportDate(r.date),
-        sourceText(r),
+        sourceText(r, t),
         fmtProduct({ ...r }),
         fmtInt(r.declared_qty),
         fmtInt(r.actual_qty),
@@ -190,6 +191,6 @@ export function receivingPrintSection(group: SupplierGroup): PrintSection {
         fmtMoney(r.value),
       ],
     })),
-    totals: ["Subtotal", "", "", fmtInt(group.declared), fmtInt(group.counted), signed(group.variance), "", fmtMoney(group.value)],
+    totals: [t("Subtotal"), "", "", fmtInt(group.declared), fmtInt(group.counted), signed(group.variance), "", fmtMoney(group.value)],
   };
 }
