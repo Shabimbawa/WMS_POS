@@ -18,6 +18,7 @@ import type {
   InboundReportParams,
   ReceivingParams,
   ReceivingRow,
+  ReportShipmentOption,
   ProductCategory,
   ProductCategoryParams,
   ShipmentRow,
@@ -287,4 +288,10 @@ export async function getInboundReport(params: InboundReportParams): Promise<Inb
 
 export async function getReceivingReport(params: ReceivingParams): Promise<ReceivingRow[]> {
   return apiRequest<ReceivingRow[]>(`/reports/receiving${queryString(params)}`);
+}
+
+export async function getReportShipmentOptions(
+  params: Pick<ReceivingParams, "dateFrom" | "dateTo" | "source" | "supplierIds">,
+): Promise<ReportShipmentOption[]> {
+  return apiRequest<ReportShipmentOption[]>(`/reports/shipment-options${queryString(params)}`);
 }

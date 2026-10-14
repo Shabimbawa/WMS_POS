@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../../../common/items/table/table";
 import type { ReceivingRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
-import { cellText, fmtReportDate, type BrandGrid, type SupplierGroup } from "./report-grid";
+import { cellText, fmtReportDate, type BrandGrid, type SummaryGrid, type SupplierGroup } from "./report-grid";
 import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 // Plain text color throughout: black on the light theme, like the sheets.
@@ -107,6 +107,33 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
           <Typography.Text type="secondary">{t("Nothing received in this period")}</Typography.Text>
         </Flex>
       )}
+    </div>
+  );
+}
+
+type SummaryTableRow = {
+  key: string;
+  brand: string;
+  product: string;
+  total: number;
+  isTotal: boolean;
+};
+
+export function StockSummaryTable({ grid }: { grid: SummaryGrid }) {
+  const { t } = useLanguage();
+  const columns = useMemo<ColumnDef<SummaryTableRow, any>[]>(() => [
+    { id: "brand", header: t("Brand"), accessorFn: (row) => row.brand, size: 180, meta: { fixed: "left" }, cell: (cell) => <strong>{cell.getValue<string>()}</strong> },
+    { id: "product", header: t("Product"), accessorFn: (row) => row.product, size: 170 },
+    { id: "total", header: () => <div style={{ ...headerStyle, textAlign: "right" }}>{t("Total")}<br />{t("Sacks")}</div>, accessorFn: (row) => row.total, size: 110, meta: { fixed: "right" }, cell: (cell) => <div style={{ textAlign: "right", fontWeight: 700 }}>{fmtInt(cell.getValue<number>())}</div> },
+  ], [grid, t]);
+  const data = useMemo<SummaryTableRow[]>(() => [
+    ...grid.rows.map((row) => ({ key: row.product.id, brand: row.brand, product: row.label, total: row.total, isTotal: false })),
+    { key: "grand-total", brand: t("Grand Total"), product: "", total: grid.grandTotal, isTotal: true },
+  ], [grid, t]);
+  return (
+    <div>
+      <SectionTitle title={t("Stock summary")} subtitle={t("All brands and products in one table")} />
+      {grid.columns.length ? <DataTable data={data} columns={columns} /> : <Flex justify="center" style={{ padding: 16 }}><Typography.Text type="secondary">{t("Nothing received in this period")}</Typography.Text></Flex>}
     </div>
   );
 }
@@ -225,4 +252,39 @@ export function SupplierReceivingTable({ group }: { group: SupplierGroup }) {
       <DataTable data={data} columns={receivingColumns(t)} />
     </div>
   );
+}
+
+type ReceivingSummaryRow = {
+  line: ReceivingRow | null;
+  totals: { declared: number; counted: number; variance: number; value: number };
+};
+
+export function ReceivingSummaryTable({ groups }: { groups: SupplierGroup[] }) {
+  const { t } = useLanguage();
+  const totals = useMemo(() => groups.reduce((sum, group) => ({
+    declared: sum.declared + group.declared,
+    counted: sum.counted + group.counted,
+    variance: sum.variance + group.variance,
+    value: sum.value + group.value,
+  }), { declared: 0, counted: 0, variance: 0, value: 0 }), [groups]);
+  const data = useMemo<ReceivingSummaryRow[]>(() => [
+    ...groups.flatMap((group) => group.rows.map((line) => ({ line, totals }))),
+    { line: null, totals },
+  ], [groups, totals]);
+  const columns = useMemo<ColumnDef<ReceivingSummaryRow, any>[]>(() => [
+    { id: "supplier", header: t("Supplier"), accessorFn: (row) => row.line?.supplier ?? t("Grand Total"), size: 190, meta: { fixed: "left" }, cell: (cell) => <strong>{cell.getValue<string>()}</strong> },
+    { id: "date", header: t("Date"), accessorFn: (row) => row.line?.date ?? "", size: 110, cell: (cell) => cell.row.original.line ? fmtReportDate(cell.getValue<string>()) : null },
+    { id: "source", header: t("Source"), accessorFn: (row) => row.line?.source ?? "", size: 240, cell: (cell) => {
+      const line = cell.row.original.line;
+      if (!line) return null;
+      return <><Tag color={line.source === "SHIPMENT" ? "blue" : "green"}>{t(line.source === "SHIPMENT" ? "Shipment" : "Local")}</Tag>{line.reference || t("No reference")}{line.container_no ? ` · ${line.container_no}` : ""}</>;
+    } },
+    { id: "product", header: t("Product"), accessorFn: (row) => row.line ? fmtProduct({ ...row.line }) : "", size: 190 },
+    { id: "declared", header: t("Declared"), accessorFn: (row) => row.line?.declared_qty ?? row.totals.declared, size: 95, cell: (cell) => <div style={{ textAlign: "right", fontWeight: cell.row.original.line ? 400 : 700 }}>{fmtInt(cell.getValue<number>())}</div> },
+    { id: "counted", header: t("Counted"), accessorFn: (row) => row.line?.actual_qty ?? row.totals.counted, size: 95, cell: (cell) => <div style={{ textAlign: "right", fontWeight: cell.row.original.line ? 400 : 700 }}>{fmtInt(cell.getValue<number>())}</div> },
+    { id: "variance", header: t("Variance"), accessorFn: (row) => row.line?.variance ?? row.totals.variance, size: 95, cell: (cell) => <div style={{ textAlign: "right", fontWeight: cell.row.original.line ? 400 : 700 }}>{signed(cell.getValue<number>())}</div> },
+    { id: "price", header: t("Price / sack"), accessorFn: (row) => row.line?.price_per_sack ?? null, size: 115, cell: (cell) => <div style={{ textAlign: "right" }}>{cell.row.original.line ? fmtMoney(cell.getValue<number | null>()) : null}</div> },
+    { id: "value", header: t("Value"), accessorFn: (row) => row.line ? row.line.value : row.totals.value, size: 130, meta: { fixed: "right" }, cell: (cell) => <div style={{ textAlign: "right" }}><strong>{fmtMoney(cell.getValue<number | null>())}</strong></div> },
+  ], [t]);
+  return <div><SectionTitle title={t("Receiving detail")} subtitle={t("All suppliers and received products in one table")} /><DataTable data={data} columns={columns} /></div>;
 }

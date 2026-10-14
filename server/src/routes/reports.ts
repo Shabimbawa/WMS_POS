@@ -14,8 +14,8 @@ import {
 import { ApiError } from "../lib/api-error.js";
 import { requireRole } from "../plugins/auth.js";
 
-/** Comma-separated product ids, as a query string carries an array. */
-const productIdList = z
+/** Comma-separated UUIDs, as a query string carries an array. */
+const idList = z
   .string()
   .optional()
   .transform((value) => (value ? value.split(",").filter(Boolean) : []))
@@ -26,10 +26,22 @@ const range = {
   dateTo: z.iso.date(),
 };
 
-const source = z.enum(["ALL", "SHIPMENT", "LOCAL"]).default("ALL");
+const source = z.enum(["ALL", "SHIPMENT", "INTERNATIONAL", "NATIONAL", "LOCAL"]).default("ALL");
 
-const inboundQuery = z.object({ ...range, productIds: productIdList, source });
-const receivingQuery = z.object({ ...range, supplierId: z.uuid().optional(), source });
+const reportFilters = {
+  ...range,
+  source,
+  supplierIds: idList,
+  shipmentIds: idList,
+  productIds: idList,
+};
+const inboundQuery = z.object(reportFilters);
+const receivingQuery = z.object(reportFilters);
+const shipmentOptionsQuery = z.object({
+  ...range,
+  source,
+  supplierIds: idList,
+});
 
 function assertRange(query: { dateFrom: string; dateTo: string }) {
   if (query.dateFrom > query.dateTo) {
@@ -62,6 +74,32 @@ type Cell = { productId: string; date: string; sacks: number };
 export async function reportRoutes(app: FastifyInstance): Promise<void> {
   const warehouseOnly = { preHandler: requireRole("warehouse_admin") };
 
+  app.get("/reports/shipment-options", warehouseOnly, async (request) => {
+    const query = shipmentOptionsQuery.parse(request.query);
+    assertRange(query);
+    if (query.source === "LOCAL") return [];
+
+    return db
+      .selectDistinct({
+        id: shipments.id,
+        reference: shipments.reference,
+        date_list_received: shipments.dateListReceived,
+        supplier_id: suppliers.id,
+        supplier: suppliers.name,
+        kind: suppliers.kind,
+      })
+      .from(shipments)
+      .innerJoin(containers, eq(containers.shipmentId, shipments.id))
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .where(and(
+        unloadedIn(query.dateFrom, query.dateTo),
+        query.source === "INTERNATIONAL" ? eq(suppliers.kind, "INTERNATIONAL") : undefined,
+        query.source === "NATIONAL" ? eq(suppliers.kind, "NATIONAL") : undefined,
+        query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+      ))
+      .orderBy(desc(shipments.dateListReceived), asc(suppliers.name));
+  });
+
   /**
    * Stock summary: inbound sacks per product per arrival day, for the
    * timeframe grids. `products` lists every active product (or the
@@ -81,9 +119,18 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       })
       .from(containerItems)
       .innerJoin(containers, eq(containerItems.containerId, containers.id))
-      .where(and(unloadedIn(query.dateFrom, query.dateTo), productFilter(containerItems.productCategoryId)))
+      .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .where(and(
+        unloadedIn(query.dateFrom, query.dateTo),
+        productFilter(containerItems.productCategoryId),
+        query.source === "INTERNATIONAL" ? eq(suppliers.kind, "INTERNATIONAL") : undefined,
+        query.source === "NATIONAL" ? eq(suppliers.kind, "NATIONAL") : undefined,
+        query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+        query.shipmentIds.length ? inArray(shipments.id, query.shipmentIds) : undefined,
+      ))
       .groupBy(containerItems.productCategoryId, containers.dateUnloaded);
-    const localCells = query.source === "SHIPMENT" ? [] : await db
+    const localCells = query.source !== "ALL" && query.source !== "LOCAL" || query.shipmentIds.length ? [] : await db
       .select({
         productId: localDeliveryItems.productCategoryId,
         date: localDeliveries.dateReceived,
@@ -91,7 +138,12 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       })
       .from(localDeliveryItems)
       .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
-      .where(and(deliveredIn(query.dateFrom, query.dateTo), productFilter(localDeliveryItems.productCategoryId)))
+      .innerJoin(suppliers, eq(localDeliveries.supplierId, suppliers.id))
+      .where(and(
+        deliveredIn(query.dateFrom, query.dateTo),
+        productFilter(localDeliveryItems.productCategoryId),
+        query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+      ))
       .groupBy(localDeliveryItems.productCategoryId, localDeliveries.dateReceived);
 
     // A product can arrive both ways on one day; merge them into one cell.
@@ -166,10 +218,14 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       .innerJoin(productCategories, eq(containerItems.productCategoryId, productCategories.id))
       .where(and(
         unloadedIn(query.dateFrom, query.dateTo),
-        query.supplierId ? eq(suppliers.id, query.supplierId) : undefined,
+        query.source === "INTERNATIONAL" ? eq(suppliers.kind, "INTERNATIONAL") : undefined,
+        query.source === "NATIONAL" ? eq(suppliers.kind, "NATIONAL") : undefined,
+        query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+        query.shipmentIds.length ? inArray(shipments.id, query.shipmentIds) : undefined,
+        query.productIds.length ? inArray(productCategories.id, query.productIds) : undefined,
       ));
 
-    const localRows = query.source === "SHIPMENT" ? [] : await db
+    const localRows = query.source !== "ALL" && query.source !== "LOCAL" || query.shipmentIds.length ? [] : await db
       .select({
         line_id: localDeliveryItems.id,
         supplier_id: suppliers.id,
@@ -186,7 +242,8 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       .innerJoin(productCategories, eq(localDeliveryItems.productCategoryId, productCategories.id))
       .where(and(
         deliveredIn(query.dateFrom, query.dateTo),
-        query.supplierId ? eq(suppliers.id, query.supplierId) : undefined,
+        query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+        query.productIds.length ? inArray(productCategories.id, query.productIds) : undefined,
       ));
 
     const value = (qty: number, price: number | null) =>

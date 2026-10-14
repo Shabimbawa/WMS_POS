@@ -147,6 +147,62 @@ code {
   background: var(--code-bg);
 }
 
+/* ---- Report builder ---- */
+
+.report-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.report-filter-grid > .ant-form-item {
+  min-width: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.report-filter-grid .ant-picker,
+.report-filter-grid .ant-select {
+  width: 100%;
+}
+
+.report-filter-grid .ant-form-item-extra {
+  min-height: 36px;
+  padding-top: 5px;
+  line-height: 1.35;
+}
+
+.report-actions {
+  grid-column: 1 / -1;
+  justify-self: end;
+  display: flex;
+  gap: 8px;
+}
+
+.report-generate-button {
+  min-width: 168px;
+}
+
+@media (max-width: 1400px) {
+  .report-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .report-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-actions {
+    justify-self: stretch;
+  }
+
+  .report-actions .ant-btn {
+    flex: 1;
+  }
+}
+
 /* ---- Printable packing list overlay ---- */
 
 .print-overlay {

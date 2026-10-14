@@ -48,6 +48,17 @@ export interface BrandGrid {
   grandTotal: number;
 }
 
+export interface SummaryGridRow extends GridRow {
+  brand: string;
+}
+
+export interface SummaryGrid {
+  columns: GridColumn[];
+  rows: SummaryGridRow[];
+  totals: number[];
+  grandTotal: number;
+}
+
 export type Granularity = "day" | "month";
 
 export function granularityFor([from, to]: [Dayjs, Dayjs]): Granularity {
@@ -105,6 +116,19 @@ export function buildGrids(report: InboundReport, granularity: Granularity, keep
   return grids;
 }
 
+/** Combines the per-brand calculations into one report-wide table. */
+export function combineGrids(grids: BrandGrid[]): SummaryGrid {
+  const columns = [...new Map(grids.flatMap((grid) => grid.columns.map((column) => [column.key, column]))).values()]
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const rows = grids.flatMap((grid) => grid.rows.map((row) => {
+    const valuesByKey = new Map(grid.columns.map((column, index) => [column.key, row.values[index] ?? 0]));
+    const values = columns.map((column) => valuesByKey.get(column.key) ?? 0);
+    return { ...row, brand: grid.brand, values, total: values.reduce((sum, value) => sum + value, 0) };
+  }));
+  const totals = columns.map((_, index) => rows.reduce((sum, row) => sum + row.values[index], 0));
+  return { columns, rows, totals, grandTotal: totals.reduce((sum, value) => sum + value, 0) };
+}
+
 /** Blank for zero inside the grid, like a hand-kept sheet. */
 export const cellText = (value: number) => (value ? fmtInt(value) : "");
 
@@ -121,6 +145,23 @@ export function gridPrintSection(grid: BrandGrid, t: Translate = (text) => text)
       cells: [row.label, ...row.values.map(cellText), fmtInt(row.total)],
     })),
     totals: [t("Total Sacks"), ...grid.totals.map(fmtInt), fmtInt(grid.grandTotal)],
+  };
+}
+
+export function summaryGridPrintSection(grid: SummaryGrid, t: Translate = (text) => text): PrintSection {
+  return {
+    title: t("Stock summary"),
+    subtitle: t("All brands and products in one table"),
+    layout: "list",
+    columns: [
+      { label: t("Brand") },
+      { label: t("Product") },
+      { label: `${t("Total")}\n${t("Sacks")}`, align: "right" },
+    ],
+    rows: grid.rows.map((row) => ({
+      cells: [row.brand, row.label, fmtInt(row.total)],
+    })),
+    totals: [t("Grand Total"), "", fmtInt(grid.grandTotal)],
   };
 }
 
@@ -192,5 +233,43 @@ export function receivingPrintSection(group: SupplierGroup, t: Translate = (text
       ],
     })),
     totals: [t("Subtotal"), "", "", fmtInt(group.declared), fmtInt(group.counted), signed(group.variance), "", fmtMoney(group.value)],
+  };
+}
+
+export function receivingSummaryPrintSection(groups: SupplierGroup[], t: Translate = (text) => text): PrintSection {
+  const rows = groups.flatMap((group) => group.rows);
+  const totals = groups.reduce((sum, group) => ({
+    declared: sum.declared + group.declared,
+    counted: sum.counted + group.counted,
+    variance: sum.variance + group.variance,
+    value: sum.value + group.value,
+  }), { declared: 0, counted: 0, variance: 0, value: 0 });
+  return {
+    title: t("Receiving detail"),
+    subtitle: t("All suppliers and received products in one table"),
+    layout: "list",
+    columns: [
+      { label: t("Supplier") },
+      { label: t("Date") },
+      { label: t("Source") },
+      { label: t("Product") },
+      { label: t("Declared"), align: "right" },
+      { label: t("Counted"), align: "right" },
+      { label: t("Variance"), align: "right" },
+      { label: t("Price / sack"), align: "right" },
+      { label: t("Value"), align: "right" },
+    ],
+    rows: rows.map((row) => ({ cells: [
+      row.supplier,
+      fmtReportDate(row.date),
+      sourceText(row, t),
+      fmtProduct({ ...row }),
+      fmtInt(row.declared_qty),
+      fmtInt(row.actual_qty),
+      signed(row.variance),
+      fmtMoney(row.price_per_sack),
+      fmtMoney(row.value),
+    ] })),
+    totals: [t("Grand Total"), "", "", "", fmtInt(totals.declared), fmtInt(totals.counted), signed(totals.variance), "", fmtMoney(totals.value)],
   };
 }

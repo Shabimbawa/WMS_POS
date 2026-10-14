@@ -499,18 +499,20 @@ export type OpenQuestionParams = Pagination;
 // Pending or cancelled containers and voided deliveries never appear.
 
 export type ReceivingSource = "SHIPMENT" | "LOCAL";
+export type ReportSource = "ALL" | "SHIPMENT" | "INTERNATIONAL" | "NATIONAL" | "LOCAL";
 
 interface ReportRange {
   /** Inclusive YYYY-MM-DD bounds. */
   dateFrom: string;
   dateTo: string;
-  source?: "ALL" | ReceivingSource;
-}
-
-export interface InboundReportParams extends ReportRange {
-  /** Comma-separated product ids; omit for every product. */
+  source?: ReportSource;
+  /** Comma-separated ids; omitted means all. */
+  supplierIds?: string;
+  shipmentIds?: string;
   productIds?: string;
 }
+
+export interface InboundReportParams extends ReportRange {}
 
 /** Inbound sacks per product per arrival day; quiet days are absent. */
 export interface InboundReport {
@@ -519,9 +521,15 @@ export interface InboundReport {
   cells: { product_category_id: string; date: string; sacks: number }[];
 }
 
-export interface ReceivingParams extends ReportRange {
-  /** Omit for every supplier. */
-  supplierId?: string;
+export interface ReceivingParams extends ReportRange {}
+
+export interface ReportShipmentOption {
+  id: string;
+  reference: string | null;
+  date_list_received: string;
+  supplier_id: string;
+  supplier: string;
+  kind: "INTERNATIONAL" | "NATIONAL";
 }
 
 /** One received line, sorted by supplier then date. */

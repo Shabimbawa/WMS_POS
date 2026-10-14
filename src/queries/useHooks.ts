@@ -27,6 +27,7 @@ import {
   getProductCategories,
   getInboundReport,
   getReceivingReport,
+  getReportShipmentOptions,
   getShippingCompanies,
   getShippingContainerNotebook,
   getStockLog,
@@ -64,6 +65,7 @@ import type {
   ProductCategoryParams,
   InboundReportParams,
   ReceivingParams,
+  ReportSource,
   ShippingContainerNotebookParams,
   SupplierParams,
   StockLogParams,
@@ -124,6 +126,8 @@ export const qk = {
   // Under "stock" so anything that moves stock makes a shown report stale.
   inboundReport: (p: InboundReportParams) => ["stock", "report", "inbound", p] as const,
   receivingReport: (p: ReceivingParams) => ["stock", "report", "receiving", p] as const,
+  reportShipmentOptions: (p: { dateFrom: string; dateTo: string; source?: ReportSource; supplierIds?: string }) =>
+    ["stock", "report", "shipment-options", p] as const,
 
   cashiers: ["pos", "cashiers"] as const,
   cashierList: (includeInactive: boolean) =>
@@ -304,6 +308,16 @@ export function useReceivingReport(params: ReceivingParams | null) {
     queryKey: qk.receivingReport(params!),
     queryFn: () => getReceivingReport(params!),
     enabled: params !== null,
+  });
+}
+
+export function useReportShipmentOptions(
+  params: { dateFrom: string; dateTo: string; source?: ReportSource; supplierIds?: string },
+) {
+  return useQuery({
+    queryKey: qk.reportShipmentOptions(params),
+    queryFn: () => getReportShipmentOptions(params),
+    staleTime: STALE_TIME,
   });
 }
 
