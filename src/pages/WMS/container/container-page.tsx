@@ -22,6 +22,7 @@ import {
 import type { SortDir } from "../../../queries/types";
 import { ContainerTable } from "./container-table";
 import { StatusLegend } from "./status-legend";
+import { PortPullOutTable } from "./port-pull-out-table";
 import {
   MonthRangePicker,
   lastMonths,
@@ -43,7 +44,7 @@ export default function ContainerPage({
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [range, setRange] = useState<MonthRange>(() => lastMonths(3));
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [view, setView] = useState<"active" | "archived">("active");
+  const [view, setView] = useState<"active" | "port" | "archived">("active");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -69,7 +70,7 @@ export default function ContainerPage({
     isPlaceholderData,
     isFetching,
     refetch,
-  } = useShippingContainerNotebook(params);
+  } = useShippingContainerNotebook(params, view !== "port");
 
   console.log("container data", data);
 
@@ -107,24 +108,27 @@ export default function ContainerPage({
       <Tabs
         activeKey={view}
         onChange={(key) => {
-          setView(key as "active" | "archived");
+          setView(key as "active" | "port" | "archived");
           setPage(1);
         }}
         items={[
           { key: "active", label: t("Active") },
+          ...(kind === "INTERNATIONAL" ? [{ key: "port", label: t("Port Pull-Out") }] : []),
           { key: "archived", label: t("Archived") },
         ]}
         tabBarStyle={{ margin: 0 }}
       />
       <Typography.Text type="secondary">
-        {view === "archived"
+        {view === "port"
+          ? t("Monitor containers currently at the port and act before their pull-out deadlines.")
+          : view === "archived"
           ? t("Completed shipments archived from the active notebook. They remain part of inventory history and reports and can be restored at any time.")
           : kind === "INTERNATIONAL"
           ? t("Track overseas packing lists and their containers from registration through port arrival, delivery, and unloading. Filter by supplier and receipt month, then open a shipment to update container progress or review counted quantities.")
           : t("Track domestic shipments and their containers from registration through delivery and unloading. Filter by supplier and receipt month, then open a shipment to update container progress or review counted quantities.")}
       </Typography.Text>
 
-      <Card size="small">
+      {view !== "port" && <Card size="small">
         <Flex wrap gap={12} align="center">
           <Select
             allowClear
@@ -151,9 +155,9 @@ export default function ContainerPage({
 
           <StatusLegend />
         </Flex>
-      </Card>
+      </Card>}
 
-      {isError ? (
+      {view === "port" ? <PortPullOutTable /> : isError ? (
         <Alert
           type="error"
           showIcon

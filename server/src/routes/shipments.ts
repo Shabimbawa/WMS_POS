@@ -62,6 +62,7 @@ const shipmentBody = z.object({
 const eventBody = z.object({ date: isoDate });
 const arriveAtPortBody = z.object({
   date: isoDate,
+  pullOutBefore: isoDate,
   isCompanyTruck: z.boolean(),
   hauler: z.string().trim().max(500).nullable().optional(),
 });
@@ -109,6 +110,26 @@ function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
 export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   const warehouseOnly = { preHandler: requireRole("warehouse_admin") };
 
+  app.get("/port-pull-outs", warehouseOnly, async () => {
+    return db
+      .select({
+        id: containers.id,
+        container_no: containers.containerNo,
+        date_arrived_at_port: containers.dateArrivedAtPort,
+        pull_out_before: containers.pullOutBefore,
+        shipment_reference: shipments.reference,
+        supplier: suppliers.name,
+        shipping_company: shippingCompanies.name,
+        shipping_company_code: shippingCompanies.code,
+      })
+      .from(containers)
+      .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
+      .where(and(eq(containers.status, "ARRIVED_AT_PORT"), eq(suppliers.kind, "INTERNATIONAL"), isNull(shipments.archivedAt)))
+      .orderBy(asc(containers.pullOutBefore), asc(containers.dateArrivedAtPort));
+  });
+
   app.get("/shipments", warehouseOnly, async (request) => {
     const query = shipmentQuery.parse(request.query);
     if (query.dateFrom > query.dateTo) {
@@ -146,7 +167,10 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .from(shipments)
       .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
       .where(where)
-      .orderBy(query.sortDir === "asc" ? asc(shipments.dateListReceived) : desc(shipments.dateListReceived))
+      .orderBy(
+        query.sortDir === "asc" ? asc(shipments.dateListReceived) : desc(shipments.dateListReceived),
+        query.sortDir === "asc" ? asc(shipments.createdAt) : desc(shipments.createdAt),
+      )
       .limit(query.pageSize)
       .offset((query.page - 1) * query.pageSize);
 
@@ -166,6 +190,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         },
         status: containers.status,
         date_arrived_at_port: containers.dateArrivedAtPort,
+        pull_out_before: containers.pullOutBefore,
         date_delivered: containers.dateDelivered,
         date_unloaded: containers.dateUnloaded,
         items_match: containers.itemsMatch,
@@ -223,6 +248,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
             : null,
           status: container.status,
           date_arrived_at_port: container.date_arrived_at_port,
+          pull_out_before: container.pull_out_before,
           date_delivered: container.date_delivered,
           date_unloaded: container.date_unloaded,
           items_match: container.items_match,
@@ -384,6 +410,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         },
         status: containers.status,
         date_arrived_at_port: containers.dateArrivedAtPort,
+        pull_out_before: containers.pullOutBefore,
         date_delivered: containers.dateDelivered,
         date_unloaded: containers.dateUnloaded,
         items_match: containers.itemsMatch,
@@ -433,6 +460,9 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   app.post("/containers/:id/arrive-at-port", warehouseOnly, async (request) => {
     const { id } = idParams.parse(request.params);
     const input = arriveAtPortBody.parse(request.body);
+    if (input.pullOutBefore < input.date) {
+      throw new ApiError(400, "INVALID_PULL_OUT_DATE", "Pull-out deadline cannot be before the port arrival date");
+    }
     const hauler = input.hauler ? input.hauler.trim() : null;
     if (!input.isCompanyTruck && !hauler) {
       throw new ApiError(400, "HAULER_REQUIRED", "A third-party hauler name is required");
@@ -442,6 +472,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .set({
         status: "ARRIVED_AT_PORT",
         dateArrivedAtPort: input.date,
+        pullOutBefore: input.pullOutBefore,
         isCompanyTruck: input.isCompanyTruck,
         hauler,
         updatedAt: new Date(),

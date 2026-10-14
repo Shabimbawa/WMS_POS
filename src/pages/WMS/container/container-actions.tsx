@@ -36,6 +36,7 @@ type StatusValues = {
   status: UpdateContainerStatusInput["status"];
   date_delivered?: Dayjs;
   date_arrived_at_port?: Dayjs;
+  pull_out_before?: Dayjs;
   is_company_truck?: boolean;
   hauler?: string;
   cancellation_reason?: string;
@@ -80,6 +81,24 @@ function StatusFields({
             name="date_arrived_at_port"
             label={t("Date arrived at port")}
             rules={[{ required: true, message: t("Pick the port arrival date") }]}
+          >
+            <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="pull_out_before"
+            label={t("Pull out before")}
+            extra={t("Last date the container can remain at the port without exceeding its allowance.")}
+            rules={[
+              { required: true, message: t("Pick the pull-out deadline") },
+              ({ getFieldValue }) => ({
+                validator(_, value: Dayjs | undefined) {
+                  const arrived = getFieldValue("date_arrived_at_port") as Dayjs | undefined;
+                  return !value || !arrived || !value.isBefore(arrived, "day")
+                    ? Promise.resolve()
+                    : Promise.reject(new Error(t("Deadline cannot be before arrival")));
+                },
+              }),
+            ]}
           >
             <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
           </Form.Item>
@@ -156,6 +175,7 @@ export function ContainerActions({
         status: v.status,
         dateDelivered: v.date_delivered?.format("YYYY-MM-DD"),
         dateArrivedAtPort: v.date_arrived_at_port?.format("YYYY-MM-DD"),
+        pullOutBefore: v.pull_out_before?.format("YYYY-MM-DD"),
         isCompanyTruck: v.is_company_truck,
         hauler: v.hauler?.trim() || null,
         cancellationReason: v.cancellation_reason?.trim(),

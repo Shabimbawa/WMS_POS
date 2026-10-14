@@ -21,6 +21,7 @@ import type {
   ReportShipmentOption,
   ProductCategory,
   ProductCategoryParams,
+  PortPullOutRow,
   ShipmentRow,
   ShippingCompany,
   ShippingContainerNotebookParams,
@@ -168,6 +169,10 @@ export async function getShippingContainerNotebook(
   return apiRequest<Page<ShipmentRow>>(`/shipments${queryString(params)}`);
 }
 
+export async function getPortPullOuts(): Promise<PortPullOutRow[]> {
+  return apiRequest<PortPullOutRow[]>("/port-pull-outs");
+}
+
 export async function getStockStatus(
   params: StockStatusParams,
 ): Promise<Page<StockStatusRow>> {
@@ -202,6 +207,7 @@ export async function updateContainerStatus({
   status,
   dateDelivered,
   dateArrivedAtPort,
+  pullOutBefore,
   isCompanyTruck,
   hauler,
   cancellationReason,
@@ -214,6 +220,7 @@ export async function updateContainerStatus({
       method: "POST",
       body: JSON.stringify({
         date: dateArrivedAtPort,
+        pullOutBefore,
         isCompanyTruck,
         hauler,
       }),

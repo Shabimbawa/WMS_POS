@@ -154,6 +154,7 @@ export interface ShipmentRow {
     shipping_company: Pick<ShippingCompany, "id" | "name" | "code"> | null;
     status: ContainerStatus;
     date_arrived_at_port: string | null;
+    pull_out_before: string | null;
     date_delivered: string | null;
     date_unloaded: string | null;
     /** NULL until unloaded. */
@@ -317,12 +318,25 @@ export interface UpdateContainerStatusInput {
   dateDelivered?: string;
   /** Required when status is ARRIVED_AT_PORT. */
   dateArrivedAtPort?: string;
+  /** Required when status is ARRIVED_AT_PORT. */
+  pullOutBefore?: string;
   /** Required when status is ARRIVED_AT_PORT: own truck vs third party. */
   isCompanyTruck?: boolean;
   /** Third-party hauler name, required when isCompanyTruck is false. */
   hauler?: string | null;
   /** Required when status is CANCELLED. */
   cancellationReason?: string;
+}
+
+export interface PortPullOutRow {
+  id: string;
+  container_no: string | null;
+  date_arrived_at_port: string;
+  pull_out_before: string;
+  shipment_reference: string | null;
+  supplier: string;
+  shipping_company: string | null;
+  shipping_company_code: string | null;
 }
 
 // ---- local deliveries -------------------------------------------

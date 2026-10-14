@@ -30,6 +30,7 @@ import {
   getReportShipmentOptions,
   getShippingCompanies,
   getShippingContainerNotebook,
+  getPortPullOuts,
   getStockLog,
   getStockStatus,
   restoreShipment,
@@ -101,6 +102,7 @@ export const qk = {
   notebooks: ["notebook"] as const,
   shippingNotebook: (p: ShippingContainerNotebookParams) =>
     ["notebook", "shipping", p] as const,
+  portPullOuts: ["notebook", "port-pull-outs"] as const,
   // Under "notebook" so anything that invalidates shipments refreshes it too.
   container: (id: string) => ["notebook", "container", id] as const,
 
@@ -169,6 +171,15 @@ export function useShippingContainerNotebook(
     queryFn: () => getShippingContainerNotebook(params),
     enabled,
     placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
+  });
+}
+
+export function usePortPullOuts(enabled = true) {
+  return useQuery({
+    queryKey: qk.portPullOuts,
+    queryFn: getPortPullOuts,
+    enabled,
     staleTime: STALE_TIME,
   });
 }

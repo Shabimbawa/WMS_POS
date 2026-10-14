@@ -237,6 +237,8 @@ export const containers = pgTable(
       { onDelete: "restrict" },
     ),
     dateArrivedAtPort: date("date_arrived_at_port", { mode: "string" }),
+    /** Last free-storage day at the port, recorded when the container arrives. */
+    pullOutBefore: date("pull_out_before", { mode: "string" }),
     dateDelivered: date("date_delivered", { mode: "string" }),
     dateUnloaded: date("date_unloaded", { mode: "string" }),
     status: containerStatus("status").notNull().default("DOCUMENTED"),
