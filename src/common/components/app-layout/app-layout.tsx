@@ -49,12 +49,15 @@ export function AppLayout() {
       <Header style={{ padding: 0, backgroundColor: 'var(--color-chrome)' }}>
         <Topbar />
       </Header>
-      <Layout style={{ flex: 1 }}>
+      <Layout style={{ flex: 1, minHeight: 0 }}>
         <Sider
+          className="app-shell-sidebar"
           collapsible
           collapsed={collapsed}
           onCollapse={setCollapsed}
-          style={{ background: '#fff' }}
+          width={256}
+          collapsedWidth={72}
+          style={{ background: 'var(--color-chrome)' }}
         >
           <Sidebar collapsed={collapsed} />
         </Sider>

@@ -319,3 +319,151 @@ code {
     padding: 0;
   }
 }
+
+/* ---- Sidebar ---- */
+
+.app-shell-sidebar.ant-layout-sider {
+  border-right: 1px solid rgb(255 255 255 / 7%);
+  box-shadow: 8px 0 24px rgb(15 23 42 / 8%);
+}
+
+.app-shell-sidebar .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-shell-sidebar .ant-layout-sider-trigger {
+  height: 52px;
+  line-height: 52px;
+  background: rgb(255 255 255 / 3%);
+  border-top: 1px solid rgb(255 255 255 / 7%);
+  color: #9ca3af;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.app-shell-sidebar .ant-layout-sider-trigger:hover {
+  background: rgb(255 255 255 / 7%);
+  color: #fff;
+}
+
+.app-shell-sidebar .ant-layout-sider-trigger:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: -3px;
+}
+
+.app-sidebar.ant-menu {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-inline-end: 0;
+  background: transparent;
+  padding: 12px 0 20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 16%) transparent;
+}
+
+.app-sidebar .ant-menu-item-group-title {
+  margin-top: 6px;
+  padding: 16px 24px 7px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #737b8c;
+}
+
+.app-sidebar .ant-menu-item {
+  position: relative;
+  height: 44px;
+  line-height: 44px;
+  margin: 3px 12px;
+  width: calc(100% - 24px);
+  padding-inline: 12px !important;
+  border-radius: 7px;
+  color: #aeb4c0;
+  font-size: 13px;
+  font-weight: 450;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.app-sidebar .ant-menu-item .ant-menu-title-content {
+  margin-inline-start: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar .ant-menu-item .anticon {
+  min-width: 18px;
+  font-size: 17px;
+  color: #7f8797;
+  transition: color 160ms ease;
+}
+
+.app-sidebar .ant-menu-item:hover:not(.ant-menu-item-selected) {
+  background-color: rgb(255 255 255 / 5%);
+  color: #f3f4f6;
+}
+
+.app-sidebar .ant-menu-item:hover:not(.ant-menu-item-selected) .anticon {
+  color: #d1d5db;
+}
+
+.app-sidebar .ant-menu-item-selected {
+  background-color: rgb(0 98 73 / 42%);
+  color: #fff;
+  font-weight: 550;
+}
+
+.app-sidebar .ant-menu-item-selected::before {
+  content: '';
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: #34d399;
+}
+
+.app-sidebar .ant-menu-item-selected:hover {
+  background-color: rgb(0 98 73 / 54%);
+  color: #fff;
+}
+
+.app-sidebar .ant-menu-item-selected .anticon {
+  color: #6ee7b7;
+}
+
+.app-shell-sidebar.ant-layout-sider-collapsed .app-sidebar {
+  padding-top: 14px;
+}
+
+.app-shell-sidebar.ant-layout-sider-collapsed .ant-menu-item-group-title {
+  height: 13px;
+  margin: 7px 20px 4px;
+  padding: 0;
+  overflow: hidden;
+  color: transparent;
+}
+
+.app-shell-sidebar.ant-layout-sider-collapsed .ant-menu-item-group-title::after {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 1px;
+  margin-top: 6px;
+  background: rgb(255 255 255 / 9%);
+}
+
+.app-shell-sidebar.ant-layout-sider-collapsed .app-sidebar .ant-menu-item {
+  width: 44px;
+  margin-inline: 14px;
+  padding-inline: 13px !important;
+}
+
+.app-shell-sidebar.ant-layout-sider-collapsed .app-sidebar .ant-menu-item-selected::before {
+  inset-block: 11px;
+}

@@ -22,6 +22,8 @@ export type NavItem = {
   label: string
   icon: ReactNode
   roles: ProfileRole[]
+  /** Sidebar section heading this item appears under. */
+  group?: string
   /**
    * Extra path prefixes this entry owns — routes that exist in the router but
    * aren't nav destinations of their own, e.g. /payroll-details/:id belongs to
@@ -42,21 +44,28 @@ export type NavItem = {
  * them. The guard built on this config is client-side UX and defense-in-depth.
  */
 export const NAV_ITEMS: NavItem[] = [
+  // ---- Inbound ----
   // /containers/items (register shipment) is owned by this entry via prefix match.
-  { key: 'containers', path: '/containers', label: 'Shipments', icon: <ContainerOutlined />, roles: ['warehouse_admin'] },
+  { key: 'containers', path: '/containers', label: 'International Shipments', icon: <ContainerOutlined />, roles: ['warehouse_admin'], group: 'Inbound' },
   // /national/items (register national delivery) is owned via prefix match.
-  { key: 'national', path: '/national', label: 'National Deliveries', icon: <FlagOutlined />, roles: ['warehouse_admin'] },
+  { key: 'national', path: '/national', label: 'National Shipments', icon: <FlagOutlined />, roles: ['warehouse_admin'], group: 'Inbound' },
   // /deliveries/new is owned by this entry via prefix match.
-  { key: 'deliveries', path: '/deliveries', label: 'Local Deliveries', icon: <TruckOutlined />, roles: ['warehouse_admin'] },
-  { key: 'discrepancies', path: '/discrepancies', label: 'Discrepancies', icon: <IssuesCloseOutlined />, roles: ['warehouse_admin'] },
-  { key: 'stock',      path: '/stock',      label: 'Stock',     icon: <DatabaseOutlined />,  roles: ['warehouse_admin'] },
-  { key: 'inventory',  path: '/inventory',  label: 'Inventory', icon: <HistoryOutlined />,   roles: ['warehouse_admin'] },
-  { key: 'reports',    path: '/reports',    label: 'Generate Reports', icon: <FileTextOutlined />, roles: ['warehouse_admin'] },
-  { key: 'suppliers', path: '/suppliers', label: 'Suppliers', icon: <TeamOutlined />, roles: ['warehouse_admin'] },
-  { key: 'shipping-companies', path: '/shipping-companies', label: 'Shipping Companies', icon: <GlobalOutlined />, roles: ['warehouse_admin'] },
-  { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['pos_admin'] },
-  { key: 'order-summary', path: '/order-summary', label: 'Daily Summary', icon: <BarChartOutlined />, roles: ['pos_admin'] },
-  { key: 'cashiers', path: '/cashiers', label: 'Cashiers', icon: <TeamOutlined />, roles: ['pos_admin'] },
+  { key: 'deliveries', path: '/deliveries', label: 'Local Deliveries', icon: <TruckOutlined />, roles: ['warehouse_admin'], group: 'Inbound' },
+  { key: 'discrepancies', path: '/discrepancies', label: 'Discrepancies', icon: <IssuesCloseOutlined />, roles: ['warehouse_admin'], group: 'Inbound' },
+
+  // ---- Inventory ----
+  { key: 'stock',      path: '/stock',      label: 'Stock',     icon: <DatabaseOutlined />,  roles: ['warehouse_admin'], group: 'Inventory' },
+  { key: 'inventory',  path: '/inventory',  label: 'Inventory', icon: <HistoryOutlined />,   roles: ['warehouse_admin'], group: 'Inventory' },
+  { key: 'reports',    path: '/reports',    label: 'Generate Reports', icon: <FileTextOutlined />, roles: ['warehouse_admin'], group: 'Inventory' },
+
+  // ---- Reference ----
+  { key: 'suppliers', path: '/suppliers', label: 'Suppliers', icon: <TeamOutlined />, roles: ['warehouse_admin'], group: 'Reference' },
+  { key: 'shipping-companies', path: '/shipping-companies', label: 'Shipping Companies', icon: <GlobalOutlined />, roles: ['warehouse_admin'], group: 'Reference' },
+
+  // ---- Point of Sale ----
+  { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['pos_admin'], group: 'Point of Sale' },
+  { key: 'order-summary', path: '/order-summary', label: 'Daily Summary', icon: <BarChartOutlined />, roles: ['pos_admin'], group: 'Point of Sale' },
+  { key: 'cashiers', path: '/cashiers', label: 'Cashiers', icon: <TeamOutlined />, roles: ['pos_admin'], group: 'Point of Sale' },
 ]
 
 /** True when `pathname` is `prefix` itself or a route nested under it. */

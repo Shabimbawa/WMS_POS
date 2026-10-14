@@ -1,4 +1,4 @@
-import { ConfigProvider, Menu } from 'antd'
+import { Menu } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ItemType } from 'antd/es/menu/interface'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
@@ -15,14 +15,37 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const location = useLocation()
   const { data: profile } = useCurrentProfile()
 
-  const items: ItemType[] = profile
-    ? NAV_ITEMS.filter((item) => item.roles.includes(profile.roles)).map((item) => ({
+  const items: ItemType[] = []
+  if (profile) {
+    let currentGroup: string | undefined
+    let children: ItemType[] = []
+
+    const flush = () => {
+      if (!children.length) return
+      if (currentGroup) {
+        items.push({ type: 'group', label: t(currentGroup), children })
+      } else {
+        items.push(...children)
+      }
+      children = []
+    }
+
+    for (const item of NAV_ITEMS.filter((i) => i.roles.includes(profile.roles))) {
+      if (item.group !== currentGroup) {
+        flush()
+        currentGroup = item.group
+      }
+      children.push({
         key: item.key,
         icon: item.icon,
-        label: collapsed ? null : t(item.label),
+        // Keep the label mounted when collapsed so Ant Design can expose it in
+        // the item tooltip. CSS handles the compact rail presentation.
+        label: t(item.label),
         onClick: () => navigate(item.path),
-      }))
-    : []
+      })
+    }
+    flush()
+  }
 
   // Derived from the URL rather than left to antd's internal state, so the
   // entry stays highlighted when navigation comes from somewhere other than a
@@ -30,29 +53,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const selectedKey = navItemForPath(location.pathname)?.key
 
   return (
-    <ConfigProvider
-      theme={{
-        components: {
-          Menu: {
-            itemHoverBg: 'var(--color-chrome-accent)',
-            itemHoverColor: '#fff',
-            itemSelectedBg: 'var(--color-chrome-accent)',
-            itemSelectedColor: '#fff',
-          },
-        },
-      }}
-    >
-      <Menu
-        mode="inline"
-        inlineCollapsed={collapsed}
-        style={{
-          height: '100%',
-          borderRight: 0,
-          boxShadow: '2px 0 8px rgba(0, 0, 0, 0.12)',
-        }}
-        selectedKeys={selectedKey ? [selectedKey] : []}
-        items={items}
-      />
-    </ConfigProvider>
+    <Menu
+      className="app-sidebar"
+      mode="inline"
+      inlineCollapsed={collapsed}
+      selectedKeys={selectedKey ? [selectedKey] : []}
+      items={items}
+    />
   )
 }
