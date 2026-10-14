@@ -122,6 +122,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     const [countRow] = await db
       .select({ value: count() })
       .from(shipments)
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
       .where(where);
     const total = countRow?.value ?? 0;
 

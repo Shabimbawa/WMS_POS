@@ -1708,7 +1708,7 @@
       "checkConstraints": {
         "shipment_supplier_international_ck": {
           "name": "shipment_supplier_international_ck",
-          "value": "\"shipment\".\"supplier_kind\" in ('INTERNATIONAL', 'NATIONAL')"
+          "value": "\"shipment\".\"supplier_kind\" = 'INTERNATIONAL'"
         }
       },
       "isRLSEnabled": false
