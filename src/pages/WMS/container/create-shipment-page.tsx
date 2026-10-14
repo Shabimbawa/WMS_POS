@@ -80,7 +80,7 @@ function ContainerFormFields() {
       <Form.Item name="container_no" label={t("Container no.")}>
         <Input
           placeholder={t("e.g. OCLU1395985 — leave blank if none")}
-          style={{ fontFamily: "monospace" }}
+          style={{ fontFamily: "var(--mono)" }}
         />
       </Form.Item>
       <Form.Item
@@ -394,7 +394,7 @@ export default function CreateShipmentPage({
             title={
               <Flex align="center" gap={8}>
                 <Typography.Text type="secondary">#{index + 1}</Typography.Text>
-                <span style={{ fontFamily: "monospace" }}>
+                <span style={{ fontFamily: "var(--mono)" }}>
                   {container.container_no ?? t("No container no.")}
                 </span>
               </Flex>

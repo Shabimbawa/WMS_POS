@@ -37,7 +37,7 @@ const orderSlipColumns = (t: Translate): ColumnDef<OrderSlip, any>[] => [
     cell: (c) => (
       <Link
         to={`/order-slip/${c.row.original.id}`}
-        style={{ fontFamily: "monospace" }}
+        style={{ fontFamily: "var(--mono)" }}
       >
         #{c.getValue<number>()}
       </Link>

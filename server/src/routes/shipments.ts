@@ -42,6 +42,9 @@ const shipmentQuery = z.object({
   archived: z.stringbool().default(false),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
+const portPullOutQuery = z.object({
+  kind: z.enum(["INTERNATIONAL", "NATIONAL"]),
+});
 
 const shipmentBody = z.object({
   supplierId: z.uuid(),
@@ -110,7 +113,8 @@ function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
 export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   const warehouseOnly = { preHandler: requireRole("warehouse_admin") };
 
-  app.get("/port-pull-outs", warehouseOnly, async () => {
+  app.get("/port-pull-outs", warehouseOnly, async (request) => {
+    const query = portPullOutQuery.parse(request.query);
     return db
       .select({
         id: containers.id,
@@ -126,7 +130,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
       .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
       .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
-      .where(and(eq(containers.status, "ARRIVED_AT_PORT"), eq(suppliers.kind, "INTERNATIONAL"), isNull(shipments.archivedAt)))
+      .where(and(eq(containers.status, "ARRIVED_AT_PORT"), eq(suppliers.kind, query.kind), isNull(shipments.archivedAt)))
       .orderBy(asc(containers.pullOutBefore), asc(containers.dateArrivedAtPort));
   });
 

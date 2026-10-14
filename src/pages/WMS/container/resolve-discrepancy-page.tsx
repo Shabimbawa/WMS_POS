@@ -439,7 +439,7 @@ export default function ResolveDiscrepancyPage() {
           size="small"
           title={
             <Flex align="center" gap={8}>
-              <span style={{ fontFamily: "monospace" }}>
+              <span style={{ fontFamily: "var(--mono)" }}>
                 {container.container_no ?? t("No container no.")}
               </span>
               {container.is_company_truck && <Tag color="blue">{t("Own truck")}</Tag>}

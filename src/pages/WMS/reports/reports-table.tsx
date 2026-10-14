@@ -173,7 +173,7 @@ const receivingColumns = (t: Translate): ColumnDef<ReceivingTableRow, any>[] => 
           </Tag>
           {line.reference || <Typography.Text type="secondary">{t("No reference")}</Typography.Text>}
           {line.container_no && (
-            <Typography.Text type="secondary" style={{ fontFamily: "monospace", fontSize: 12 }}> · {line.container_no}</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontFamily: "var(--mono)", fontSize: 12 }}> · {line.container_no}</Typography.Text>
           )}
         </div>
       );

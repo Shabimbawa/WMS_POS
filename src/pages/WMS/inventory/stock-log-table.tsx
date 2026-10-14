@@ -97,7 +97,7 @@ export const stockLogColumns = (translate: Translate): ColumnDef<StockLogRow, an
       const r = c.row.original;
       if (r.container_id) {
         return (
-          <span style={{ fontFamily: "monospace" }}>
+          <span style={{ fontFamily: "var(--mono)" }}>
             {r.container_no ?? translate("No box")}
           </span>
         );

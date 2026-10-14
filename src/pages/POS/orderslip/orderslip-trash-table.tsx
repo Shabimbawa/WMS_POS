@@ -86,7 +86,7 @@ const trashColumns = (t: Translate): ColumnDef<TrashedOrderSlip, any>[] => [
     accessorFn: (r) => `${fmtTableDate(r.date)} · #${r.slipNumber}`,
     size: 140,
     meta: { fixed: "left" },
-    cell: (c) => <span style={{ fontFamily: "monospace" }}>{c.getValue<string>()}</span>,
+    cell: (c) => <span style={{ fontFamily: "var(--mono)" }}>{c.getValue<string>()}</span>,
   },
   {
     id: "orderBy",

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   Empty,
@@ -13,10 +14,12 @@ import {
   Tabs,
   Typography,
 } from "antd";
+import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import {
   useShippingContainerNotebook,
+  usePortPullOuts,
   useSuppliers,
 } from "../../../queries/useHooks";
 import type { SortDir } from "../../../queries/types";
@@ -39,6 +42,10 @@ export default function ContainerPage({
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind });
+  const { data: pullOutRows = [] } = usePortPullOuts(kind);
+  const today = dayjs().startOf("day");
+  const overduePullOuts = pullOutRows.filter((row) => dayjs(row.pull_out_before).startOf("day").diff(today, "day") <= 0).length;
+  const urgentPullOuts = pullOutRows.filter((row) => dayjs(row.pull_out_before).startOf("day").diff(today, "day") <= 3).length;
 
   // undefined = all suppliers
   const [supplierId, setSupplierId] = useState<string | undefined>();
@@ -71,8 +78,6 @@ export default function ContainerPage({
     isFetching,
     refetch,
   } = useShippingContainerNotebook(params, view !== "port");
-
-  console.log("container data", data);
 
   const reset = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
@@ -113,7 +118,19 @@ export default function ContainerPage({
         }}
         items={[
           { key: "active", label: t("Active") },
-          ...(kind === "INTERNATIONAL" ? [{ key: "port", label: t("Port Pull-Out") }] : []),
+          {
+            key: "port",
+            label: (
+              <Badge
+                count={urgentPullOuts}
+                size="small"
+                color={overduePullOuts > 0 ? "#cf1322" : "#d46b08"}
+                offset={[10, -2]}
+              >
+                <span style={{ paddingInlineEnd: urgentPullOuts ? 8 : 0 }}>{t("Port Pull-Out")}</span>
+              </Badge>
+            ),
+          },
           { key: "archived", label: t("Archived") },
         ]}
         tabBarStyle={{ margin: 0 }}
@@ -157,7 +174,7 @@ export default function ContainerPage({
         </Flex>
       </Card>}
 
-      {view === "port" ? <PortPullOutTable /> : isError ? (
+      {view === "port" ? <PortPullOutTable kind={kind} /> : isError ? (
         <Alert
           type="error"
           showIcon

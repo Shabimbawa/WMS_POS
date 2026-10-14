@@ -1,3 +1,8 @@
+import inter400Url from "@fontsource/inter/files/inter-latin-400-normal.woff2?url";
+import inter500Url from "@fontsource/inter/files/inter-latin-500-normal.woff2?url";
+import inter600Url from "@fontsource/inter/files/inter-latin-600-normal.woff2?url";
+import inter700Url from "@fontsource/inter/files/inter-latin-700-normal.woff2?url";
+
 // Print-ready HTML reports rendered in a temporary iframe.
 export interface PrintColumn { top?: string; label: string; align?: "left" | "right"; }
 export interface PrintRow { cells: string[]; }
@@ -58,9 +63,13 @@ function buildHtml(report: PrintableReport): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title>
 <style>${report.pagePerSection ? "section + section { break-before: page; page-break-before: always; }" : ""}</style>
 <style>
+@font-face { font-family:"Inter"; font-style:normal; font-weight:400; src:url("${inter400Url}") format("woff2"); }
+@font-face { font-family:"Inter"; font-style:normal; font-weight:500; src:url("${inter500Url}") format("woff2"); }
+@font-face { font-family:"Inter"; font-style:normal; font-weight:600; src:url("${inter600Url}") format("woff2"); }
+@font-face { font-family:"Inter"; font-style:normal; font-weight:700; src:url("${inter700Url}") format("woff2"); }
 @page { size: A4 portrait; margin: 10mm 10mm 15mm; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { color:#171717; font-family:Arial,"Segoe UI",sans-serif; font-size:10px; margin:0; padding-bottom:8mm; }
+body { color:#171717; font-family:"Inter",sans-serif; font-size:10px; margin:0; padding-bottom:8mm; }
 .document-header { margin-bottom:20px; }
 .brand-row,.title-row,.section-heading,footer { align-items:center; display:flex; justify-content:space-between; }
 .brand { color:#111; font-size:15px; font-weight:700; letter-spacing:-.2px; }

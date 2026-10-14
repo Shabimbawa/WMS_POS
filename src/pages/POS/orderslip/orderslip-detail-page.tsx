@@ -111,7 +111,7 @@ export default function OrderSlipDetailPage() {
       <Flex justify="space-between" align="center" wrap gap={12}>
         <Typography.Title level={4} style={{ margin: 0 }}>
           {t("Order slip")}{" "}
-          <span style={{ fontFamily: "monospace" }}>{fmtSlipNumber(slip)}</span>
+          <span style={{ fontFamily: "var(--mono)" }}>{fmtSlipNumber(slip)}</span>
         </Typography.Title>
         <Flex gap={8}>
           <BackToList />

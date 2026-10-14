@@ -102,7 +102,7 @@ export const qk = {
   notebooks: ["notebook"] as const,
   shippingNotebook: (p: ShippingContainerNotebookParams) =>
     ["notebook", "shipping", p] as const,
-  portPullOuts: ["notebook", "port-pull-outs"] as const,
+  portPullOuts: (kind: "INTERNATIONAL" | "NATIONAL") => ["notebook", "port-pull-outs", kind] as const,
   // Under "notebook" so anything that invalidates shipments refreshes it too.
   container: (id: string) => ["notebook", "container", id] as const,
 
@@ -175,10 +175,10 @@ export function useShippingContainerNotebook(
   });
 }
 
-export function usePortPullOuts(enabled = true) {
+export function usePortPullOuts(kind: "INTERNATIONAL" | "NATIONAL", enabled = true) {
   return useQuery({
-    queryKey: qk.portPullOuts,
-    queryFn: getPortPullOuts,
+    queryKey: qk.portPullOuts(kind),
+    queryFn: () => getPortPullOuts(kind),
     enabled,
     staleTime: STALE_TIME,
   });

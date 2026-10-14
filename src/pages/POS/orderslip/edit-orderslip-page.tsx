@@ -58,7 +58,7 @@ export default function EditOrderSlipPage() {
         title={
           <>
             {t("Edit order slip")}{" "}
-            <span style={{ fontFamily: "monospace" }}>{fmtSlipNumber(slip)}</span>
+            <span style={{ fontFamily: "var(--mono)" }}>{fmtSlipNumber(slip)}</span>
           </>
         }
         initialValues={{

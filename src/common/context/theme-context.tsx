@@ -34,6 +34,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       <ConfigProvider
         theme={{
           algorithm: mode === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
+          token: {
+            fontFamily: "'Inter', sans-serif",
+          },
         }}
       >
         {children}

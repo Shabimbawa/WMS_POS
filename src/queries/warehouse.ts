@@ -169,8 +169,8 @@ export async function getShippingContainerNotebook(
   return apiRequest<Page<ShipmentRow>>(`/shipments${queryString(params)}`);
 }
 
-export async function getPortPullOuts(): Promise<PortPullOutRow[]> {
-  return apiRequest<PortPullOutRow[]>("/port-pull-outs");
+export async function getPortPullOuts(kind: "INTERNATIONAL" | "NATIONAL"): Promise<PortPullOutRow[]> {
+  return apiRequest<PortPullOutRow[]>(`/port-pull-outs${queryString({ kind })}`);
 }
 
 export async function getStockStatus(

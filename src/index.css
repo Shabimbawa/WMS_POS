@@ -1,3 +1,8 @@
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+
 :root {
   --text: #6b7280;
   --text-h: #08060d;
@@ -19,9 +24,9 @@
   --color-status-border-soft: #0369a140;
   --color-status-bg: #0f172a;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --sans: 'Inter', sans-serif;
+  --heading: 'Inter', sans-serif;
+  --mono: 'Inter', sans-serif;
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
@@ -63,6 +68,14 @@
 
 body {
   margin: 0;
+  font-family: var(--sans);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 .language-toggle {
@@ -204,6 +217,75 @@ code {
 }
 
 /* ---- Printable packing list overlay ---- */
+
+/* ---- Port pull-out workspace ---- */
+
+.port-pullout-view {
+  display: grid;
+  gap: 16px;
+}
+
+.port-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.port-summary-item {
+  min-width: 0;
+  padding: 14px 16px;
+  color: inherit;
+  text-align: left;
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.port-summary-item:hover,
+.port-summary-item.is-active {
+  border-color: var(--ant-color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ant-color-primary) 14%, transparent);
+}
+
+.port-summary-item span,
+.port-summary-item small {
+  display: block;
+  color: var(--ant-color-text-secondary);
+}
+
+.port-summary-item strong {
+  display: block;
+  margin: 3px 0;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.port-summary-danger strong { color: var(--ant-color-error); }
+.port-summary-warning strong { color: var(--ant-color-warning); }
+.port-table-subtitle { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; }
+.port-table-toolbar { margin-bottom: 12px; }
+.port-pullout-table .port-row-overdue > td:first-child { box-shadow: inset 3px 0 var(--ant-color-error); }
+.port-pullout-table .port-row-soon > td:first-child { box-shadow: inset 3px 0 var(--ant-color-warning); }
+
+.shipment-primary-cell { display: grid; gap: 3px; }
+.shipment-progress-cell { min-width: 160px; }
+.shipment-timeline { display: grid; grid-template-columns: repeat(3, minmax(78px, 1fr)); gap: 12px; }
+.shipment-timeline span { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.shipment-timeline small { display: block; margin-bottom: 2px; color: var(--ant-color-text-secondary); }
+.shipment-expanded { padding: 6px 8px 8px; border-left: 3px solid var(--ant-color-primary); }
+.shipment-table-totals { color: var(--ant-color-text-secondary); font-size: 12px; }
+.shipment-table-totals strong { margin-right: 3px; color: var(--ant-color-text); font-size: 14px; }
+.shipment-notebook-card .ant-table-expanded-row > td { padding: 0 12px 12px !important; background: var(--ant-color-fill-quaternary) !important; }
+
+@media (max-width: 1000px) {
+  .port-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .port-summary-grid { grid-template-columns: 1fr; }
+}
 
 .print-overlay {
   position: fixed;

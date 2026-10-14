@@ -23,7 +23,7 @@ const signedSacks = (v: number) =>
   v > 0 ? `+${fmtInt(v)}` : fmtInt(v);
 
 const containerNoCell = (v: string | null, t: Translate) => (
-  <span style={{ fontFamily: "monospace" }}>{v ?? t("No box")}</span>
+  <span style={{ fontFamily: "var(--mono)" }}>{v ?? t("No box")}</span>
 );
 
 // ---- v_container_variance ----------------------------------------
