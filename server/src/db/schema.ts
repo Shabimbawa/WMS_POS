@@ -47,6 +47,7 @@ export const paymentStatus = pgEnum("payment_status", [
 export const supplierKind = pgEnum("supplier_kind", [
   "INTERNATIONAL",
   "LOCAL",
+  "NATIONAL",
 ]);
 
 export const stockMovementType = pgEnum("stock_movement_type", [
@@ -110,6 +111,8 @@ export const suppliers = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     code: text("code"),
+    /** Where the supplier ships from, e.g. "China, Beijing". */
+    origin: text("origin"),
     /** Which inbound route this supplier uses: containers by sea, or truck. */
     kind: supplierKind("kind").notNull().default("INTERNATIONAL"),
     isActive: boolean("is_active").notNull().default(true),
@@ -194,9 +197,13 @@ export const shipments = pgTable(
   (table) => [
     index("shipment_supplier_id_idx").on(table.supplierId),
     index("shipment_date_list_received_idx").on(table.dateListReceived),
+    /**
+     * A packing list can be from an international or national supplier; local
+     * suppliers go through the local_delivery flow instead.
+     */
     check(
       "shipment_supplier_international_ck",
-      sql`${table.supplierKind} = 'INTERNATIONAL'`,
+      sql`${table.supplierKind} in ('INTERNATIONAL', 'NATIONAL')`,
     ),
     foreignKey({
       name: "shipment_supplier_kind_fk",

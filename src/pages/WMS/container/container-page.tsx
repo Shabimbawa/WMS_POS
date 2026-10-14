@@ -29,10 +29,14 @@ import {
 } from "../../../common/items/date-range/month-range";
 import { useLanguage } from "../../../common/context/language-context";
 
-export default function ContainerPage() {
+export default function ContainerPage({
+  kind = "INTERNATIONAL",
+}: {
+  kind?: "INTERNATIONAL" | "NATIONAL";
+}) {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind: "INTERNATIONAL" });
+  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind });
 
   // undefined = all suppliers
   const [supplierId, setSupplierId] = useState<string | undefined>();
@@ -44,13 +48,14 @@ export default function ContainerPage() {
   const params = useMemo(
     () => ({
       supplierId,
+      kind,
       page,
       pageSize,
       dateField: "date_list_received" as const,
       ...monthRangeParams(range),
       sortDir,
     }),
-    [supplierId, page, pageSize, range, sortDir],
+    [supplierId, kind, page, pageSize, range, sortDir],
   );
 
   const {
@@ -74,14 +79,23 @@ export default function ContainerPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {t("Shipments")}
+          {kind === "INTERNATIONAL" ? t("Shipments") : t("National Deliveries")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
             {t("Refresh")}
           </Button>
-          <Button type="primary" onClick={() => navigate("/containers/items")}>
-            {t("Register Shipment")}
+          <Button
+            type="primary"
+            onClick={() =>
+              navigate(
+                kind === "INTERNATIONAL" ? "/containers/items" : "/national/items",
+              )
+            }
+          >
+            {kind === "INTERNATIONAL"
+              ? t("Register Shipment")
+              : t("Register National Delivery")}
           </Button>
         </Flex>
       </Flex>

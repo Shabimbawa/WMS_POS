@@ -161,13 +161,18 @@ function ItemFormFields({
 
 // ---- page ----------------------------------------------------------
 
-export default function CreateShipmentPage() {
+export default function CreateShipmentPage({
+  kind = "INTERNATIONAL",
+}: {
+  kind?: "INTERNATIONAL" | "NATIONAL";
+}) {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
 
-  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind: "INTERNATIONAL" });
+  const listPath = kind === "INTERNATIONAL" ? "/containers" : "/national";
+  const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind });
   const { data: products = [], isPending: loadingProducts } =
     useProductCategories();
   const createShipment = useCreateShipment();
@@ -296,7 +301,7 @@ export default function CreateShipmentPage() {
         })),
       });
       msg.success(t("Shipment registered"));
-      navigate("/containers");
+      navigate(listPath);
     } catch (e) {
       showError(e, "Could not register shipment");
     }
@@ -304,7 +309,7 @@ export default function CreateShipmentPage() {
 
   const cancel = () => {
     if (!form.isFieldsTouched() && containers.length === 0) {
-      navigate("/containers");
+      navigate(listPath);
       return;
     }
     Modal.confirm({
@@ -313,7 +318,7 @@ export default function CreateShipmentPage() {
       okText: t("Discard"),
       okButtonProps: { danger: true },
       cancelText: t("Keep editing"),
-      onOk: () => navigate("/containers"),
+      onOk: () => navigate(listPath),
     });
   };
 
@@ -326,7 +331,9 @@ export default function CreateShipmentPage() {
       <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
         <Flex justify="space-between" align="center">
           <Typography.Title level={4} style={{ margin: 0 }}>
-            {t("Register Shipment")}
+            {kind === "INTERNATIONAL"
+              ? t("Register Shipment")
+              : t("Register National Delivery")}
           </Typography.Title>
           <Typography.Text type="secondary">
             {fmtInt(containers.length)} {t("containers")} · {fmtInt(allSacks)} {t("sacks")}

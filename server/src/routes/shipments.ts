@@ -36,6 +36,7 @@ const shipmentQuery = z.object({
   dateFrom: isoDate,
   dateTo: isoDate,
   supplierId: z.uuid().optional(),
+  kind: z.enum(["INTERNATIONAL", "NATIONAL"]).optional(),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
 
@@ -114,6 +115,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     const filters = [
       gte(shipments.dateListReceived, query.dateFrom),
       lte(shipments.dateListReceived, query.dateTo),
+      ...(query.kind ? [eq(suppliers.kind, query.kind)] : []),
       ...(query.supplierId ? [eq(shipments.supplierId, query.supplierId)] : []),
     ];
     const where = and(...filters);
@@ -243,10 +245,10 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         .where(and(eq(suppliers.id, input.supplierId), eq(suppliers.isActive, true)))
         .limit(1);
       if (!supplier) throw new ApiError(400, "UNKNOWN_SUPPLIER", "Supplier does not exist or is inactive");
-      if (supplier.kind !== "INTERNATIONAL") {
+      if (supplier.kind === "LOCAL") {
         throw new ApiError(
           400,
-          "SUPPLIER_NOT_INTERNATIONAL",
+          "SUPPLIER_NOT_SHIPPED",
           "Local suppliers are logged as deliveries, not packing lists",
         );
       }

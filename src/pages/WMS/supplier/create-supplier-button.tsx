@@ -10,11 +10,13 @@ import { useLanguage } from "../../../common/context/language-context";
 type SupplierValues = {
   name: string;
   code?: string;
+  origin?: string;
   kind: SupplierKind;
 };
 
 const SUPPLIER_KIND_LABEL: Record<SupplierKind, string> = {
   INTERNATIONAL: "International (containers)",
+  NATIONAL: "National (domestic shipments)",
   LOCAL: "Local (truck deliveries)",
 };
 
@@ -41,6 +43,7 @@ export function CreateSupplierButton({
       const supplier = await create.mutateAsync({
         name: values.name.trim(),
         code: values.code?.trim() || null,
+        origin: values.origin?.trim() || null,
         kind: kind ?? values.kind,
       });
       msg.success(t("Added supplier {name}", { name: supplier.name }));
@@ -74,6 +77,9 @@ export function CreateSupplierButton({
         <Form.Item name="code" label={t("Code")} tooltip={t("Optional short code, unique across suppliers")}>
           <Input maxLength={50} placeholder="e.g. VPR" />
         </Form.Item>
+        <Form.Item name="origin" label={t("Origin")} tooltip={t("Where the supplier ships from")}>
+          <Input maxLength={200} placeholder="e.g. China, Beijing" />
+        </Form.Item>
         {!kind && (
           <Form.Item
             name="kind"
@@ -82,7 +88,7 @@ export function CreateSupplierButton({
             rules={[{ required: true }]}
           >
             <Radio.Group
-              options={(["INTERNATIONAL", "LOCAL"] as const).map((value) => ({
+              options={(["INTERNATIONAL", "NATIONAL", "LOCAL"] as const).map((value) => ({
                 value,
                 label: t(SUPPLIER_KIND_LABEL[value]),
               }))}

@@ -12,7 +12,8 @@ const updateSupplier = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     code: z.string().trim().min(1).max(50).nullable().optional(),
-    kind: z.enum(["INTERNATIONAL", "LOCAL"]).optional(),
+    origin: z.string().trim().min(1).max(200).nullable().optional(),
+    kind: z.enum(["INTERNATIONAL", "LOCAL", "NATIONAL"]).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: "Nothing to update" });
@@ -21,6 +22,7 @@ const supplierColumns = {
   id: suppliers.id,
   name: suppliers.name,
   code: suppliers.code,
+  origin: suppliers.origin,
   kind: suppliers.kind,
   is_active: suppliers.isActive,
 };
@@ -40,7 +42,7 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     try {
       const [updated] = await db
         .update(suppliers)
-        .set({ ...body, updatedAt: new Date() })
+        .set({ ...body })
         .where(eq(suppliers.id, id))
         .returning(supplierColumns);
       if (!updated) throw new ApiError(404, "SUPPLIER_NOT_FOUND", "Supplier was not found");
@@ -63,7 +65,7 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
 
     const updated = await db
       .update(suppliers)
-      .set({ isActive: false, updatedAt: new Date() })
+      .set({ isActive: false })
       .where(eq(suppliers.id, id))
       .returning(supplierColumns);
     if (!updated[0]) throw new ApiError(500, "DELETE_FAILED", "Supplier was not deleted");

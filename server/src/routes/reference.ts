@@ -7,19 +7,21 @@ import { ApiError } from "../lib/api-error.js";
 import { requireRole } from "../plugins/auth.js";
 
 const supplierQuery = z.object({
-  kind: z.enum(["INTERNATIONAL", "LOCAL"]).optional(),
+  kind: z.enum(["INTERNATIONAL", "LOCAL", "NATIONAL"]).optional(),
 });
 
 const createSupplier = z.object({
   name: z.string().trim().min(1).max(200),
   code: z.string().trim().min(1).max(50).nullable().default(null),
-  kind: z.enum(["INTERNATIONAL", "LOCAL"]),
+  origin: z.string().trim().min(1).max(200).nullable().default(null),
+  kind: z.enum(["INTERNATIONAL", "LOCAL", "NATIONAL"]),
 });
 
 const supplierColumns = {
   id: suppliers.id,
   name: suppliers.name,
   code: suppliers.code,
+  origin: suppliers.origin,
   kind: suppliers.kind,
   is_active: suppliers.isActive,
 };

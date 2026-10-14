@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Button,
   Card,
   Empty,
   Flex,
   Segmented,
-  Select,
   Skeleton,
   Space,
   Typography,
@@ -53,6 +52,7 @@ export default function SupplierPage() {
             options={[
               { label: "All", value: undefined },
               { label: "International", value: "INTERNATIONAL" },
+              { label: "National", value: "NATIONAL" },
               { label: "Local", value: "LOCAL" },
             ]}
           />

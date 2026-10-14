@@ -55,12 +55,14 @@ export interface Page<T> {
 
 // ---- row shapes -------------------------------------------------
 
-export type SupplierKind = "INTERNATIONAL" | "LOCAL";
+export type SupplierKind = "INTERNATIONAL" | "LOCAL" | "NATIONAL";
 
 export interface Supplier {
   id: string;
   name: string;
   code: string | null;
+  /** Where the supplier ships from, e.g. "China, Beijing". */
+  origin: string | null;
   /** Which inbound route: containers by sea, or a local truck delivery. */
   kind: SupplierKind;
   is_active: boolean;
@@ -82,6 +84,7 @@ export interface SupplierParams {
 export interface CreateSupplierInput {
   name: string;
   code: string | null;
+  origin: string | null;
   kind: SupplierKind;
 }
 
@@ -89,6 +92,7 @@ export interface CreateSupplierInput {
 export interface UpdateSupplierInput {
   name?: string;
   code?: string | null;
+  origin?: string | null;
   kind?: SupplierKind;
   isActive?: boolean;
 }
@@ -216,6 +220,8 @@ export interface ShippingContainerNotebookParams
   extends ListParams<ShipmentDateField> {
   /** Omit to get every supplier, still paginated. */
   supplierId?: string;
+  /** Restrict to one inbound route (international vs national). */
+  kind?: SupplierKind;
 }
 
 export interface StockStatusParams extends Pagination {

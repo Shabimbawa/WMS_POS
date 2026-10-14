@@ -37,8 +37,10 @@ createRoot(document.getElementById('root')!).render(
             <Route index element={<LoginPage />} />
             
               <Route element={<AppLayout />}>   
-                <Route path="/containers" element={<ContainerPage />} />
-                <Route path="/containers/items" element={<CreateShipmentPage />} />
+                <Route path="/containers" element={<ContainerPage kind="INTERNATIONAL" />} />
+                <Route path="/national" element={<ContainerPage kind="NATIONAL" />} />
+                <Route path="/containers/items" element={<CreateShipmentPage kind="INTERNATIONAL" />} />
+                <Route path="/national/items" element={<CreateShipmentPage kind="NATIONAL" />} />
                 <Route path="/discrepancies" element={<DiscrepanciesPage />} />
                 <Route path="/containers/:containerId/unload" element={<ResolveDiscrepancyPage />} />
                 <Route path="/deliveries" element={<DeliveryPage />} />

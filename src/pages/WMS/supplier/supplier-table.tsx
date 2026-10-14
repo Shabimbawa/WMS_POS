@@ -5,22 +5,25 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../../../common/items/table/table";
 import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
-import type { Supplier, SupplierKind, UpdateSupplierInput } from "../../../queries/types";
+import type { Supplier, SupplierKind } from "../../../queries/types";
 import { useUpdateSupplier, useDeleteSupplier } from "../../../queries/useHooks";
 
 const SUPPLIER_KIND_LABEL: Record<SupplierKind, string> = {
   INTERNATIONAL: "International",
   LOCAL: "Local",
+  NATIONAL: "National",
 };
 
 const SUPPLIER_KIND_COLOR: Record<SupplierKind, string> = {
   INTERNATIONAL: "blue",
   LOCAL: "green",
+  NATIONAL: "geekblue",
 };
 
 type EditValues = {
   name: string;
   code?: string | null;
+  origin?: string | null;
 };
 
 function SupplierActions({
@@ -42,6 +45,7 @@ function SupplierActions({
         input: {
           name: values.name.trim(),
           code: values.code?.trim() || null,
+          origin: values.origin?.trim() || null,
         },
       });
       msg.success("Supplier updated");
@@ -85,6 +89,7 @@ function SupplierActions({
             initialValues={{
               name: supplier.name,
               code: supplier.code ?? undefined,
+              origin: supplier.origin ?? undefined,
             }}
             onSave={handleEdit}
           >
@@ -100,6 +105,9 @@ function SupplierActions({
             <Form.Item name="code" label="Code">
               <Input maxLength={50} placeholder="Optional" />
             </Form.Item>
+            <Form.Item name="origin" label="Origin">
+              <Input maxLength={200} placeholder="e.g. China, Beijing" />
+            </Form.Item>
           </CommonModalForm>
         </span>
       </Tooltip>
@@ -110,7 +118,6 @@ function SupplierActions({
             triggerLabel={<DeleteOutlined />}
             triggerButtonType="text"
             okText="Deactivate"
-            okButtonProps={{ danger: true }}
             width={400}
             onSave={() => handleDelete()}
           >
@@ -141,6 +148,13 @@ const supplierColumns: ColumnDef<Supplier, any>[] = [
     accessorFn: (s) => s.code,
     size: 100,
     cell: (c) => c.getValue<string | null>() ?? "—",
+  },
+  {
+    id: "origin",
+    header: "Origin",
+    accessorFn: (s) => s.origin,
+    size: 160,
+    cell: (c) => c.getValue<string | null>() ?? "-",
   },
   {
     id: "kind",
