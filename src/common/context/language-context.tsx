@@ -379,6 +379,7 @@ const zh: Record<string, string> = {
   'Could not load packing lists': '无法加载装箱单',
   'No packing lists in this date range': '此日期范围内没有装箱单',
   'No archived shipments in this date range': '此日期范围内没有已归档的货运',
+  'Loading shipments': '正在加载货运',
   'Completed shipments archived from the active notebook. They remain part of inventory history and reports and can be restored at any time.': '从当前货运记录中归档的已完成货运。它们仍会保留在库存历史和报表中，并可随时恢复。',
   'Archive shipment': '归档货运',
   'Restore shipment': '恢复货运',

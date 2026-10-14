@@ -160,8 +160,10 @@ export default function ContainerPage({
           message={t("Could not load packing lists")}
           description={t((error as Error)?.message)}
         />
-      ) : isPending ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
+      ) : isPending || (isFetching && isPlaceholderData) ? (
+        <Card size="small" aria-busy="true" aria-label={t("Loading shipments")}>
+          <Skeleton active title={false} paragraph={{ rows: 7 }} />
+        </Card>
       ) : !data?.rows.length ? (
         <Empty
           description={t(
@@ -171,7 +173,7 @@ export default function ContainerPage({
           )}
         />
       ) : (
-        <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
+        <div>
           <ContainerTable data={data.rows} />
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination
