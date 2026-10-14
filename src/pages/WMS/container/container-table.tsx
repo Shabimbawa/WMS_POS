@@ -163,6 +163,18 @@ export const shipmentContainerColumns = (t: Translate): ColumnDef<ShipmentContai
     ),
   },
   {
+    id: "hauling",
+    header: "Hauling",
+    accessorFn: (r) => r.is_company_truck,
+    size: 160,
+    cell: (c) => {
+      const container = c.row.original;
+      if (container.is_company_truck === null) return dash;
+      if (container.is_company_truck) return t("Own truck");
+      return container.hauler ?? t("Third-party hauler");
+    },
+  },
+  {
     id: "items",
     header: "Brands",
     accessorFn: (r) => r.container_item.length,
