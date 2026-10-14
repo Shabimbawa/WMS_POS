@@ -13,6 +13,7 @@ import {
 } from "../type-format/format";
 import { fmtTableDate } from "../../../common/utils/util";
 import { ContainerActions } from "./container-actions";
+import { ShipmentPrintButton } from "./print-shipment";
 import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 /** Rows here are packing lists, with containers nested underneath. */
@@ -111,6 +112,14 @@ export const containerColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] =>
       const done = list.filter((ct) => ct.date_unloaded).length;
       return `${done} / ${list.length}`;
     },
+  },
+  {
+    id: "print",
+    header: "",
+    accessorFn: (r) => r.id,
+    size: 56,
+    meta: { fixed: "right" },
+    cell: (c) => <ShipmentPrintButton shipment={c.row.original} />,
   },
 ];
 

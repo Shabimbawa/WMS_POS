@@ -146,3 +146,176 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ---- Printable packing list overlay ---- */
+
+.print-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #111;
+}
+
+.print-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.print-doc {
+  flex: 1;
+  overflow: auto;
+  padding: 32px 40px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111;
+}
+
+.print-letterhead {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.print-company {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #111;
+}
+
+.print-doc-title {
+  margin-top: 2px;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.print-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 40px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.print-detail {
+  display: flex;
+  gap: 8px;
+}
+
+.print-label {
+  font-weight: 600;
+}
+
+.print-container {
+  margin-top: 24px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.print-container-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.print-container-no {
+  font-family: var(--mono);
+}
+
+.print-truck-tag {
+  margin-left: auto;
+  font-size: 12px;
+  color: #555;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.print-table th,
+.print-table td {
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.print-table thead th {
+  border-top: 2px solid #111;
+  border-bottom: 1px solid #111;
+  font-weight: 600;
+}
+
+.print-table tbody td {
+  border-bottom: 1px solid #eee;
+}
+
+.print-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.print-table tfoot td {
+  border-top: 1px solid #111;
+  border-bottom: 2px solid #111;
+  font-weight: 700;
+}
+
+.print-totals {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 2px solid #111;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 40px;
+  font-size: 14px;
+}
+
+.print-totals span {
+  font-weight: 600;
+}
+
+.print-footer {
+  margin-top: 28px;
+  font-size: 12px;
+  color: #555;
+}
+
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  /* The overlay is a direct child of <body>; hide everything else so the
+     printed document has no stray chrome or blank pages. */
+  body > *:not(.print-overlay) {
+    display: none !important;
+  }
+
+  .print-overlay {
+    position: static;
+    display: block;
+  }
+
+  .print-toolbar {
+    display: none;
+  }
+
+  .print-doc {
+    overflow: visible;
+    padding: 0;
+  }
+}

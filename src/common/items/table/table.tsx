@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 
 import { ConfigProvider, Table } from 'antd'
-import type { ReactNode } from 'react'
+import { useState, type Key, type ReactNode } from 'react'
 import { useLanguage } from '../../context/language-context'
 
 declare module '@tanstack/react-table' {
@@ -89,15 +89,30 @@ export function DataTable<TData>({
   }))
 
   const rowsById = new Map(table.getRowModel().rows.map((r) => [r.id, r]))
+
+  const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
+
+  const rowExpandable = (record: { key: string }) => {
+    const row = rowsById.get(record.key)
+    return !!row && !!renderExpanded && renderExpanded(row.original) !== null
+  }
+
   const expandable = renderExpanded && {
+    expandedRowKeys,
+    onExpand: (expanded: boolean, record: { key: string }) => {
+      setExpandedRowKeys((prev) =>
+        expanded
+          ? prev.includes(record.key)
+            ? prev
+            : [...prev, record.key]
+          : prev.filter((k) => k !== record.key),
+      )
+    },
     expandedRowRender: (record: { key: string }) => {
       const row = rowsById.get(record.key)
       return row ? renderExpanded(row.original) : null
     },
-    rowExpandable: (record: { key: string }) => {
-      const row = rowsById.get(record.key)
-      return !!row && renderExpanded(row.original) !== null
-    },
+    rowExpandable,
   }
 
   return (
@@ -119,6 +134,34 @@ export function DataTable<TData>({
         bordered={false}
         scroll={{ x: 'max-content' }}
         style={{ width: '100%' }}
+        onRow={
+          renderExpanded
+            ? (record) => ({
+                style: { cursor: 'pointer' },
+                onClick: (event) => {
+                  const target = event.target as HTMLElement
+                  // Action buttons and the expand icon keep their own click.
+                  if (
+                    target.closest(
+                      'button, a, input, select, textarea, [role="button"]',
+                    )
+                  ) {
+                    return
+                  }
+                  // Selecting text should not toggle the row.
+                  const selection = window.getSelection()
+                  if (selection && selection.toString()) return
+                  if (!rowExpandable(record)) return
+                  const key = record.key
+                  setExpandedRowKeys((prev) =>
+                    prev.includes(key)
+                      ? prev.filter((k) => k !== key)
+                      : [...prev, key],
+                  )
+                },
+              })
+            : undefined
+        }
       />
      </ConfigProvider>
   )
