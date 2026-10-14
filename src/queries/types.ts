@@ -141,6 +141,7 @@ export interface ShipmentRow {
   date_list_received: string;
   reference: string | null;
   notes: string | null;
+  archived_at: string | null;
   supplier: Pick<Supplier, "id" | "name" | "code">;
   container: Array<{
     id: string;
@@ -222,6 +223,8 @@ export interface ShippingContainerNotebookParams
   supplierId?: string;
   /** Restrict to one inbound route (international vs national). */
   kind?: SupplierKind;
+  /** Active notebook by default; true returns only archived shipments. */
+  archived?: boolean;
 }
 
 export interface StockStatusParams extends Pagination {

@@ -11,6 +11,7 @@ import {
 
 import {
   adjustStock,
+  archiveShipment,
   createDelivery,
   createProduct,
   createShipment,
@@ -30,6 +31,7 @@ import {
   getShippingContainerNotebook,
   getStockLog,
   getStockStatus,
+  restoreShipment,
   updateStockStatus,
   getSuppliers,
   unloadContainer,
@@ -384,6 +386,22 @@ export function useUpdateContainerStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
     },
+  });
+}
+
+export function useArchiveShipment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: archiveShipment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.notebooks }),
+  });
+}
+
+export function useRestoreShipment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: restoreShipment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.notebooks }),
   });
 }
 

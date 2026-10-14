@@ -188,6 +188,14 @@ export async function createShipment(input: CreateShipmentInput): Promise<string
   return result.id;
 }
 
+export async function archiveShipment(id: string): Promise<void> {
+  await apiRequest(`/shipments/${id}/archive`, { method: "POST" });
+}
+
+export async function restoreShipment(id: string): Promise<void> {
+  await apiRequest(`/shipments/${id}/restore`, { method: "POST" });
+}
+
 export async function updateContainerStatus({
   containerId,
   status,

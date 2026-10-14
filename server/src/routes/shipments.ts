@@ -8,6 +8,8 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
+  isNull,
   lte,
   sql,
 } from "drizzle-orm";
@@ -37,6 +39,7 @@ const shipmentQuery = z.object({
   dateTo: isoDate,
   supplierId: z.uuid().optional(),
   kind: z.enum(["INTERNATIONAL", "NATIONAL"]).optional(),
+  archived: z.stringbool().default(false),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
 
@@ -115,6 +118,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     const filters = [
       gte(shipments.dateListReceived, query.dateFrom),
       lte(shipments.dateListReceived, query.dateTo),
+      query.archived ? isNotNull(shipments.archivedAt) : isNull(shipments.archivedAt),
       ...(query.kind ? [eq(suppliers.kind, query.kind)] : []),
       ...(query.supplierId ? [eq(shipments.supplierId, query.supplierId)] : []),
     ];
@@ -132,6 +136,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         date_list_received: shipments.dateListReceived,
         reference: shipments.reference,
         notes: shipments.notes,
+        archived_at: shipments.archivedAt,
         supplier: {
           id: suppliers.id,
           name: suppliers.name,
@@ -228,6 +233,62 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       query.page,
       query.pageSize,
     );
+  });
+
+  app.post("/shipments/:id/archive", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const userId = request.currentUser!.id;
+
+    return db.transaction(async (tx) => {
+      const [shipment] = await tx
+        .select({ id: shipments.id, archivedAt: shipments.archivedAt })
+        .from(shipments)
+        .where(eq(shipments.id, id))
+        .limit(1);
+
+      if (!shipment) throw new ApiError(404, "SHIPMENT_NOT_FOUND", "Shipment not found");
+      if (shipment.archivedAt) return { id, archived_at: shipment.archivedAt };
+
+      const rows = await tx
+        .select({ status: containers.status })
+        .from(containers)
+        .where(eq(containers.shipmentId, id));
+      const complete = rows.length > 0 && rows.every(
+        ({ status }) => status === "UNLOADED" || status === "CANCELLED",
+      );
+      if (!complete) {
+        throw new ApiError(
+          409,
+          "SHIPMENT_NOT_COMPLETE",
+          "Only shipments whose containers are all unloaded or cancelled can be archived",
+        );
+      }
+
+      const archivedAt = new Date();
+      await tx
+        .update(shipments)
+        .set({ archivedAt, archivedBy: userId })
+        .where(eq(shipments.id, id));
+      return { id, archived_at: archivedAt };
+    });
+  });
+
+  app.post("/shipments/:id/restore", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const [restored] = await db
+      .update(shipments)
+      .set({ archivedAt: null, archivedBy: null })
+      .where(and(eq(shipments.id, id), isNotNull(shipments.archivedAt)))
+      .returning({ id: shipments.id });
+
+    if (restored) return restored;
+    const [shipment] = await db
+      .select({ id: shipments.id })
+      .from(shipments)
+      .where(eq(shipments.id, id))
+      .limit(1);
+    if (!shipment) throw new ApiError(404, "SHIPMENT_NOT_FOUND", "Shipment not found");
+    return shipment;
   });
 
   app.post("/shipments", warehouseOnly, async (request, reply) => {

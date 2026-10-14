@@ -10,6 +10,7 @@ import {
   Select,
   Skeleton,
   Space,
+  Tabs,
   Typography,
 } from "antd";
 import { useNavigate } from "react-router-dom";
@@ -42,6 +43,7 @@ export default function ContainerPage({
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [range, setRange] = useState<MonthRange>(() => lastMonths(3));
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [view, setView] = useState<"active" | "archived">("active");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -54,8 +56,9 @@ export default function ContainerPage({
       dateField: "date_list_received" as const,
       ...monthRangeParams(range),
       sortDir,
+      archived: view === "archived" ? true : undefined,
     }),
-    [supplierId, kind, page, pageSize, range, sortDir],
+    [supplierId, kind, page, pageSize, range, sortDir, view],
   );
 
   const {
@@ -101,8 +104,22 @@ export default function ContainerPage({
           </Button>
         </Flex>
       </Flex>
+      <Tabs
+        activeKey={view}
+        onChange={(key) => {
+          setView(key as "active" | "archived");
+          setPage(1);
+        }}
+        items={[
+          { key: "active", label: t("Active") },
+          { key: "archived", label: t("Archived") },
+        ]}
+        tabBarStyle={{ margin: 0 }}
+      />
       <Typography.Text type="secondary">
-        {kind === "INTERNATIONAL"
+        {view === "archived"
+          ? t("Completed shipments archived from the active notebook. They remain part of inventory history and reports and can be restored at any time.")
+          : kind === "INTERNATIONAL"
           ? t("Track overseas packing lists and their containers from registration through port arrival, delivery, and unloading. Filter by supplier and receipt month, then open a shipment to update container progress or review counted quantities.")
           : t("Track domestic shipments and their containers from registration through delivery and unloading. Filter by supplier and receipt month, then open a shipment to update container progress or review counted quantities.")}
       </Typography.Text>
@@ -146,7 +163,13 @@ export default function ContainerPage({
       ) : isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : !data?.rows.length ? (
-        <Empty description={t("No packing lists in this date range")} />
+        <Empty
+          description={t(
+            view === "archived"
+              ? "No archived shipments in this date range"
+              : "No packing lists in this date range",
+          )}
+        />
       ) : (
         <div style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
           <ContainerTable data={data.rows} />

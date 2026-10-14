@@ -191,6 +191,9 @@ export const shipments = pgTable(
     dateListReceived: date("date_list_received", { mode: "string" }).notNull(),
     reference: text("reference"),
     notes: text("notes"),
+    /** Soft archive: completed shipments stay reportable but leave the active notebook. */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedBy: uuid("archived_by").references(() => appUsers.id, { onDelete: "set null" }),
     createdBy: uuid("created_by").references(() => appUsers.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
