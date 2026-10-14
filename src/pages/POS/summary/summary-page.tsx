@@ -63,7 +63,7 @@ export default function OrderSlipSummaryPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Typography.Title level={4} style={{ margin: 0 }}>{t("Daily Summary")}</Typography.Title>
       <Typography.Text type="secondary">
-        {t("Order slips per cashier per day. Click a cashier to see their slips for that day.")}
+        {t("Review order-slip totals grouped by day and cashier for the selected period. Select a cashier summary to inspect the individual slips and product quantities behind that day's totals.")}
       </Typography.Text>
 
       <Card size="small">

@@ -235,7 +235,7 @@ export default function ReportsPage() {
         </Button>
       </Flex>
       <Typography.Text type="secondary">
-        {t('Pick a report and filters, then Generate. Export opens the print dialog; choose "Save as PDF" to save a file. Only received stock is counted: pending or cancelled containers and voided deliveries are left out.')}
+        {t('Build stock, supplier, or movement reports for a selected period and set of filters. Generate the results before exporting them to print or PDF; pending and cancelled containers and voided deliveries are excluded from received-stock totals.')}
       </Typography.Text>
 
       <Card size="small">

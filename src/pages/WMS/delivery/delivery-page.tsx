@@ -84,7 +84,7 @@ export default function DeliveryPage() {
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        {t("Truck loads from local suppliers, counted as they arrive. There is no packing list to compare against, so stock moves the moment one is logged — a wrong count is corrected by voiding it.")}
+        {t("Review truck deliveries received directly from local suppliers. Logging a delivery immediately adds the counted sacks to stock; void an incorrect record to reverse its inventory movement.")}
       </Typography.Text>
 
       <Card size="small">

@@ -107,7 +107,7 @@ export default function StockPage() {
 
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {t("Stock status")}
+          {t("Stock")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
@@ -129,7 +129,7 @@ export default function StockPage() {
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        {t("On-hand sacks per product. Quantities are written by the stock ledger, never edited here.")}
+        {t("View the current on-hand balance for every product, together with availability and selling price. Add or update product details here; quantities change only through recorded inventory movements.")}
       </Typography.Text>
 
       <Card size="small">

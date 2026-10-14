@@ -3,8 +3,10 @@ import { Button, Empty, Flex, Skeleton, Space, Typography } from "antd";
 import { useShippingCompanies } from "../../../queries/useHooks";
 import { CreateShippingCompanyButton } from "./create-shipping-company-button";
 import { ShippingCompanyTable } from "./shipping-company-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 export default function ShippingCompanyPage() {
+  const { t } = useLanguage();
   const {
     data: companies = [],
     isPending,
@@ -18,7 +20,7 @@ export default function ShippingCompanyPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Shipping Companies
+          {t("Shipping Companies")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
@@ -28,8 +30,7 @@ export default function ShippingCompanyPage() {
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        Ocean carriers that move containers port to port. Deactivated companies
-        stay on past containers but drop out of the dropdown.
+        {t("Manage the ocean carriers assigned to international containers. Deactivated companies remain visible on historical shipments but are removed from the choices for new records.")}
       </Typography.Text>
 
       {isPending ? (

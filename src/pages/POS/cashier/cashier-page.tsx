@@ -58,7 +58,7 @@ export default function CashierPage() {
         </CommonModalForm>
       </Flex>
       <Typography.Text type="secondary">
-        {t("Every order slip is assigned to a cashier. Cashiers who leave are deactivated, not deleted, so their past slips keep their name.")}
+        {t("Manage the cashiers available when creating order slips. Deactivate staff who should no longer receive new sales while preserving their names and history on existing records.")}
       </Typography.Text>
 
       <Card size="small">

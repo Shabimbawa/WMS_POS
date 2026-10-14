@@ -101,7 +101,7 @@ export default function StockLogPage() {
         </Button>
       </Flex>
       <Typography.Text type="secondary">
-        {t("Every movement behind the on-hand figures, newest first. Each row carries the balance it left behind.")}
+        {t("Audit every movement behind the current stock balance, including receipts, orders, reversals, and manual adjustments. Filter the ledger to trace when quantities changed and the balance left by each transaction.")}
       </Typography.Text>
 
       <Card size="small">

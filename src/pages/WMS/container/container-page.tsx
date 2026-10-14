@@ -79,7 +79,9 @@ export default function ContainerPage({
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {kind === "INTERNATIONAL" ? t("Shipments") : t("National Deliveries")}
+          {kind === "INTERNATIONAL"
+            ? t("International Shipments")
+            : t("National Shipments")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
@@ -100,7 +102,9 @@ export default function ContainerPage({
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        {t("Packing lists with their containers. Only one date applies here, since rows are lists rather than boxes.")}
+        {kind === "INTERNATIONAL"
+          ? t("Track overseas packing lists and their containers from registration through port arrival, delivery, and unloading. Filter by supplier and receipt month, then open a shipment to update container progress or review counted quantities.")
+          : t("Track domestic shipments and their containers from registration through delivery and unloading. Filter by supplier and receipt month, then open a shipment to update container progress or review counted quantities.")}
       </Typography.Text>
 
       <Card size="small">

@@ -58,8 +58,8 @@ export default function DiscrepanciesPage() {
       </Flex>
       <Typography.Text type="secondary">
         {view === "variance"
-          ? t("Declared vs counted sacks per unloaded container. Negative variance is a shortfall.")
-          : t("Issues logged as Other. They change no quantities and stay here until re-logged under a real reason.")}
+          ? t("Compare packing-list quantities with the sacks counted during unloading. Review shortages, overages, damaged stock, and undeclared items for each completed container.")
+          : t("Review unresolved notes logged as Other. These entries do not change stock quantities and remain open until they are recorded again with the correct discrepancy reason.")}
       </Typography.Text>
 
       <Card size="small">

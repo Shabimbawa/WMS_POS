@@ -14,8 +14,10 @@ import { useSuppliers } from "../../../queries/useHooks";
 import type { SupplierKind } from "../../../queries/types";
 import { CreateSupplierButton } from "./create-supplier-button";
 import { SupplierTable } from "./supplier-table";
+import { useLanguage } from "../../../common/context/language-context";
 
 export default function SupplierPage() {
+  const { t } = useLanguage();
   const [kind, setKind] = useState<SupplierKind | undefined>();
   const {
     data: suppliers = [],
@@ -30,7 +32,7 @@ export default function SupplierPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
         <Typography.Title level={4} style={{ margin: 0 }}>
-          Suppliers
+          {t("Suppliers")}
         </Typography.Title>
         <Flex gap={8}>
           <Button onClick={() => refetch()} loading={isFetching}>
@@ -40,8 +42,7 @@ export default function SupplierPage() {
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        Manage suppliers for international container shipments and local truck
-        deliveries.
+        {t("Maintain the suppliers used by international, national, and local receiving workflows. Use the supplier type to control where each company appears when shipments and deliveries are recorded.")}
       </Typography.Text>
 
       <Card size="small">

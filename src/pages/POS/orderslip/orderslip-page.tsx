@@ -57,7 +57,7 @@ export default function OrderSlipPage() {
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Flex justify="space-between" align="center">
-        <Typography.Title level={4} style={{ margin: 0 }}>{t("Order slips")}</Typography.Title>
+        <Typography.Title level={4} style={{ margin: 0 }}>{t("Order Slips")}</Typography.Title>
         <Flex gap={8}>
           <Button icon={<DeleteOutlined />} onClick={() => navigate("/order-slip/trash")}>
             {t("Trash")}
@@ -68,7 +68,7 @@ export default function OrderSlipPage() {
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        {t("One row per order slip. Click a slip number to open it.")}
+        {t("Review sales orders across the selected date range. Search by customer, cashier, or slip number, then open a slip to inspect its items, payment status, and remaining balance.")}
       </Typography.Text>
 
       <Card size="small">
