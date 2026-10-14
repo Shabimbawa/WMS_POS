@@ -227,16 +227,20 @@ textarea {
 /* ---- Login ---- */
 
 .login-page {
-  min-height: 100svh;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(340px, 0.9fr) minmax(480px, 1.1fr);
   background: var(--bg);
 }
 
 .login-brand-panel {
+  box-sizing: border-box;
   position: relative;
   overflow: hidden;
-  min-height: 100svh;
+  height: 100%;
+  min-height: 0;
   padding: clamp(34px, 5vw, 72px);
   display: flex;
   flex-direction: column;
@@ -319,9 +323,11 @@ textarea {
 }
 
 .login-form-panel {
+  box-sizing: border-box;
   position: relative;
-  min-height: 100svh;
-  padding: 72px 32px;
+  height: 100%;
+  min-height: 0;
+  padding: 64px 32px 40px;
   display: grid;
   place-items: center;
   background: var(--bg);
@@ -405,9 +411,19 @@ textarea {
 @media (max-width: 820px) {
   .login-page { display: block; }
   .login-brand-panel { display: none; }
-  .login-form-panel { padding: 80px 24px 40px; }
-  .login-mobile-brand { display: flex; margin-bottom: 42px; color: var(--text-h); }
+  .login-form-panel { height: 100svh; padding: 68px 24px 28px; }
+  .login-mobile-brand { display: flex; margin-bottom: 34px; color: var(--text-h); }
   .login-mobile-brand .login-brand-mark { background: var(--brand); color: #fff; }
+}
+
+@media (max-height: 650px) {
+  .login-brand-panel { padding-block: 28px; }
+  .login-form-panel { padding-block: 48px 24px; }
+  .login-preferences { top: 14px; }
+  .login-description.ant-typography { margin-bottom: 22px; }
+  .login-field { margin-bottom: 14px; }
+  .login-mobile-brand { margin-bottom: 22px; }
+  .login-help.ant-typography { margin-top: 12px; }
 }
 
 h1,
