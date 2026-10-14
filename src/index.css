@@ -14,8 +14,18 @@
   /* Brand + chrome — the app's actual repeated palette, previously duplicated
      as raw hex across many files instead of living here. */
   --brand: #006249;
-  --color-chrome: #1c212d;
-  --color-chrome-accent: #0a233b;
+  --color-chrome: #f8faf9;
+  --color-chrome-accent: #edf5f2;
+  --shell-border: #e4e9e7;
+  --shell-text: #18211e;
+  --shell-text-muted: #66736e;
+  --shell-icon: #74817c;
+  --shell-hover: #edf2f0;
+  --shell-selected: #e3f1ec;
+  --shell-selected-text: #005c45;
+  --shell-selected-icon: #007a5b;
+  --shell-divider: rgb(24 33 30 / 11%);
+  --shell-shadow: rgb(15 23 42 / 5%);
 
   /* Monospace "status/metric badge" scheme (payroll details, leaves). */
   --color-status-label: #94a3b8;
@@ -43,19 +53,25 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --text-contrast: #ffffff;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+html.dark {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --text-contrast: #ffffff;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --color-chrome: #1c212d;
+  --color-chrome-accent: #222936;
+  --shell-border: rgb(255 255 255 / 8%);
+  --shell-text: #f3f4f6;
+  --shell-text-muted: #9ca3af;
+  --shell-icon: #858e9d;
+  --shell-hover: rgb(255 255 255 / 6%);
+  --shell-selected: rgb(0 98 73 / 42%);
+  --shell-selected-text: #ffffff;
+  --shell-selected-icon: #6ee7b7;
+  --shell-divider: rgb(255 255 255 / 12%);
+  --shell-shadow: rgb(0 0 0 / 18%);
 }
 
 #root {
@@ -69,6 +85,109 @@
 body {
   margin: 0;
   font-family: var(--sans);
+}
+
+/* ---- Application top bar ---- */
+
+.app-topbar {
+  height: 64px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-chrome);
+  border-bottom: 1px solid var(--shell-border);
+  box-shadow: 0 1px 2px var(--shell-shadow);
+}
+
+.topbar-brand { min-width: 0; gap: 12px; }
+
+.topbar-brand-mark {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.topbar-brand-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.topbar-company.ant-typography {
+  color: var(--shell-text);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.topbar-product.ant-typography {
+  margin-top: 3px;
+  color: var(--shell-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.topbar-account {
+  max-width: 250px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+
+.topbar-email.ant-typography {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--shell-text);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-role.ant-typography {
+  margin-top: 2px;
+  color: var(--shell-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 26px;
+  background: var(--shell-divider);
+}
+
+.app-topbar .language-toggle { color: var(--shell-text-muted); }
+.app-topbar .language-toggle button.active { color: var(--shell-selected-text); }
+
+.topbar-signout.ant-btn { color: var(--shell-text-muted); }
+.topbar-signout.ant-btn:hover {
+  color: var(--shell-text) !important;
+  background: var(--shell-hover) !important;
+}
+
+@media (max-width: 720px) {
+  .app-topbar { padding: 0 14px; }
+  .topbar-account,
+  .topbar-divider,
+  .topbar-signout span:not(.ant-btn-icon) { display: none; }
+  .topbar-actions { gap: 8px !important; }
 }
 
 button,
@@ -461,8 +580,8 @@ code {
 /* ---- Sidebar ---- */
 
 .app-shell-sidebar.ant-layout-sider {
-  border-right: 1px solid rgb(255 255 255 / 7%);
-  box-shadow: 8px 0 24px rgb(15 23 42 / 8%);
+  border-right: 1px solid var(--shell-border);
+  box-shadow: 8px 0 24px var(--shell-shadow);
 }
 
 .app-shell-sidebar .ant-layout-sider-children {
@@ -474,15 +593,15 @@ code {
 .app-shell-sidebar .ant-layout-sider-trigger {
   height: 52px;
   line-height: 52px;
-  background: rgb(255 255 255 / 3%);
-  border-top: 1px solid rgb(255 255 255 / 7%);
-  color: #9ca3af;
+  background: var(--color-chrome);
+  border-top: 1px solid var(--shell-border);
+  color: var(--shell-text-muted);
   transition: background-color 160ms ease, color 160ms ease;
 }
 
 .app-shell-sidebar .ant-layout-sider-trigger:hover {
-  background: rgb(255 255 255 / 7%);
-  color: #fff;
+  background: var(--shell-hover);
+  color: var(--shell-text);
 }
 
 .app-shell-sidebar .ant-layout-sider-trigger:focus-visible {
@@ -499,7 +618,7 @@ code {
   background: transparent;
   padding: 12px 0 20px;
   scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 16%) transparent;
+  scrollbar-color: var(--shell-divider) transparent;
 }
 
 .app-sidebar .ant-menu-item-group-title {
@@ -510,7 +629,7 @@ code {
   line-height: 1.2;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #737b8c;
+  color: var(--shell-text-muted);
 }
 
 .app-sidebar .ant-menu-item {
@@ -521,7 +640,7 @@ code {
   width: calc(100% - 24px);
   padding-inline: 12px !important;
   border-radius: 7px;
-  color: #aeb4c0;
+  color: var(--shell-text-muted);
   font-size: 13px;
   font-weight: 450;
   transition: background-color 160ms ease, color 160ms ease;
@@ -537,22 +656,22 @@ code {
 .app-sidebar .ant-menu-item .anticon {
   min-width: 18px;
   font-size: 17px;
-  color: #7f8797;
+  color: var(--shell-icon);
   transition: color 160ms ease;
 }
 
 .app-sidebar .ant-menu-item:hover:not(.ant-menu-item-selected) {
-  background-color: rgb(255 255 255 / 5%);
-  color: #f3f4f6;
+  background-color: var(--shell-hover);
+  color: var(--shell-text);
 }
 
 .app-sidebar .ant-menu-item:hover:not(.ant-menu-item-selected) .anticon {
-  color: #d1d5db;
+  color: var(--shell-text);
 }
 
 .app-sidebar .ant-menu-item-selected {
-  background-color: rgb(0 98 73 / 42%);
-  color: #fff;
+  background-color: var(--shell-selected);
+  color: var(--shell-selected-text);
   font-weight: 550;
 }
 
@@ -563,16 +682,16 @@ code {
   inset-inline-start: 0;
   width: 3px;
   border-radius: 0 999px 999px 0;
-  background: #34d399;
+  background: var(--brand);
 }
 
 .app-sidebar .ant-menu-item-selected:hover {
-  background-color: rgb(0 98 73 / 54%);
-  color: #fff;
+  background-color: var(--shell-selected);
+  color: var(--shell-selected-text);
 }
 
 .app-sidebar .ant-menu-item-selected .anticon {
-  color: #6ee7b7;
+  color: var(--shell-selected-icon);
 }
 
 .app-shell-sidebar.ant-layout-sider-collapsed .app-sidebar {
@@ -593,7 +712,7 @@ code {
   width: 20px;
   height: 1px;
   margin-top: 6px;
-  background: rgb(255 255 255 / 9%);
+  background: var(--shell-divider);
 }
 
 .app-shell-sidebar.ant-layout-sider-collapsed .app-sidebar .ant-menu-item {

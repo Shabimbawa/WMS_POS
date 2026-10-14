@@ -1,8 +1,7 @@
-import { Layout, Button, Typography, Space, Flex, Switch } from 'antd'
-import { LogoutOutlined, } from '@ant-design/icons'
+import { Layout, Button, Typography, Space, Flex, Switch, Tooltip } from 'antd'
+import { LogoutOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/theme-context'
-import { SunOutlined, MoonOutlined } from '@ant-design/icons'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
 import { logout } from '../../../queries/auth'
 import { queryClient } from '../../../utils/query-client'
@@ -29,55 +28,38 @@ export function Topbar({ onSignOut }: TopbarProps) {
     }
   }
 
+  const productName = profile?.roles === 'warehouse_admin'
+    ? 'Inventory Management'
+    : 'Point of Sale'
+
   return (
-    <Header
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 24px',
-        background: '#fff',
-        borderBottom: '1px solid var(--border)',
-        backgroundColor: 'var(--color-chrome)'
-      }}
-    >
-      <Flex  gap='large'>
-
-        {/* <img src={} alt="Maryville Logo" style={{ paddingLeft: 5, height: 40 }} /> */}
-
-        <Flex vertical style={{ borderLeftWidth: 0.5, borderLeftStyle: 'solid', borderLeftColor: 'var(--text)', paddingLeft: 16 }}>
-          <Typography style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.12em",
-            textTransform: "uppercase", color: "var(--text)" }}>{t(profile?.roles === 'warehouse_admin' ? 'Warehouse Management System' : 'POS System')} </Typography>
-          <Typography style={{ fontSize: 20, fontWeight: 600, color: 'white', fontFamily: "Inter, sans-serif" }}>Wensor Trading IMS</Typography>
-        </Flex>
+    <Header className="app-topbar">
+      <Flex align="center" className="topbar-brand">
+        <div className="topbar-brand-mark" aria-hidden="true">WT</div>
+        <div className="topbar-brand-copy">
+          <Text className="topbar-company">Wensor Trading</Text>
+          <Text className="topbar-product">{t(productName)}</Text>
+        </div>
       </Flex>
-      
 
-      <Space size="middle">
-        <Flex vertical align="flex-end" style={{ lineHeight: 1.3 }}>
-          <Text strong style={{ color: '#fff', fontSize: 13 }}>
-            {email ?? ''}
-          </Text>
-          {profile?.roles && (
-            <Text style={{ color: 'var(--text)', fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              {t(profile.roles)}
-            </Text>
-          )}
-        </Flex>
+      <Space size={12} className="topbar-actions">
+        <div className="topbar-account">
+          <Text className="topbar-email">{email ?? ''}</Text>
+          {profile?.roles && <Text className="topbar-role">{t(profile.roles)}</Text>}
+        </div>
+        <div className="topbar-divider" />
         <LanguageToggle compact />
-        <Switch
-              size='small'
-              checked={mode === 'dark'}
-              onChange={toggleTheme}
-              checkedChildren={<MoonOutlined />}
-              unCheckedChildren={<SunOutlined />}
-        />
-        <Button
-          icon={<LogoutOutlined />}
-          onClick={handleSignOut}
-          type="text"
-          danger
-        >
+        <Tooltip title={t(mode === 'dark' ? 'Use light theme' : 'Use dark theme')}>
+          <Switch
+            size="small"
+            checked={mode === 'dark'}
+            onChange={toggleTheme}
+            checkedChildren={<MoonOutlined />}
+            unCheckedChildren={<SunOutlined />}
+            aria-label={t('Toggle color theme')}
+          />
+        </Tooltip>
+        <Button className="topbar-signout" icon={<LogoutOutlined />} onClick={handleSignOut} type="text">
           {t('Sign Out')}
         </Button>
       </Space>
