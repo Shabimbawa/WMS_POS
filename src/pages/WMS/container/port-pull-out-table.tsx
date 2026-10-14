@@ -58,6 +58,13 @@ export function PortPullOutTable({ kind }: { kind: "INTERNATIONAL" | "NATIONAL" 
   if (isError) return <Alert type="error" showIcon message={t("Could not load port pull-out deadlines")} description={(error as Error).message} />;
 
   return <div className="port-pullout-view">
+    <Alert
+      type="info"
+      showIcon
+      message={t("Read-only monitoring view")}
+      description={t("This tab is for monitoring pull-out deadlines only. To make changes, return to the Active tab and open the shipment or container.")}
+    />
+
     <div className="port-summary-grid">
       <button type="button" className={`port-summary-item${filter === "all" ? " is-active" : ""}`} onClick={() => setFilter("all")}>
         <span>{t("At port")}</span><strong>{data.length}</strong><small>{t("Active containers")}</small>

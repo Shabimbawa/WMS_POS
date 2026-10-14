@@ -137,7 +137,7 @@ export default function ContainerPage({
       />
       <Typography.Text type="secondary">
         {view === "port"
-          ? t("Monitor containers currently at the port and act before their pull-out deadlines.")
+          ? t("Read-only monitoring of containers currently at the port and their pull-out deadlines. Make all changes from the Active tab.")
           : view === "archived"
           ? t("Completed shipments archived from the active notebook. They remain part of inventory history and reports and can be restored at any time.")
           : kind === "INTERNATIONAL"
