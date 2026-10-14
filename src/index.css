@@ -754,6 +754,68 @@ code {
 
 /* ---- Sidebar ---- */
 
+/* ---- Shipment page controls ---- */
+
+.shipment-page-header {
+  min-height: 34px;
+}
+
+.shipment-page-actions {
+  flex: 0 0 auto;
+}
+
+.shipment-page-actions .ant-btn {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 15px;
+}
+
+.shipment-filter-toolbar > * {
+  flex: 0 0 auto;
+}
+
+.shipment-status-legend {
+  flex: 0 0 auto;
+  min-height: 32px;
+  white-space: nowrap;
+}
+
+.shipment-status-legend-label.ant-typography {
+  margin-inline-end: 2px;
+  line-height: 24px;
+}
+
+.shipment-status-tag.ant-tag {
+  height: 24px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 8px;
+  line-height: 22px;
+}
+
+@media (max-width: 640px) {
+  .shipment-page-header {
+    align-items: flex-start;
+  }
+
+  .shipment-page-actions {
+    width: 100%;
+  }
+
+  .shipment-page-actions .ant-btn-primary {
+    flex: 1;
+  }
+
+  .shipment-status-legend {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+}
+
 .app-shell-sidebar.ant-layout-sider {
   border-right: 1px solid var(--shell-border);
   box-shadow: 8px 0 24px var(--shell-shadow);

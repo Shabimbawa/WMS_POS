@@ -86,13 +86,13 @@ export default function ContainerPage({
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Flex justify="space-between" align="center">
+      <Flex justify="space-between" align="center" gap={12} wrap className="shipment-page-header">
         <Typography.Title level={4} style={{ margin: 0 }}>
           {kind === "INTERNATIONAL"
             ? t("International Shipments")
             : t("National Shipments")}
         </Typography.Title>
-        <Flex gap={8}>
+        <Flex gap={8} align="center" className="shipment-page-actions">
           <Button onClick={() => refetch()} loading={isFetching}>
             {t("Refresh")}
           </Button>
@@ -146,7 +146,7 @@ export default function ContainerPage({
       </Typography.Text>
 
       {view !== "port" && <Card size="small">
-        <Flex wrap gap={12} align="center">
+        <Flex wrap gap={12} align="center" className="shipment-filter-toolbar">
           <Select
             allowClear
             placeholder={t("All suppliers")}

@@ -20,10 +20,10 @@ const STATUSES: ContainerStatus[] = [
 export function StatusLegend() {
   const { t } = useLanguage();
   return (
-    <Flex align="center" gap={6} wrap>
-      <Typography.Text type="secondary">{t("Container status:")}</Typography.Text>
+    <Flex align="center" gap={6} className="shipment-status-legend">
+      <Typography.Text type="secondary" className="shipment-status-legend-label">{t("Container status:")}</Typography.Text>
       {STATUSES.map((s) => (
-        <Tag key={s} color={STATUS_COLOR[s]} style={{ margin: 0 }}>
+        <Tag key={s} color={STATUS_COLOR[s]} className="shipment-status-tag">
           {t(STATUS_LABEL[s])}
         </Tag>
       ))}
