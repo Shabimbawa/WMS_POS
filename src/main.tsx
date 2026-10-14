@@ -26,6 +26,7 @@ import ResolveDiscrepancyPage from './pages/WMS/container/resolve-discrepancy-pa
 import DiscrepanciesPage from './pages/WMS/discrepancy/discrepancies-page.tsx'
 import ReportsPage from './pages/WMS/reports/reports-page.tsx'
 import SupplierPage from './pages/WMS/supplier/supplier-page.tsx'
+import ShippingCompanyPage from './pages/WMS/shipping-company/shipping-company-page.tsx'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -42,6 +43,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/containers/:containerId/unload" element={<ResolveDiscrepancyPage />} />
                 <Route path="/deliveries" element={<DeliveryPage />} />
                 <Route path="/suppliers" element={<SupplierPage />} />
+                <Route path="/shipping-companies" element={<ShippingCompanyPage />} />
                 <Route path="/deliveries/new" element={<CreateDeliveryPage />} />
                 <Route path="/stock" element={<StockPage />} />
                 <Route path="/inventory" element={<StockLogPage />} />

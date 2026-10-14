@@ -66,6 +66,14 @@ export interface Supplier {
   is_active: boolean;
 }
 
+/** Ocean carriers that move containers port to port. */
+export interface ShippingCompany {
+  id: string;
+  name: string;
+  code: string | null;
+  is_active: boolean;
+}
+
 export interface SupplierParams {
   kind?: SupplierKind;
 }
@@ -82,6 +90,17 @@ export interface UpdateSupplierInput {
   name?: string;
   code?: string | null;
   kind?: SupplierKind;
+  isActive?: boolean;
+}
+
+export interface CreateShippingCompanyInput {
+  name: string;
+  code: string | null;
+}
+
+export interface UpdateShippingCompanyInput {
+  name?: string;
+  code?: string | null;
   isActive?: boolean;
 }
 
@@ -122,7 +141,12 @@ export interface ShipmentRow {
   container: Array<{
     id: string;
     container_no: string | null;
-    is_company_truck: boolean;
+    /** Null until the container arrives at port; true = own truck. */
+    is_company_truck: boolean | null;
+    /** Third-party hauler name, set when is_company_truck is false. */
+    hauler: string | null;
+    /** Ocean carrier that ships this container port to port. */
+    shipping_company: Pick<ShippingCompany, "id" | "name" | "code"> | null;
     status: ContainerStatus;
     date_arrived_at_port: string | null;
     date_delivered: string | null;
@@ -264,7 +288,8 @@ export interface CreateShipmentItem {
 
 export interface CreateShipmentContainer {
   container_no: string | null;
-  is_company_truck: boolean;
+  /** Ocean carrier that ships this container port to port. */
+  shipping_company_id: string;
   items: CreateShipmentItem[];
 }
 
@@ -283,6 +308,10 @@ export interface UpdateContainerStatusInput {
   dateDelivered?: string;
   /** Required when status is ARRIVED_AT_PORT. */
   dateArrivedAtPort?: string;
+  /** Required when status is ARRIVED_AT_PORT: own truck vs third party. */
+  isCompanyTruck?: boolean;
+  /** Third-party hauler name, required when isCompanyTruck is false. */
+  hauler?: string | null;
   /** Required when status is CANCELLED. */
   cancellationReason?: string;
 }
@@ -369,7 +398,9 @@ export interface UnloadContainerInput {
 export interface ContainerDetail {
   id: string;
   container_no: string | null;
-  is_company_truck: boolean;
+  is_company_truck: boolean | null;
+  hauler: string | null;
+  shipping_company: Pick<ShippingCompany, "id" | "name" | "code"> | null;
   status: ContainerStatus;
   date_arrived_at_port: string | null;
   date_delivered: string | null;

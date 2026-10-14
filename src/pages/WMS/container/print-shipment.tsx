@@ -133,8 +133,17 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
                       <span className="print-container-no">
                         {container.container_no ?? t("No box")}
                       </span>
+                      {container.shipping_company ? (
+                        <span>
+                          {container.shipping_company.code
+                            ? `${container.shipping_company.name} (${container.shipping_company.code})`
+                            : container.shipping_company.name}
+                        </span>
+                      ) : null}
                       {container.is_company_truck ? (
                         <span className="print-truck-tag">{t("Own truck")}</span>
+                      ) : container.hauler ? (
+                        <span className="print-truck-tag">{container.hauler}</span>
                       ) : null}
                     </div>
 

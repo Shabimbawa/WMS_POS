@@ -14,7 +14,9 @@ import {
   createDelivery,
   createProduct,
   createShipment,
+  createShippingCompany,
   createSupplier,
+  deleteShippingCompany,
   deleteSupplier,
   getContainer,
   getContainerVariance,
@@ -24,6 +26,7 @@ import {
   getProductCategories,
   getInboundReport,
   getReceivingReport,
+  getShippingCompanies,
   getShippingContainerNotebook,
   getStockLog,
   getStockStatus,
@@ -32,6 +35,7 @@ import {
   unloadContainer,
   updateContainerStatus,
   updateProduct,
+  updateShippingCompany,
   updateSupplier,
   voidDelivery,
 } from "./warehouse.ts";
@@ -62,6 +66,7 @@ import type {
   SupplierParams,
   StockLogParams,
   StockStatusParams,
+  UpdateShippingCompanyInput,
   UpdateSupplierInput,
   VarianceParams,
 } from "./types.ts";
@@ -81,6 +86,8 @@ const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 
 export const qk = {
   suppliers: (p: SupplierParams = {}) => ["suppliers", p] as const,
+
+  shippingCompanies: ["shipping-companies"] as const,
 
   deliveries: ["deliveries"] as const,
   deliveryList: (p: LocalDeliveryParams) => ["deliveries", "list", p] as const,
@@ -516,5 +523,38 @@ export function useDeleteSupplier() {
   return useMutation({
     mutationFn: deleteSupplier,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["suppliers"] }),
+  });
+}
+
+export function useShippingCompanies() {
+  return useQuery({
+    queryKey: qk.shippingCompanies,
+    queryFn: getShippingCompanies,
+    staleTime: STALE_TIME,
+  });
+}
+
+export function useCreateShippingCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createShippingCompany,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shipping-companies"] }),
+  });
+}
+
+export function useUpdateShippingCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateShippingCompanyInput }) =>
+      updateShippingCompany(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shipping-companies"] }),
+  });
+}
+
+export function useDeleteShippingCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteShippingCompany,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shipping-companies"] }),
   });
 }

@@ -15,6 +15,7 @@ import { orderTrashRoutes, purgeExpiredOrderSlips } from "./routes/order-trash.j
 import { referenceRoutes } from "./routes/reference.js";
 import { reportRoutes } from "./routes/reports.js";
 import { shipmentRoutes } from "./routes/shipments.js";
+import { shippingCompanyRoutes } from "./routes/shipping-companies.js";
 import { supplierRoutes } from "./routes/suppliers.js";
 
 export async function buildApp() {
@@ -72,6 +73,7 @@ export async function buildApp() {
   await app.register(referenceRoutes, { prefix: "/api/v1" });
   await app.register(supplierRoutes, { prefix: "/api/v1" });
   await app.register(shipmentRoutes, { prefix: "/api/v1" });
+  await app.register(shippingCompanyRoutes, { prefix: "/api/v1" });
   await app.register(inventoryRoutes, { prefix: "/api/v1" });
   await app.register(orderRoutes, { prefix: "/api/v1" });
   await app.register(cashierRoutes, { prefix: "/api/v1" });

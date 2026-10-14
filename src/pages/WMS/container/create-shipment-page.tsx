@@ -12,8 +12,6 @@ import {
   Popconfirm,
   Select,
   Skeleton,
-  Switch,
-  Tag,
   Typography,
   message,
 } from "antd";
@@ -26,6 +24,7 @@ import { ErrorNotificationPopup } from "../../../common/items/notification/errro
 import {
   useCreateShipment,
   useProductCategories,
+  useShippingCompanies,
   useSuppliers,
 } from "../../../queries/useHooks";
 import type { ProductCategory } from "../../../queries/types";
@@ -48,7 +47,7 @@ type HeaderValues = {
 
 type ContainerValues = {
   container_no?: string;
-  is_company_truck: boolean;
+  shipping_company_id: string;
 };
 
 type ItemValues = {
@@ -61,7 +60,7 @@ const newKey = () => crypto.randomUUID();
 
 const toContainerFields = (v: ContainerValues) => ({
   container_no: v.container_no?.trim() || null,
-  is_company_truck: Boolean(v.is_company_truck),
+  shipping_company_id: v.shipping_company_id,
 });
 
 const toItemFields = (v: ItemValues) => ({
@@ -74,6 +73,8 @@ const toItemFields = (v: ItemValues) => ({
 
 function ContainerFormFields() {
   const { t } = useLanguage();
+  const { data: shippingCompanies = [], isPending: loadingShipping } =
+    useShippingCompanies();
   return (
     <>
       <Form.Item name="container_no" label={t("Container no.")}>
@@ -83,12 +84,20 @@ function ContainerFormFields() {
         />
       </Form.Item>
       <Form.Item
-        name="is_company_truck"
-        label={t("Hauled by our own truck")}
-        valuePropName="checked"
-        initialValue={false}
+        name="shipping_company_id"
+        label={t("Shipping company")}
+        rules={[{ required: true, message: t("Pick a shipping company") }]}
       >
-        <Switch />
+        <Select
+          showSearch
+          optionFilterProp="label"
+          placeholder={t("Select shipping company")}
+          loading={loadingShipping}
+          options={shippingCompanies.map((s) => ({
+            label: s.code ? `${s.name} (${s.code})` : s.name,
+            value: s.id,
+          }))}
+        />
       </Form.Item>
     </>
   );
@@ -278,7 +287,7 @@ export default function CreateShipmentPage() {
         // client-side keys stay behind
         containers: containers.map((c) => ({
           container_no: c.container_no,
-          is_company_truck: c.is_company_truck,
+          shipping_company_id: c.shipping_company_id,
           items: c.items.map((i) => ({
             product_category_id: i.product_category_id,
             qty_sacks: i.qty_sacks,
@@ -381,7 +390,6 @@ export default function CreateShipmentPage() {
                 <span style={{ fontFamily: "monospace" }}>
                   {container.container_no ?? t("No container no.")}
                 </span>
-                {container.is_company_truck && <Tag color="blue">{t("Own truck")}</Tag>}
               </Flex>
             }
             extra={
@@ -407,7 +415,7 @@ export default function CreateShipmentPage() {
                   triggerButtonType="default"
                   initialValues={{
                     container_no: container.container_no ?? undefined,
-                    is_company_truck: container.is_company_truck,
+                    shipping_company_id: container.shipping_company_id,
                   }}
                   onSave={(v) => updateContainer(container.key, v)}
                 >

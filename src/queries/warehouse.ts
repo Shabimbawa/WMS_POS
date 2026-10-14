@@ -5,6 +5,7 @@ import type {
   ContainerDetail,
   CreateLocalDeliveryInput,
   CreateProductInput,
+  CreateShippingCompanyInput,
   LocalDeliveryParams,
   LocalDeliveryRow,
   ContainerVarianceRow,
@@ -20,6 +21,7 @@ import type {
   ProductCategory,
   ProductCategoryParams,
   ShipmentRow,
+  ShippingCompany,
   ShippingContainerNotebookParams,
   StockLogParams,
   StockLogRow,
@@ -28,6 +30,7 @@ import type {
   Supplier,
   SupplierParams,
   UpdateProductInput,
+  UpdateShippingCompanyInput,
   UpdateSupplierInput,
   VoidDeliveryInput,
   UnloadContainerInput,
@@ -60,6 +63,35 @@ export async function updateSupplier(
 
 export async function deleteSupplier(id: string): Promise<Supplier> {
   return apiRequest<Supplier>(`/suppliers/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getShippingCompanies(): Promise<ShippingCompany[]> {
+  return apiRequest<ShippingCompany[]>("/shipping-companies");
+}
+
+export async function createShippingCompany(
+  input: CreateShippingCompanyInput,
+): Promise<ShippingCompany> {
+  return apiRequest<ShippingCompany>("/shipping-companies", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateShippingCompany(
+  id: string,
+  input: UpdateShippingCompanyInput,
+): Promise<ShippingCompany> {
+  return apiRequest<ShippingCompany>(`/shipping-companies/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteShippingCompany(id: string): Promise<ShippingCompany> {
+  return apiRequest<ShippingCompany>(`/shipping-companies/${id}`, {
     method: "DELETE",
   });
 }
@@ -161,6 +193,8 @@ export async function updateContainerStatus({
   status,
   dateDelivered,
   dateArrivedAtPort,
+  isCompanyTruck,
+  hauler,
   cancellationReason,
 }: UpdateContainerStatusInput) {
   if (status === "DOCUMENTED") {
@@ -169,7 +203,11 @@ export async function updateContainerStatus({
   if (status === "ARRIVED_AT_PORT") {
     return apiRequest(`/containers/${containerId}/arrive-at-port`, {
       method: "POST",
-      body: JSON.stringify({ date: dateArrivedAtPort }),
+      body: JSON.stringify({
+        date: dateArrivedAtPort,
+        isCompanyTruck,
+        hauler,
+      }),
     });
   }
   if (status === "DELIVERED") {

@@ -71,6 +71,20 @@
       "when": 1791266301856,
       "tag": "0009_order_slip_amount_paid",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791968802133,
+      "tag": "0010_pale_weapon_omega",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791969206402,
+      "tag": "0011_smiling_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

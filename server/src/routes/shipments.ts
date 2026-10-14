@@ -18,6 +18,7 @@ import {
   containerItems,
   containers,
   productCategories,
+  shippingCompanies,
   shipments,
   stockBalances,
   stockMovements,
@@ -45,7 +46,7 @@ const shipmentBody = z.object({
   notes: z.string().trim().max(2_000).nullable().optional(),
   containers: z.array(z.object({
     container_no: z.string().trim().min(1).max(100).nullable(),
-    is_company_truck: z.boolean(),
+    shipping_company_id: z.uuid(),
     items: z.array(z.object({
       product_category_id: z.uuid(),
       qty_sacks: z.number().int().nonnegative(),
@@ -55,6 +56,11 @@ const shipmentBody = z.object({
 });
 
 const eventBody = z.object({ date: isoDate });
+const arriveAtPortBody = z.object({
+  date: isoDate,
+  isCompanyTruck: z.boolean(),
+  hauler: z.string().trim().max(500).nullable().optional(),
+});
 const cancelBody = z.object({ reason: z.string().trim().min(1).max(1_000) });
 
 const discrepancyInput = z.object({
@@ -144,6 +150,12 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         shipmentId: containers.shipmentId,
         container_no: containers.containerNo,
         is_company_truck: containers.isCompanyTruck,
+        hauler: containers.hauler,
+        shipping_company: {
+          id: shippingCompanies.id,
+          name: shippingCompanies.name,
+          code: shippingCompanies.code,
+        },
         status: containers.status,
         date_arrived_at_port: containers.dateArrivedAtPort,
         date_delivered: containers.dateDelivered,
@@ -151,6 +163,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         items_match: containers.itemsMatch,
       })
       .from(containers)
+      .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
       .where(inArray(containers.shipmentId, shipmentRows.map((row) => row.id)))
       .orderBy(asc(containers.createdAt));
 
@@ -196,6 +209,10 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           id: container.id,
           container_no: container.container_no,
           is_company_truck: container.is_company_truck,
+          hauler: container.hauler,
+          shipping_company: container.shipping_company?.id
+            ? container.shipping_company
+            : null,
           status: container.status,
           date_arrived_at_port: container.date_arrived_at_port,
           date_delivered: container.date_delivered,
@@ -243,6 +260,15 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         throw new ApiError(400, "UNKNOWN_PRODUCT", "One or more products do not exist or are inactive");
       }
 
+      const shippingCompanyIds = [...new Set(input.containers.map((c) => c.shipping_company_id))];
+      const shippingCompanyRows = await tx
+        .select({ id: shippingCompanies.id })
+        .from(shippingCompanies)
+        .where(and(inArray(shippingCompanies.id, shippingCompanyIds), eq(shippingCompanies.isActive, true)));
+      if (shippingCompanyRows.length !== shippingCompanyIds.length) {
+        throw new ApiError(400, "UNKNOWN_SHIPPING_COMPANY", "One or more shipping companies do not exist or are inactive");
+      }
+
       const [created] = await tx
         .insert(shipments)
         .values({
@@ -261,7 +287,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           .values({
             shipmentId: created.id,
             containerNo: container.container_no,
-            isCompanyTruck: container.is_company_truck,
+            shippingCompanyId: container.shipping_company_id,
           })
           .returning({ id: containers.id });
         if (!createdContainer) throw new ApiError(500, "CREATE_FAILED", "Container was not created");
@@ -286,6 +312,12 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         id: containers.id,
         container_no: containers.containerNo,
         is_company_truck: containers.isCompanyTruck,
+        hauler: containers.hauler,
+        shipping_company: {
+          id: shippingCompanies.id,
+          name: shippingCompanies.name,
+          code: shippingCompanies.code,
+        },
         status: containers.status,
         date_arrived_at_port: containers.dateArrivedAtPort,
         date_delivered: containers.dateDelivered,
@@ -301,6 +333,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .from(containers)
       .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
       .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
       .where(eq(containers.id, id))
       .limit(1);
     if (!container) throw new ApiError(404, "CONTAINER_NOT_FOUND", "Container was not found");
@@ -324,16 +357,31 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(containerItems.containerId, id))
       .orderBy(asc(containerItems.createdAt));
 
-    const { supplier, ...rest } = container;
-    return { ...rest, shipment: { ...rest.shipment, supplier }, container_item: items };
+    const { supplier, shipping_company, ...rest } = container;
+    return {
+      ...rest,
+      shipment: { ...rest.shipment, supplier },
+      shipping_company: shipping_company?.id ? shipping_company : null,
+      container_item: items,
+    };
   });
 
   app.post("/containers/:id/arrive-at-port", warehouseOnly, async (request) => {
     const { id } = idParams.parse(request.params);
-    const { date } = eventBody.parse(request.body);
+    const input = arriveAtPortBody.parse(request.body);
+    const hauler = input.hauler ? input.hauler.trim() : null;
+    if (!input.isCompanyTruck && !hauler) {
+      throw new ApiError(400, "HAULER_REQUIRED", "A third-party hauler name is required");
+    }
     const updated = await db
       .update(containers)
-      .set({ status: "ARRIVED_AT_PORT", dateArrivedAtPort: date, updatedAt: new Date() })
+      .set({
+        status: "ARRIVED_AT_PORT",
+        dateArrivedAtPort: input.date,
+        isCompanyTruck: input.isCompanyTruck,
+        hauler,
+        updatedAt: new Date(),
+      })
       .where(and(eq(containers.id, id), eq(containers.status, "DOCUMENTED")))
       .returning({ id: containers.id, status: containers.status });
     if (!updated[0]) throw new ApiError(409, "INVALID_CONTAINER_TRANSITION", "Only a documented container can arrive at port");

@@ -6,6 +6,7 @@ import {
   Form,
   Input,
   Popconfirm,
+  Radio,
   Select,
   Tooltip,
   Typography,
@@ -35,6 +36,8 @@ type StatusValues = {
   status: UpdateContainerStatusInput["status"];
   date_delivered?: Dayjs;
   date_arrived_at_port?: Dayjs;
+  is_company_truck?: boolean;
+  hauler?: string;
   cancellation_reason?: string;
 };
 
@@ -56,6 +59,7 @@ function StatusFields({
 }) {
   const { t } = useLanguage();
   const status = Form.useWatch("status", form);
+  const isCompanyTruck = Form.useWatch("is_company_truck", form);
   return (
     <>
       <Form.Item
@@ -71,13 +75,34 @@ function StatusFields({
         />
       </Form.Item>
       {status === "ARRIVED_AT_PORT" && (
-        <Form.Item
-          name="date_arrived_at_port"
-          label={t("Date arrived at port")}
-          rules={[{ required: true, message: t("Pick the port arrival date") }]}
-        >
-          <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
-        </Form.Item>
+        <>
+          <Form.Item
+            name="date_arrived_at_port"
+            label={t("Date arrived at port")}
+            rules={[{ required: true, message: t("Pick the port arrival date") }]}
+          >
+            <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="is_company_truck"
+            label={t("Hauling")}
+            rules={[{ required: true, message: t("Pick who hauls it") }]}
+          >
+            <Radio.Group>
+              <Radio value={true}>{t("Own truck")}</Radio>
+              <Radio value={false}>{t("Third-party hauler")}</Radio>
+            </Radio.Group>
+          </Form.Item>
+          {isCompanyTruck === false && (
+            <Form.Item
+              name="hauler"
+              label={t("Hauler")}
+              rules={[{ required: true, whitespace: true, message: t("Enter the hauler name") }]}
+            >
+              <Input placeholder={t("Hauler name")} />
+            </Form.Item>
+          )}
+        </>
       )}
       {status === "DELIVERED" && (
         <Form.Item
@@ -131,6 +156,8 @@ export function ContainerActions({
         status: v.status,
         dateDelivered: v.date_delivered?.format("YYYY-MM-DD"),
         dateArrivedAtPort: v.date_arrived_at_port?.format("YYYY-MM-DD"),
+        isCompanyTruck: v.is_company_truck,
+        hauler: v.hauler?.trim() || null,
         cancellationReason: v.cancellation_reason?.trim(),
       });
       msg.success(`${t("Marked")} ${t(STATUS_LABEL[v.status as ContainerStatus])}`);
@@ -168,6 +195,7 @@ export function ContainerActions({
           status: STATUS_OPTIONS[container.status][0],
           date_delivered: deliveredOn ?? dayjs(),
           date_arrived_at_port: dayjs(),
+          is_company_truck: true,
         }}
         onSave={saveStatus}
       >

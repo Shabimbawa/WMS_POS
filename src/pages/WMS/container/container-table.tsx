@@ -141,6 +141,17 @@ export const shipmentContainerColumns = (t: Translate): ColumnDef<ShipmentContai
     ),
   },
   {
+    id: "shipping_company",
+    header: "Shipping line",
+    accessorFn: (r) => r.shipping_company?.name ?? null,
+    size: 160,
+    cell: (c) => {
+      const sc = c.row.original.shipping_company;
+      if (!sc) return dash;
+      return sc.code ? `${sc.name} (${sc.code})` : sc.name;
+    },
+  },
+  {
     id: "status",
     header: "Status",
     accessorFn: (r) => r.status,

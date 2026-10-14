@@ -127,6 +127,28 @@ export const suppliers = pgTable(
   ],
 );
 
+/**
+ * Ocean carriers that move containers port to port. Plain reference records
+ * (like suppliers and cashiers), not logins. Deactivated rather than deleted
+ * so past containers keep their shipping line.
+ */
+export const shippingCompanies = pgTable(
+  "shipping_company",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    code: text("code"),
+    isActive: boolean("is_active").notNull().default(true),
+    ...auditTimestamps,
+  },
+  (table) => [
+    uniqueIndex("shipping_company_name_lower_uq").on(sql`lower(${table.name})`),
+    uniqueIndex("shipping_company_code_lower_uq")
+      .on(sql`lower(${table.code})`)
+      .where(sql`${table.code} is not null`),
+  ],
+);
+
 export const productCategories = pgTable(
   "product_category",
   {
@@ -192,7 +214,18 @@ export const containers = pgTable(
       .notNull()
       .references(() => shipments.id, { onDelete: "cascade" }),
     containerNo: text("container_no"),
-    isCompanyTruck: boolean("is_company_truck").notNull().default(true),
+    /**
+     * How the container is hauled to the warehouse. Decided at port arrival,
+     * not at registration: true means our own truck, false means a third-party
+     * hauler named in `hauler`. Null until the container arrives at port.
+     */
+    isCompanyTruck: boolean("is_company_truck"),
+    hauler: text("hauler"),
+    /** Which ocean carrier ships this container port to port. */
+    shippingCompanyId: uuid("shipping_company_id").references(
+      () => shippingCompanies.id,
+      { onDelete: "restrict" },
+    ),
     dateArrivedAtPort: date("date_arrived_at_port", { mode: "string" }),
     dateDelivered: date("date_delivered", { mode: "string" }),
     dateUnloaded: date("date_unloaded", { mode: "string" }),
@@ -539,6 +572,7 @@ export const schema = {
   profiles,
   sessions,
   suppliers,
+  shippingCompanies,
   productCategories,
   shipments,
   containers,
