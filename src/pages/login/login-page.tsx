@@ -1,13 +1,14 @@
-import { Input, Flex, Typography, Button, Checkbox } from 'antd';
+import { Input, Typography, Button, Switch, Tooltip } from 'antd';
+import { LockOutlined, MoonOutlined, SunOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { containerStyle, rightHalfStyle, cardStyle } from './login-page.style';
 import { ErrorNotificationPopup } from '../../common/items/notification/errror-notif';
 import { currentUserQueryKey } from './auth-useQuery';
 import { getLandingPath } from '../../common/components/sidebar/nav-items';
 import { login } from '../../queries/auth';
 import { LanguageToggle, useLanguage } from '../../common/context/language-context';
+import { useTheme } from '../../common/context/theme-context';
 
 export interface LoginCredentials {
   email: string;
@@ -16,7 +17,7 @@ export interface LoginCredentials {
 
 export default function LoginPage() {
   const { t } = useLanguage();
-  const {Title} = Typography;
+  const { mode, toggleTheme } = useTheme();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [credentials, setCredentials] = useState<LoginCredentials>({
@@ -61,43 +62,88 @@ export default function LoginPage() {
 
 
 
-    return(
-        <Flex style={containerStyle} component="form" onSubmit={handleLogin}>
-            {contextHolder}
-            <div className="login-language-toggle"><LanguageToggle /></div>
+  return (
+    <main className="login-page">
+      {contextHolder}
 
-            <Flex style={rightHalfStyle}>
-                <Flex style={cardStyle} className='loginContainer'>
+      <section className="login-brand-panel" aria-label={t('Wensor Trading inventory system')}>
+        <div className="login-brand-lockup">
+          <div className="login-brand-mark" aria-hidden="true">WT</div>
+          <Typography.Text className="login-company-name">Wensor Trading</Typography.Text>
+        </div>
+        <div className="login-brand-message">
+          <Typography.Title level={1}>{t('Inventory, receiving, and sales in one place.')}</Typography.Title>
+          <Typography.Paragraph>
+            {t('A secure workspace for Wensor Trading warehouse and point-of-sale operations.')}
+          </Typography.Paragraph>
+        </div>
+        <Typography.Text className="login-panel-footer">{t('Inventory Management System')}</Typography.Text>
+      </section>
 
-                        <Title level={1} style={{textAlign: 'left', marginBottom: 18, color: 'var(--brand)'}}>{t('Login')}</Title>
+      <section className="login-form-panel">
+        <div className="login-preferences">
+          <LanguageToggle />
+          <Tooltip title={t(mode === 'dark' ? 'Use light theme' : 'Use dark theme')}>
+            <Switch
+              size="small"
+              checked={mode === 'dark'}
+              onChange={toggleTheme}
+              checkedChildren={<MoonOutlined />}
+              unCheckedChildren={<SunOutlined />}
+              aria-label={t('Toggle color theme')}
+            />
+          </Tooltip>
+        </div>
 
+        <form className="login-card" onSubmit={handleLogin}>
+          <div className="login-mobile-brand">
+            <div className="login-brand-mark" aria-hidden="true">WT</div>
+            <Typography.Text strong>Wensor Trading</Typography.Text>
+          </div>
+          <Typography.Title level={2} className="login-title">{t('Welcome back')}</Typography.Title>
+          <Typography.Paragraph className="login-description">
+            {t('Sign in with your assigned account to continue.')}
+          </Typography.Paragraph>
 
-                    <Input
-                        name="email"
-                        placeholder={t('Email')}
-                        value={credentials.email}
-                        onChange={handleInputChange}
-                        autoComplete="username"
-                        style={{ marginBottom: 12 }}
-                    />
+          <label className="login-field">
+            <span>{t('Email')}</span>
+            <Input
+              name="email"
+              type="email"
+              size="large"
+              prefix={<UserOutlined />}
+              placeholder={t('Enter your email address')}
+              value={credentials.email}
+              onChange={handleInputChange}
+              autoComplete="username"
+              required
+              autoFocus
+            />
+          </label>
 
-                    <Input.Password
-                        name="password"
-                        placeholder={t('Password')}
-                        value={credentials.password}
-                        onChange={handleInputChange}
-                        autoComplete="current-password"
-                        style={{ marginBottom: 16 }}
-                    />
+          <label className="login-field">
+            <span>{t('Password')}</span>
+            <Input.Password
+              name="password"
+              size="large"
+              prefix={<LockOutlined />}
+              placeholder={t('Enter your password')}
+              value={credentials.password}
+              onChange={handleInputChange}
+              autoComplete="current-password"
+              required
+            />
+          </label>
 
-                    <Button style={{ backgroundColor: 'var(--brand)', borderColor: 'var(--brand)', marginBottom: 10 }} type="primary" htmlType="submit" loading={isSubmitting} block>
-                        {t('Login')}
-                    </Button>
-                    <Checkbox><Typography style={{fontSize: 11, color: 'var(--brand)', justifyContent: 'center', alignItems: 'center'  }}>{t('Remember Me')}</Typography></Checkbox>
-
-                </Flex>
-            </Flex>
-        </Flex>
-    )
+          <Button className="login-submit" type="primary" htmlType="submit" loading={isSubmitting} size="large" block>
+            {t('Sign in')}
+          </Button>
+          <Typography.Text className="login-help">
+            {t('Account access is managed by your administrator.')}
+          </Typography.Text>
+        </form>
+      </section>
+    </main>
+  )
 
 }
