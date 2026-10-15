@@ -72,7 +72,10 @@ export interface Supplier {
 export interface ShippingCompany {
   id: string;
   name: string;
+  /** Primary display code retained for historical views. */
   code: string | null;
+  /** All container-owner prefixes that identify this carrier. */
+  codes: string[];
   is_active: boolean;
 }
 
@@ -99,12 +102,12 @@ export interface UpdateSupplierInput {
 
 export interface CreateShippingCompanyInput {
   name: string;
-  code: string | null;
+  codes: string[];
 }
 
 export interface UpdateShippingCompanyInput {
   name?: string;
-  code?: string | null;
+  codes?: string[];
   isActive?: boolean;
 }
 

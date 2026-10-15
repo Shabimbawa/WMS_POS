@@ -49,7 +49,7 @@ export default function OrderSlipTrashPage() {
   };
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
       {msgHolder}
       {contextHolder}
       <Flex justify="space-between" align="center" wrap gap={12}>

@@ -12,7 +12,8 @@
     "dev:reset-receiving": "tsx src/scripts/reset-receiving-data.ts",
     "seed": "tsx src/scripts/seed-reference.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "npm run build && node dist/scripts/migrate.js",
+    "db:migrate:kit": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

@@ -37,7 +37,7 @@ export function SummarySlipsDrawer({
       onClose={onClose}
       width="min(1100px, 95vw)"
       title={selection ? `${selection.cashier.name} · ${DateParser(selection.date)}` : undefined}
-      destroyOnClose
+      destroyOnHidden
     >
       {isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />

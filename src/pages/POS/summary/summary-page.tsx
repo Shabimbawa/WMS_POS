@@ -60,7 +60,7 @@ export default function OrderSlipSummaryPage() {
     range[0].isSame(defaultFrom, "day") && range[1].isSame(defaultTo, "day");
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
       <Typography.Title level={4} style={{ margin: 0 }}>{t("Daily Summary")}</Typography.Title>
       <Typography.Text type="secondary">
         {t("Review order-slip totals grouped by day and cashier for the selected period. Select a cashier summary to inspect the individual slips and product quantities behind that day's totals.")}

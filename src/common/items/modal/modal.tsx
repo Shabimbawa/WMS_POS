@@ -74,7 +74,8 @@ export default function CommonModalForm<TValues extends Record<string, unknown> 
         confirmLoading={confirmLoading}
         onCancel={handleCancel}
         width={width}
-        destroyOnClose maskClosable={false}
+        destroyOnHidden
+        mask={{ closable: false }}
       >
         <Form
           form={form}

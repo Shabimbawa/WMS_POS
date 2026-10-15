@@ -1,4 +1,4 @@
-import { Form, Input, message } from "antd";
+import { Form, Input, Select, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 
 import CommonModalForm from "../../../common/items/modal/modal";
@@ -9,7 +9,7 @@ import { useLanguage } from "../../../common/context/language-context";
 
 type ShippingCompanyValues = {
   name: string;
-  code?: string;
+  codes?: string[];
 };
 
 /** "New shipping company" button and modal. */
@@ -27,7 +27,7 @@ export function CreateShippingCompanyButton({
     try {
       const company = await create.mutateAsync({
         name: values.name.trim(),
-        code: values.code?.trim() || null,
+        codes: (values.codes ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean),
       });
       msg.success(t("Shipping company added"));
       onCreated?.(company);
@@ -63,11 +63,11 @@ export function CreateShippingCompanyButton({
           <Input maxLength={200} placeholder="e.g. Maersk Line" />
         </Form.Item>
         <Form.Item
-          name="code"
-          label={t("Code")}
-          tooltip={t("Optional short code, unique across shipping companies")}
+          name="codes"
+          label={t("Container codes")}
+          tooltip={t("Type a code and press Enter. Codes must be unique across shipping companies.")}
         >
-          <Input maxLength={50} placeholder="e.g. MSK" />
+          <Select mode="tags" tokenSeparators={[",", " "]} placeholder="e.g. MSK, MAEU" maxTagCount="responsive" />
         </Form.Item>
       </CommonModalForm>
     </>

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Flex, Form, Input, Tag, Tooltip, message } from "antd";
+import { Flex, Form, Input, Select, Tag, Tooltip, Typography, message } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -14,7 +14,7 @@ import {
 
 type EditValues = {
   name: string;
-  code?: string | null;
+  codes?: string[];
 };
 
 function ShippingCompanyActions({
@@ -35,7 +35,7 @@ function ShippingCompanyActions({
         id: company.id,
         input: {
           name: values.name.trim(),
-          code: values.code?.trim() || null,
+          codes: (values.codes ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean),
         },
       });
       msg.success("Shipping company updated");
@@ -78,7 +78,7 @@ function ShippingCompanyActions({
             width={400}
             initialValues={{
               name: company.name,
-              code: company.code ?? undefined,
+              codes: company.codes?.length ? company.codes : company.code ? [company.code] : [],
             }}
             onSave={handleEdit}
           >
@@ -91,8 +91,12 @@ function ShippingCompanyActions({
             >
               <Input maxLength={200} />
             </Form.Item>
-            <Form.Item name="code" label="Code">
-              <Input maxLength={50} placeholder="Optional" />
+            <Form.Item
+              name="codes"
+              label="Container codes"
+              tooltip="Type a code and press Enter. Each code can belong to only one shipping company."
+            >
+              <Select mode="tags" tokenSeparators={[",", " "]} placeholder="e.g. MSK, MAEU" maxTagCount="responsive" />
             </Form.Item>
           </CommonModalForm>
         </span>
@@ -108,10 +112,10 @@ function ShippingCompanyActions({
             onSave={() => handleDelete()}
           >
             <Form.Item>
-              <span style={{ color: "rgba(0, 0, 0, 0.65)" }}>
+              <Typography.Text type="secondary">
                 Existing containers keep this shipping company. It will no longer
                 appear in dropdowns.
-              </span>
+              </Typography.Text>
             </Form.Item>
           </CommonModalForm>
         </span>
@@ -137,11 +141,17 @@ export function ShippingCompanyTable({
         meta: { fixed: "left" },
       },
       {
-        id: "code",
-        header: "Code",
-        accessorFn: (s) => s.code,
-        size: 140,
-        cell: (c) => c.getValue<string | null>() ?? "-",
+        id: "codes",
+        header: "Container codes",
+        accessorFn: (s) => s.codes,
+        size: 260,
+        cell: (c) => {
+          const company = c.row.original;
+          const codes = company.codes?.length ? company.codes : company.code ? [company.code] : [];
+          return codes.length
+            ? <Flex gap={4} wrap>{codes.map((code) => <Tag key={code} style={{ margin: 0 }}>{code}</Tag>)}</Flex>
+            : "-";
+        },
       },
       {
         id: "actions",

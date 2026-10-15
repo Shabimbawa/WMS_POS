@@ -243,7 +243,7 @@ export default function ReportsPage() {
   };
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
       <Typography.Title level={4} style={{ margin: 0 }}>{t("Generate Reports")}</Typography.Title>
       <Typography.Text type="secondary">
         {t('Build stock, supplier, or movement reports for a selected period and set of filters. Generate the results before exporting them to print or PDF; pending and cancelled containers and voided deliveries are excluded from received-stock totals.')}
@@ -426,7 +426,7 @@ export default function ReportsPage() {
       ) : !hasResults ? (
         <Empty description={t("Nothing was received for these filters")} />
       ) : (
-        <Space direction="vertical" size="middle" style={{ width: "100%", opacity: active.isFetching ? 0.6 : 1 }}>
+        <Space orientation="vertical" size="middle" style={{ width: "100%", opacity: active.isFetching ? 0.6 : 1 }}>
           <Card size="small">
             {applied.type === "stock" ? (
               <Flex wrap gap={32} align="center">

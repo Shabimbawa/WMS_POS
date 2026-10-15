@@ -152,6 +152,28 @@ export const shippingCompanies = pgTable(
   ],
 );
 
+/**
+ * Container-owner prefixes used to identify a shipping company while a
+ * container number is entered. A company may own several prefixes, but a
+ * prefix can belong to only one company.
+ */
+export const shippingCompanyCodes = pgTable(
+  "shipping_company_code",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shippingCompanyId: uuid("shipping_company_id")
+      .notNull()
+      .references(() => shippingCompanies.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("shipping_company_code_company_idx").on(table.shippingCompanyId),
+    uniqueIndex("shipping_company_alias_code_lower_uq").on(sql`lower(${table.code})`),
+    check("shipping_company_code_nonempty_ck", sql`length(trim(${table.code})) > 0`),
+  ],
+);
+
 export const productCategories = pgTable(
   "product_category",
   {
@@ -585,6 +607,7 @@ export const schema = {
   sessions,
   suppliers,
   shippingCompanies,
+  shippingCompanyCodes,
   productCategories,
   shipments,
   containers,

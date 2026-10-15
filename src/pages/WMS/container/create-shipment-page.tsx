@@ -73,14 +73,39 @@ const toItemFields = (v: ItemValues) => ({
 
 function ContainerFormFields() {
   const { t } = useLanguage();
+  const form = Form.useFormInstance<ContainerValues>();
   const { data: shippingCompanies = [], isPending: loadingShipping } =
     useShippingCompanies();
+
+  const detectShippingCompany = (containerNo: string) => {
+    const normalizedNumber = containerNo.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!normalizedNumber) return;
+
+    const match = shippingCompanies
+      .flatMap((company) => {
+        const codes = company.codes?.length
+          ? company.codes
+          : company.code
+            ? [company.code]
+            : [];
+        return codes.map((code) => ({
+          companyId: company.id,
+          normalizedCode: code.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+        }));
+      })
+      .filter(({ normalizedCode }) => normalizedCode && normalizedNumber.startsWith(normalizedCode))
+      .sort((a, b) => b.normalizedCode.length - a.normalizedCode.length)[0];
+
+    if (match) form.setFieldValue("shipping_company_id", match.companyId);
+  };
+
   return (
     <>
       <Form.Item name="container_no" label={t("Container no.")}>
         <Input
           placeholder={t("e.g. OCLU1395985 — leave blank if none")}
           style={{ fontFamily: "var(--mono)" }}
+          onChange={(event) => detectShippingCompany(event.target.value)}
         />
       </Form.Item>
       <Form.Item
@@ -94,11 +119,18 @@ function ContainerFormFields() {
           placeholder={t("Select shipping company")}
           loading={loadingShipping}
           options={shippingCompanies.map((s) => ({
-            label: s.code ? `${s.name} (${s.code})` : s.name,
+            label: s.codes?.length
+              ? `${s.name} (${s.codes.join(", ")})`
+              : s.code
+                ? `${s.name} (${s.code})`
+                : s.name,
             value: s.id,
           }))}
         />
       </Form.Item>
+      <Typography.Text type="secondary" style={{ display: "block", marginTop: -12, marginBottom: 16, fontSize: 12 }}>
+        {t("Automatically selected when the container number starts with a registered company code.")}
+      </Typography.Text>
     </>
   );
 }
