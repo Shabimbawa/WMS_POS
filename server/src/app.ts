@@ -2,7 +2,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { ZodError } from "zod";
-import { config, isProduction } from "./config.js";
+import { config } from "./config.js";
 import { ApiError } from "./lib/api-error.js";
 import { authPlugin } from "./plugins/auth.js";
 import { authRoutes } from "./routes/auth.js";
@@ -22,12 +22,14 @@ export async function buildApp() {
   const app = Fastify({ logger: true });
 
   await app.register(cookie);
-  if (!isProduction) {
-    await app.register(cors, {
-      origin: config.VITE_DEV_ORIGIN,
-      credentials: true,
-    });
-  }
+  // The hosted frontend and API use separate origins. Register CORS in every
+  // environment and list all methods used by the REST API so browser
+  // preflights for PATCH/PUT/DELETE are answered by Fastify correctly.
+  await app.register(cors, {
+    origin: config.VITE_DEV_ORIGIN,
+    credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  });
 
   // Set these before registering routes. `await app.register()` loads a
   // plugin immediately, and it keeps whichever handlers exist at that moment,

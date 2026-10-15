@@ -75,7 +75,7 @@ settings:
 For the current team-test domains, configure the backend with:
 
 ```env
-NODE_ENV=development
+NODE_ENV=production
 HOST=0.0.0.0
 PORT=3000
 DATABASE_URL=<secret hosted PostgreSQL URL>
@@ -96,10 +96,9 @@ The `https://` prefix is required; without it the browser treats the API host
 as a path under the frontend domain. Because Vite embeds environment variables
 at build time, rebuild the frontend after changing this value.
 
-`NODE_ENV=development` is a temporary deployment constraint: the current API
-registers cross-origin access only outside production. Before treating this as
-a production internet deployment, make allowed origins independently
-configurable and run the backend with `NODE_ENV=production`.
+`VITE_DEV_ORIGIN` is the exact browser origin allowed by the API despite its
+historical name. CORS is enabled in every environment and supports the REST
+methods used by the application, including `PATCH`, `PUT`, and `DELETE`.
 
 Never expose `DATABASE_URL` to the frontend or commit it. Rotate any database
 credential that has appeared in logs, screenshots, chat, or source control.

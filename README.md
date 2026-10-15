@@ -80,8 +80,8 @@ server {
 }
 ```
 
-Backend environment variables, health checks, and the current CORS limitation
-are documented in **[server/README.md](./server/README.md)**. Deployment is not
+Backend environment variables and health checks are documented in
+**[server/README.md](./server/README.md)**. Deployment is not
 considered verified until `/api/v1/health`, login, cookie persistence, and both
 role-specific flows pass on the hosted domains.
 
