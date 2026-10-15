@@ -367,6 +367,10 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         .insert(shipments)
         .values({
           supplierId: input.supplierId,
+          // Do not rely on the INTERNATIONAL database default: this route is
+          // shared by international and national shipment registration, and
+          // the composite FK requires the stored kind to match the supplier.
+          supplierKind: supplier.kind,
           dateListReceived: input.dateListReceived,
           reference: input.reference,
           notes: input.notes,
