@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import { productCategories, suppliers } from "../db/schema.js";
@@ -106,9 +106,71 @@ export async function referenceRoutes(app: FastifyInstance): Promise<void> {
   app.post("/suppliers", warehouseOnly, async (request, reply) => {
     const body = createSupplier.parse(request.body);
     try {
-      const [created] = await db.insert(suppliers).values(body).returning(supplierColumns);
-      return reply.code(201).send(created);
+      const result = await db.transaction(async (tx) => {
+        const matches = await tx
+          .select(supplierColumns)
+          .from(suppliers)
+          .where(or(
+            sql`lower(${suppliers.name}) = lower(${body.name})`,
+            ...(body.code
+              ? [sql`lower(${suppliers.code}) = lower(${body.code})`]
+              : []),
+          ));
+
+        if (matches.length > 1) {
+          throw new ApiError(
+            409,
+            "SUPPLIER_IDENTITY_CONFLICT",
+            "The supplier name and code belong to different existing suppliers",
+          );
+        }
+
+        const existing = matches[0];
+        if (existing) {
+          if (existing.is_active) {
+            throw new ApiError(
+              409,
+              "SUPPLIER_EXISTS",
+              "A supplier with that name or code already exists",
+            );
+          }
+          if (existing.kind !== body.kind) {
+            throw new ApiError(
+              409,
+              "SUPPLIER_TYPE_MISMATCH",
+              `This supplier already exists as an inactive ${existing.kind.toLowerCase()} supplier. Restore it using the same type.`,
+            );
+          }
+
+          const [restored] = await tx
+            .update(suppliers)
+            .set({
+              name: body.name,
+              code: body.code,
+              origin: body.origin,
+              isActive: true,
+            })
+            .where(eq(suppliers.id, existing.id))
+            .returning(supplierColumns);
+          if (!restored) {
+            throw new ApiError(500, "RESTORE_FAILED", "Supplier was not restored");
+          }
+          return { supplier: restored, restored: true };
+        }
+
+        const [created] = await tx
+          .insert(suppliers)
+          .values(body)
+          .returning(supplierColumns);
+        if (!created) {
+          throw new ApiError(500, "CREATE_FAILED", "Supplier was not created");
+        }
+        return { supplier: created, restored: false };
+      });
+
+      return reply.code(result.restored ? 200 : 201).send(result.supplier);
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       if (isUniqueViolation(error)) {
         throw new ApiError(409, "SUPPLIER_EXISTS", "A supplier with that name or code already exists");
       }
