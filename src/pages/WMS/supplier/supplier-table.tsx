@@ -1,4 +1,4 @@
-import { Flex, Form, Input, Tag, Tooltip, message } from "antd";
+import { Flex, Form, Input, Tag, Tooltip, Typography, message } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -122,10 +122,10 @@ function SupplierActions({
             onSave={() => handleDelete()}
           >
             <Form.Item>
-              <span style={{ color: "rgba(0, 0, 0, 0.65)" }}>
+              <Typography.Text type="secondary">
                 Active shipments and deliveries will remain intact. This supplier
                 will no longer appear in dropdowns.
-              </span>
+              </Typography.Text>
             </Form.Item>
           </CommonModalForm>
         </span>
