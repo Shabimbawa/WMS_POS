@@ -241,6 +241,17 @@ textarea {
 
 /* ---- Login ---- */
 
+.login-session-check {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--bg);
+  color: var(--text);
+}
+
 .login-page {
   height: 100svh;
   min-height: 0;

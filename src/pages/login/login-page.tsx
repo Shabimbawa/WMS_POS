@@ -1,10 +1,10 @@
-import { Input, Typography, Button, Switch, Tooltip } from 'antd';
+import { Input, Typography, Button, Switch, Tooltip, Spin } from 'antd';
 import { LockOutlined, MoonOutlined, SunOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ErrorNotificationPopup } from '../../common/items/notification/errror-notif';
-import { currentUserQueryKey } from './auth-useQuery';
+import { currentUserQueryKey, useCurrentProfile } from './auth-useQuery';
 import { getLandingPath } from '../../common/components/sidebar/nav-items';
 import { login } from '../../queries/auth';
 import { LanguageToggle, useLanguage } from '../../common/context/language-context';
@@ -18,21 +18,20 @@ export interface LoginCredentials {
 export default function LoginPage() {
   const { t } = useLanguage();
   const { mode, toggleTheme } = useTheme();
-    const navigate = useNavigate();
-    const queryClient = useQueryClient();
-    const [credentials, setCredentials] = useState<LoginCredentials>({
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: existingProfile, isPending: checkingSession } = useCurrentProfile();
+  const [credentials, setCredentials] = useState<LoginCredentials>({
     email: '',
     password: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Drop the previous session's rows now rather than during sign-out. Sign-out
-  // runs while an authenticated page is still mounted, so clearing there makes
-  // its queries refetch against the destroyed session and cache the empty
-  // result. Nothing is subscribed on this page, so clearing here is inert.
   useEffect(() => {
-    queryClient.clear();
-  }, [queryClient]);
+    if (existingProfile) {
+      navigate(getLandingPath(existingProfile.roles), { replace: true });
+    }
+  }, [existingProfile, navigate]);
 
   const { showError, contextHolder } = ErrorNotificationPopup();
     const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -61,6 +60,15 @@ export default function LoginPage() {
   };
 
 
+
+  if (checkingSession || existingProfile) {
+    return (
+      <main className="login-session-check" aria-busy="true" aria-label={t('Checking your session')}>
+        <Spin size="large" />
+        <Typography.Text>{t(existingProfile ? 'Opening your workspace...' : 'Checking your session...')}</Typography.Text>
+      </main>
+    );
+  }
 
   return (
     <main className="login-page">
