@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "admin:create": "tsx src/scripts/create-admin.ts",
+    "dev:reset-receiving": "tsx src/scripts/reset-receiving-data.ts",
     "seed": "tsx src/scripts/seed-reference.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
