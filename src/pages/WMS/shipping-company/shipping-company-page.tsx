@@ -30,7 +30,7 @@ export default function ShippingCompanyPage() {
         </Flex>
       </Flex>
       <Typography.Text type="secondary">
-        {t("Manage the ocean carriers assigned to international containers. Deactivated companies remain visible on historical shipments but are removed from the choices for new records.")}
+        {t("Manage container codes and grace periods for each shipping line. Pull-out deadlines are calculated automatically from the port arrival date. Deactivated companies remain on historical shipments.")}
       </Typography.Text>
 
       {isPending ? (

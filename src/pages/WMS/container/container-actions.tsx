@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   Button,
   DatePicker,
   Flex,
@@ -36,7 +37,7 @@ type StatusValues = {
   status: UpdateContainerStatusInput["status"];
   date_delivered?: Dayjs;
   date_arrived_at_port?: Dayjs;
-  pull_out_before?: Dayjs;
+  grace_period_ready?: boolean;
   is_company_truck?: boolean;
   hauler?: string;
   cancellation_reason?: string;
@@ -54,13 +55,21 @@ const STATUS_OPTIONS = {
 function StatusFields({
   form,
   currentStatus,
+  gracePeriodDays,
+  shippingCompanyName,
 }: {
   form: FormInstance<StatusValues>;
   currentStatus: ContainerStatus;
+  gracePeriodDays: number | null;
+  shippingCompanyName: string | null;
 }) {
   const { t } = useLanguage();
   const status = Form.useWatch("status", form);
   const isCompanyTruck = Form.useWatch("is_company_truck", form);
+  const arrivedAtPort = Form.useWatch("date_arrived_at_port", form);
+  const pullOutBefore = arrivedAtPort && gracePeriodDays
+    ? arrivedAtPort.add(gracePeriodDays, "day")
+    : null;
   return (
     <>
       <Form.Item
@@ -85,23 +94,38 @@ function StatusFields({
             <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item
-            name="pull_out_before"
-            label={t("Pull out before")}
-            extra={t("Last date the container can remain at the port without exceeding its allowance.")}
-            rules={[
-              { required: true, message: t("Pick the pull-out deadline") },
-              ({ getFieldValue }) => ({
-                validator(_, value: Dayjs | undefined) {
-                  const arrived = getFieldValue("date_arrived_at_port") as Dayjs | undefined;
-                  return !value || !arrived || !value.isBefore(arrived, "day")
-                    ? Promise.resolve()
-                    : Promise.reject(new Error(t("Deadline cannot be before arrival")));
-                },
-              }),
-            ]}
+            name="grace_period_ready"
+            hidden
+            rules={[{
+              validator: () => gracePeriodDays
+                ? Promise.resolve()
+                : Promise.reject(new Error(t("Configure the shipping company's grace period first"))),
+            }]}
           >
-            <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
+            <Input type="hidden" />
           </Form.Item>
+          {gracePeriodDays && pullOutBefore ? (
+            <Alert
+              type="info"
+              showIcon
+              message={t("Pull out on or before {date}", {
+                date: pullOutBefore.format("MMMM DD, YYYY"),
+              })}
+              description={t("Calculated automatically from {company}'s {days}-day grace period.", {
+                company: shippingCompanyName ?? t("the shipping company"),
+                days: gracePeriodDays,
+              })}
+              style={{ marginBottom: 24 }}
+            />
+          ) : (
+            <Alert
+              type="warning"
+              showIcon
+              message={t("Grace period not configured")}
+              description={t("Set a grace period for this shipping company before updating the status.")}
+              style={{ marginBottom: 24 }}
+            />
+          )}
           <Form.Item
             name="is_company_truck"
             label={t("Hauling")}
@@ -175,7 +199,6 @@ export function ContainerActions({
         status: v.status,
         dateDelivered: v.date_delivered?.format("YYYY-MM-DD"),
         dateArrivedAtPort: v.date_arrived_at_port?.format("YYYY-MM-DD"),
-        pullOutBefore: v.pull_out_before?.format("YYYY-MM-DD"),
         isCompanyTruck: v.is_company_truck,
         hauler: v.hauler?.trim() || null,
         cancellationReason: v.cancellation_reason?.trim(),
@@ -219,7 +242,14 @@ export function ContainerActions({
         }}
         onSave={saveStatus}
       >
-        {(form) => <StatusFields form={form} currentStatus={container.status} />}
+        {(form) => (
+          <StatusFields
+            form={form}
+            currentStatus={container.status}
+            gracePeriodDays={container.shipping_company?.grace_period_days ?? null}
+            shippingCompanyName={container.shipping_company?.name ?? null}
+          />
+        )}
       </CommonModalForm>
 
       <Tooltip title={canUnload ? undefined : t("Mark as delivered first")}>

@@ -207,7 +207,6 @@ export async function updateContainerStatus({
   status,
   dateDelivered,
   dateArrivedAtPort,
-  pullOutBefore,
   isCompanyTruck,
   hauler,
   cancellationReason,
@@ -220,7 +219,6 @@ export async function updateContainerStatus({
       method: "POST",
       body: JSON.stringify({
         date: dateArrivedAtPort,
-        pullOutBefore,
         isCompanyTruck,
         hauler,
       }),

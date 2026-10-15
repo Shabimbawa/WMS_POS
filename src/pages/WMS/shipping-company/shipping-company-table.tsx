@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Flex, Form, Input, Select, Tag, Tooltip, Typography, message } from "antd";
+import { Flex, Form, Input, InputNumber, Select, Tag, Tooltip, Typography, message } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -15,6 +15,7 @@ import {
 type EditValues = {
   name: string;
   codes?: string[];
+  grace_period_days: number;
 };
 
 function ShippingCompanyActions({
@@ -36,6 +37,7 @@ function ShippingCompanyActions({
         input: {
           name: values.name.trim(),
           codes: (values.codes ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean),
+          gracePeriodDays: values.grace_period_days,
         },
       });
       msg.success("Shipping company updated");
@@ -79,6 +81,7 @@ function ShippingCompanyActions({
             initialValues={{
               name: company.name,
               codes: company.codes?.length ? company.codes : company.code ? [company.code] : [],
+              grace_period_days: company.grace_period_days ?? undefined,
             }}
             onSave={handleEdit}
           >
@@ -97,6 +100,14 @@ function ShippingCompanyActions({
               tooltip="Type a code and press Enter. Each code can belong to only one shipping company."
             >
               <Select mode="tags" tokenSeparators={[",", " "]} placeholder="e.g. MSK, MAEU" maxTagCount="responsive" />
+            </Form.Item>
+            <Form.Item
+              name="grace_period_days"
+              label="Grace period"
+              extra="Used to calculate the pull-out deadline from the port arrival date."
+              rules={[{ required: true, message: "Enter the grace period" }]}
+            >
+              <InputNumber min={1} max={3650} precision={0} addonAfter="days" style={{ width: "100%" }} />
             </Form.Item>
           </CommonModalForm>
         </span>
@@ -152,6 +163,15 @@ export function ShippingCompanyTable({
             ? <Flex gap={4} wrap>{codes.map((code) => <Tag key={code} style={{ margin: 0 }}>{code}</Tag>)}</Flex>
             : "-";
         },
+      },
+      {
+        id: "grace_period_days",
+        header: "Grace period",
+        accessorFn: (s) => s.grace_period_days,
+        size: 160,
+        cell: (c) => c.getValue<number | null>()
+          ? `${c.getValue<number>()} days`
+          : <Tag color="warning" style={{ margin: 0 }}>Not configured</Tag>,
       },
       {
         id: "actions",

@@ -120,6 +120,13 @@
       "when": 1792055000000,
       "tag": "0016_shipping_company_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792060000000,
+      "tag": "0017_shipping_company_grace_period",
+      "breakpoints": true
     }
   ]
 }

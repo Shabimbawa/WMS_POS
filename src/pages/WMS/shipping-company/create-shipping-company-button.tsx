@@ -1,4 +1,4 @@
-import { Form, Input, Select, message } from "antd";
+import { Form, Input, InputNumber, Select, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 
 import CommonModalForm from "../../../common/items/modal/modal";
@@ -10,6 +10,7 @@ import { useLanguage } from "../../../common/context/language-context";
 type ShippingCompanyValues = {
   name: string;
   codes?: string[];
+  grace_period_days: number;
 };
 
 /** "New shipping company" button and modal. */
@@ -28,6 +29,7 @@ export function CreateShippingCompanyButton({
       const company = await create.mutateAsync({
         name: values.name.trim(),
         codes: (values.codes ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean),
+        gracePeriodDays: values.grace_period_days,
       });
       msg.success(t("Shipping company added"));
       onCreated?.(company);
@@ -68,6 +70,14 @@ export function CreateShippingCompanyButton({
           tooltip={t("Type a code and press Enter. Codes must be unique across shipping companies.")}
         >
           <Select mode="tags" tokenSeparators={[",", " "]} placeholder="e.g. MSK, MAEU" maxTagCount="responsive" />
+        </Form.Item>
+        <Form.Item
+          name="grace_period_days"
+          label={t("Grace period")}
+          extra={t("Number of calendar days after port arrival before the container must be pulled out.")}
+          rules={[{ required: true, message: t("Enter the grace period") }]}
+        >
+          <InputNumber min={1} max={3650} precision={0} addonAfter={t("days")} style={{ width: "100%" }} />
         </Form.Item>
       </CommonModalForm>
     </>

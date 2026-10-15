@@ -65,7 +65,6 @@ const shipmentBody = z.object({
 const eventBody = z.object({ date: isoDate });
 const arriveAtPortBody = z.object({
   date: isoDate,
-  pullOutBefore: isoDate,
   isCompanyTruck: z.boolean(),
   hauler: z.string().trim().max(500).nullable().optional(),
 });
@@ -108,6 +107,12 @@ function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
     else grouped.set(key, [row]);
   }
   return grouped;
+}
+
+function addCalendarDays(isoDateValue: string, days: number): string {
+  const date = new Date(`${isoDateValue}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
@@ -191,6 +196,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           id: shippingCompanies.id,
           name: shippingCompanies.name,
           code: shippingCompanies.code,
+          grace_period_days: shippingCompanies.gracePeriodDays,
         },
         status: containers.status,
         date_arrived_at_port: containers.dateArrivedAtPort,
@@ -415,6 +421,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           id: shippingCompanies.id,
           name: shippingCompanies.name,
           code: shippingCompanies.code,
+          grace_period_days: shippingCompanies.gracePeriodDays,
         },
         status: containers.status,
         date_arrived_at_port: containers.dateArrivedAtPort,
@@ -468,9 +475,21 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   app.post("/containers/:id/arrive-at-port", warehouseOnly, async (request) => {
     const { id } = idParams.parse(request.params);
     const input = arriveAtPortBody.parse(request.body);
-    if (input.pullOutBefore < input.date) {
-      throw new ApiError(400, "INVALID_PULL_OUT_DATE", "Pull-out deadline cannot be before the port arrival date");
+    const [company] = await db
+      .select({ gracePeriodDays: shippingCompanies.gracePeriodDays })
+      .from(containers)
+      .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
+      .where(eq(containers.id, id))
+      .limit(1);
+    if (!company) throw new ApiError(404, "CONTAINER_NOT_FOUND", "Container was not found");
+    if (!company.gracePeriodDays) {
+      throw new ApiError(
+        409,
+        "SHIPPING_COMPANY_GRACE_PERIOD_REQUIRED",
+        "Set this shipping company's grace period before marking the container at port",
+      );
     }
+    const pullOutBefore = addCalendarDays(input.date, company.gracePeriodDays);
     const hauler = input.hauler ? input.hauler.trim() : null;
     if (!input.isCompanyTruck && !hauler) {
       throw new ApiError(400, "HAULER_REQUIRED", "A third-party hauler name is required");
@@ -480,7 +499,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .set({
         status: "ARRIVED_AT_PORT",
         dateArrivedAtPort: input.date,
-        pullOutBefore: input.pullOutBefore,
+        pullOutBefore,
         isCompanyTruck: input.isCompanyTruck,
         hauler,
         updatedAt: new Date(),

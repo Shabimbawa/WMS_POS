@@ -141,6 +141,8 @@ export const shippingCompanies = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     code: text("code"),
+    /** Calendar days allowed at port after arrival. */
+    gracePeriodDays: integer("grace_period_days"),
     isActive: boolean("is_active").notNull().default(true),
     ...auditTimestamps,
   },
@@ -149,6 +151,10 @@ export const shippingCompanies = pgTable(
     uniqueIndex("shipping_company_code_lower_uq")
       .on(sql`lower(${table.code})`)
       .where(sql`${table.code} is not null`),
+    check(
+      "shipping_company_grace_period_positive_ck",
+      sql`${table.gracePeriodDays} is null or ${table.gracePeriodDays} > 0`,
+    ),
   ],
 );
 

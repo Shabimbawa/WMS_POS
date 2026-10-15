@@ -12,6 +12,7 @@ const createShippingCompany = z.object({
   name: z.string().trim().min(1).max(200),
   code: z.string().trim().min(1).max(50).nullable().optional(),
   codes: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+  gracePeriodDays: z.number().int().min(1).max(3650),
 });
 
 const updateShippingCompany = z
@@ -19,6 +20,7 @@ const updateShippingCompany = z
     name: z.string().trim().min(1).max(200).optional(),
     code: z.string().trim().min(1).max(50).nullable().optional(),
     codes: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+    gracePeriodDays: z.number().int().min(1).max(3650).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
@@ -29,6 +31,7 @@ const shippingCompanyColumns = {
   id: shippingCompanies.id,
   name: shippingCompanies.name,
   code: shippingCompanies.code,
+  grace_period_days: shippingCompanies.gracePeriodDays,
   is_active: shippingCompanies.isActive,
 };
 
@@ -85,7 +88,11 @@ export async function shippingCompanyRoutes(app: FastifyInstance): Promise<void>
       const created = await db.transaction(async (tx) => {
         const [company] = await tx
           .insert(shippingCompanies)
-          .values({ name: body.name, code: codes[0] ?? null })
+          .values({
+            name: body.name,
+            code: codes[0] ?? null,
+            gracePeriodDays: body.gracePeriodDays,
+          })
           .returning(shippingCompanyColumns);
         if (!company) throw new ApiError(500, "CREATE_FAILED", "Shipping company was not created");
         if (codes.length) {
@@ -120,6 +127,7 @@ export async function shippingCompanyRoutes(app: FastifyInstance): Promise<void>
           .set({
             ...(body.name !== undefined ? { name: body.name } : {}),
             ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+            ...(body.gracePeriodDays !== undefined ? { gracePeriodDays: body.gracePeriodDays } : {}),
             ...(replacesCodes ? { code: codes[0] ?? null } : {}),
             updatedAt: new Date(),
           })

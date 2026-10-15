@@ -76,6 +76,8 @@ export interface ShippingCompany {
   code: string | null;
   /** All container-owner prefixes that identify this carrier. */
   codes: string[];
+  /** Calendar days used to calculate the port pull-out deadline. */
+  grace_period_days: number | null;
   is_active: boolean;
 }
 
@@ -103,11 +105,13 @@ export interface UpdateSupplierInput {
 export interface CreateShippingCompanyInput {
   name: string;
   codes: string[];
+  gracePeriodDays: number;
 }
 
 export interface UpdateShippingCompanyInput {
   name?: string;
   codes?: string[];
+  gracePeriodDays?: number;
   isActive?: boolean;
 }
 
@@ -154,7 +158,7 @@ export interface ShipmentRow {
     /** Third-party hauler name, set when is_company_truck is false. */
     hauler: string | null;
     /** Ocean carrier that ships this container port to port. */
-    shipping_company: Pick<ShippingCompany, "id" | "name" | "code"> | null;
+    shipping_company: Pick<ShippingCompany, "id" | "name" | "code" | "grace_period_days"> | null;
     status: ContainerStatus;
     date_arrived_at_port: string | null;
     pull_out_before: string | null;
@@ -321,8 +325,6 @@ export interface UpdateContainerStatusInput {
   dateDelivered?: string;
   /** Required when status is ARRIVED_AT_PORT. */
   dateArrivedAtPort?: string;
-  /** Required when status is ARRIVED_AT_PORT. */
-  pullOutBefore?: string;
   /** Required when status is ARRIVED_AT_PORT: own truck vs third party. */
   isCompanyTruck?: boolean;
   /** Third-party hauler name, required when isCompanyTruck is false. */
