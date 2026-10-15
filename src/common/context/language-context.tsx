@@ -42,6 +42,7 @@ const zh: Record<string, string> = {
   'Toggle color theme': '切换颜色主题',
   'POS System': '销售系统',
   'Sign Out': '退出登录',
+  'Signing out...': '正在退出...',
   'warehouse_admin': '仓库管理员',
   'pos_admin': '销售管理员',
   'Shipments': '货运',

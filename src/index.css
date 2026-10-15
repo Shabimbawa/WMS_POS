@@ -176,10 +176,24 @@ body {
 .app-topbar .language-toggle { color: var(--shell-text-muted); }
 .app-topbar .language-toggle button.active { color: var(--shell-selected-text); }
 
-.topbar-signout.ant-btn { color: var(--shell-text-muted); }
+.topbar-signout.ant-btn {
+  min-width: 108px;
+  color: var(--shell-text-muted);
+}
 .topbar-signout.ant-btn:hover {
   color: var(--shell-text) !important;
   background: var(--shell-hover) !important;
+}
+
+.topbar-signout.ant-btn:disabled {
+  color: var(--shell-text-muted);
+  background: transparent;
+  opacity: 0.8;
+}
+
+.topbar-preference-disabled {
+  pointer-events: none;
+  opacity: 0.55;
 }
 
 @media (max-width: 720px) {
@@ -187,6 +201,7 @@ body {
   .topbar-account,
   .topbar-divider,
   .topbar-signout span:not(.ant-btn-icon) { display: none; }
+  .topbar-signout.ant-btn { min-width: 32px; }
   .topbar-actions { gap: 8px !important; }
 }
 

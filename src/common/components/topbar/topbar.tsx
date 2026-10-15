@@ -1,5 +1,6 @@
 import { Layout, Button, Typography, Space, Flex, Switch, Tooltip } from 'antd'
 import { LogoutOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/theme-context'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
@@ -18,7 +19,11 @@ export function Topbar({ onSignOut }: TopbarProps) {
   const navigate = useNavigate()
   const { mode, toggleTheme } = useTheme()
   const { data: profile, email } = useCurrentProfile()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
   const handleSignOut = async () => {
+    if (isSigningOut) return
+    setIsSigningOut(true)
     try {
       await logout()
     } finally {
@@ -48,7 +53,9 @@ export function Topbar({ onSignOut }: TopbarProps) {
           {profile?.roles && <Text className="topbar-role">{t(profile.roles)}</Text>}
         </div>
         <div className="topbar-divider" />
-        <LanguageToggle compact />
+        <div className={isSigningOut ? 'topbar-preference-disabled' : undefined} aria-disabled={isSigningOut}>
+          <LanguageToggle compact />
+        </div>
         <Tooltip title={t(mode === 'dark' ? 'Use light theme' : 'Use dark theme')}>
           <Switch
             size="small"
@@ -57,10 +64,19 @@ export function Topbar({ onSignOut }: TopbarProps) {
             checkedChildren={<MoonOutlined />}
             unCheckedChildren={<SunOutlined />}
             aria-label={t('Toggle color theme')}
+            disabled={isSigningOut}
           />
         </Tooltip>
-        <Button className="topbar-signout" icon={<LogoutOutlined />} onClick={handleSignOut} type="text">
-          {t('Sign Out')}
+        <Button
+          className="topbar-signout"
+          icon={!isSigningOut ? <LogoutOutlined /> : undefined}
+          onClick={handleSignOut}
+          type="text"
+          loading={isSigningOut}
+          disabled={isSigningOut}
+          aria-live="polite"
+        >
+          {t(isSigningOut ? 'Signing out...' : 'Sign Out')}
         </Button>
       </Space>
     </Header>
