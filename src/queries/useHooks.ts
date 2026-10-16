@@ -38,6 +38,7 @@ import {
   getSuppliers,
   unloadContainer,
   updateContainerStatus,
+  updateContainerHauling,
   updateProduct,
   updateShippingCompany,
   updateSupplier,
@@ -408,6 +409,16 @@ export function useUpdateContainerStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: updateContainerStatus,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.notebooks });
+    },
+  });
+}
+
+export function useUpdateContainerHauling() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateContainerHauling,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
     },

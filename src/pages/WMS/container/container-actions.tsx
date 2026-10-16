@@ -21,10 +21,12 @@ import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import {
   useUnloadContainer,
+  useUpdateContainerHauling,
   useUpdateContainerStatus,
 } from "../../../queries/useHooks";
 import type {
   ContainerStatus,
+  HaulingAssignment,
   ShipmentRow,
   UpdateContainerStatusInput,
 } from "../../../queries/types";
@@ -38,9 +40,12 @@ type StatusValues = {
   date_delivered?: Dayjs;
   date_arrived_at_port?: Dayjs;
   grace_period_ready?: boolean;
-  is_company_truck?: boolean;
-  hauler?: string;
   cancellation_reason?: string;
+};
+
+type HaulingValues = {
+  assignment: HaulingAssignment;
+  hauler?: string;
 };
 
 // UNLOADED is deliberately absent — it only happens through the unload RPC.
@@ -65,7 +70,6 @@ function StatusFields({
 }) {
   const { t } = useLanguage();
   const status = Form.useWatch("status", form);
-  const isCompanyTruck = Form.useWatch("is_company_truck", form);
   const arrivedAtPort = Form.useWatch("date_arrived_at_port", form);
   const pullOutBefore = arrivedAtPort && gracePeriodDays
     ? arrivedAtPort.add(gracePeriodDays, "day")
@@ -126,25 +130,6 @@ function StatusFields({
               style={{ marginBottom: 24 }}
             />
           )}
-          <Form.Item
-            name="is_company_truck"
-            label={t("Hauling")}
-            rules={[{ required: true, message: t("Pick who hauls it") }]}
-          >
-            <Radio.Group>
-              <Radio value={true}>{t("Own truck")}</Radio>
-              <Radio value={false}>{t("Third-party hauler")}</Radio>
-            </Radio.Group>
-          </Form.Item>
-          {isCompanyTruck === false && (
-            <Form.Item
-              name="hauler"
-              label={t("Hauler")}
-              rules={[{ required: true, whitespace: true, message: t("Enter the hauler name") }]}
-            >
-              <Input placeholder={t("Hauler name")} />
-            </Form.Item>
-          )}
         </>
       )}
       {status === "DELIVERED" && (
@@ -169,6 +154,39 @@ function StatusFields({
   );
 }
 
+function HaulingFields({ form }: { form: FormInstance<HaulingValues> }) {
+  const { t } = useLanguage();
+  const assignment = Form.useWatch("assignment", form);
+
+  return (
+    <>
+      <Typography.Paragraph type="secondary">
+        {t("Hauling is managed separately from the container status and can be assigned later.")}
+      </Typography.Paragraph>
+      <Form.Item
+        name="assignment"
+        label={t("Hauling assignment")}
+        rules={[{ required: true, message: t("Select a hauling assignment") }]}
+      >
+        <Radio.Group style={{ display: "grid", gap: 12 }}>
+          <Radio value="NOT_ASSIGNED">{t("Not assigned")}</Radio>
+          <Radio value="OWN_TRUCK">{t("Own truck")}</Radio>
+          <Radio value="THIRD_PARTY">{t("Third-party hauler")}</Radio>
+        </Radio.Group>
+      </Form.Item>
+      {assignment === "THIRD_PARTY" && (
+        <Form.Item
+          name="hauler"
+          label={t("Hauler")}
+          rules={[{ required: true, whitespace: true, message: t("Enter the hauler name") }]}
+        >
+          <Input maxLength={500} placeholder={t("Hauler name or company")} />
+        </Form.Item>
+      )}
+    </>
+  );
+}
+
 /** Update-status and unload controls for one container row. */
 export function ContainerActions({
   container,
@@ -180,6 +198,7 @@ export function ContainerActions({
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
   const updateStatus = useUpdateContainerStatus();
+  const updateHauling = useUpdateContainerHauling();
   const unload = useUnloadContainer();
 
   const deliveredOn = container.date_delivered
@@ -199,14 +218,34 @@ export function ContainerActions({
         status: v.status,
         dateDelivered: v.date_delivered?.format("YYYY-MM-DD"),
         dateArrivedAtPort: v.date_arrived_at_port?.format("YYYY-MM-DD"),
-        isCompanyTruck: v.is_company_truck,
-        hauler: v.hauler?.trim() || null,
         cancellationReason: v.cancellation_reason?.trim(),
       });
       msg.success(`${t("Marked")} ${t(STATUS_LABEL[v.status as ContainerStatus])}`);
     } catch (e) {
       showError(e, "Could not update status");
       throw e; // keeps the modal open
+    }
+  };
+
+  const saveHauling = async (v: HaulingValues) => {
+    try {
+      await updateHauling.mutateAsync(
+        v.assignment === "THIRD_PARTY"
+          ? {
+              containerId: container.id,
+              assignment: "THIRD_PARTY",
+              hauler: v.hauler!.trim(),
+            }
+          : { containerId: container.id, assignment: v.assignment },
+      );
+      msg.success(
+        v.assignment === "NOT_ASSIGNED"
+          ? t("Hauling assignment removed")
+          : t("Hauling assignment updated"),
+      );
+    } catch (e) {
+      showError(e, "Could not update hauling assignment");
+      throw e;
     }
   };
 
@@ -228,6 +267,27 @@ export function ContainerActions({
       {msgHolder}
       {errorHolder}
 
+      {(container.status === "DOCUMENTED" || container.status === "ARRIVED_AT_PORT") && (
+        <CommonModalForm<HaulingValues>
+          title={`${t("Hauling")} · ${container.container_no ?? t("No box")}`}
+          triggerLabel={container.is_company_truck === null ? t("Assign hauling") : t("Change hauling")}
+          triggerButtonType="default"
+          okText={t("Save assignment")}
+          width={420}
+          initialValues={{
+            assignment: container.is_company_truck === null
+              ? "NOT_ASSIGNED"
+              : container.is_company_truck
+                ? "OWN_TRUCK"
+                : "THIRD_PARTY",
+            hauler: container.hauler ?? undefined,
+          }}
+          onSave={saveHauling}
+        >
+          {(form) => <HaulingFields form={form} />}
+        </CommonModalForm>
+      )}
+
       <CommonModalForm<StatusValues>
         title={`${t("Update status")} · ${container.container_no ?? t("No box")}`}
         triggerLabel={t("Update status")}
@@ -238,7 +298,6 @@ export function ContainerActions({
           status: STATUS_OPTIONS[container.status][0],
           date_delivered: deliveredOn ?? dayjs(),
           date_arrived_at_port: dayjs(),
-          is_company_truck: true,
         }}
         onSave={saveStatus}
       >

@@ -253,9 +253,9 @@ export const containers = pgTable(
       .references(() => shipments.id, { onDelete: "cascade" }),
     containerNo: text("container_no"),
     /**
-     * How the container is hauled to the warehouse. Decided at port arrival,
-     * not at registration: true means our own truck, false means a third-party
-     * hauler named in `hauler`. Null until the container arrives at port.
+     * How the container is hauled to the warehouse. Managed independently of
+     * lifecycle status: true means our own truck, false means a third-party
+     * hauler named in `hauler`, and null means not assigned yet.
      */
     isCompanyTruck: boolean("is_company_truck"),
     hauler: text("hauler"),

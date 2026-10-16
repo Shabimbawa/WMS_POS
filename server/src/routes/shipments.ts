@@ -65,9 +65,15 @@ const shipmentBody = z.object({
 const eventBody = z.object({ date: isoDate });
 const arriveAtPortBody = z.object({
   date: isoDate,
-  isCompanyTruck: z.boolean(),
-  hauler: z.string().trim().max(500).nullable().optional(),
 });
+const haulingBody = z.discriminatedUnion("assignment", [
+  z.object({ assignment: z.literal("NOT_ASSIGNED") }),
+  z.object({ assignment: z.literal("OWN_TRUCK") }),
+  z.object({
+    assignment: z.literal("THIRD_PARTY"),
+    hauler: z.string().trim().min(1).max(500),
+  }),
+]);
 const cancelBody = z.object({ reason: z.string().trim().min(1).max(1_000) });
 
 const discrepancyInput = z.object({
@@ -490,24 +496,49 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       );
     }
     const pullOutBefore = addCalendarDays(input.date, company.gracePeriodDays);
-    const hauler = input.hauler ? input.hauler.trim() : null;
-    if (!input.isCompanyTruck && !hauler) {
-      throw new ApiError(400, "HAULER_REQUIRED", "A third-party hauler name is required");
-    }
     const updated = await db
       .update(containers)
       .set({
         status: "ARRIVED_AT_PORT",
         dateArrivedAtPort: input.date,
         pullOutBefore,
-        isCompanyTruck: input.isCompanyTruck,
-        hauler,
         updatedAt: new Date(),
       })
       .where(and(eq(containers.id, id), eq(containers.status, "DOCUMENTED")))
       .returning({ id: containers.id, status: containers.status });
     if (!updated[0]) throw new ApiError(409, "INVALID_CONTAINER_TRANSITION", "Only a documented container can arrive at port");
     return updated[0];
+  });
+
+  app.patch("/containers/:id/hauling", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const input = haulingBody.parse(request.body);
+    const assignment = input.assignment === "NOT_ASSIGNED"
+      ? { isCompanyTruck: null, hauler: null }
+      : input.assignment === "OWN_TRUCK"
+        ? { isCompanyTruck: true, hauler: null }
+        : { isCompanyTruck: false, hauler: input.hauler };
+
+    const [updated] = await db
+      .update(containers)
+      .set({ ...assignment, updatedAt: new Date() })
+      .where(and(
+        eq(containers.id, id),
+        inArray(containers.status, ["DOCUMENTED", "ARRIVED_AT_PORT"]),
+      ))
+      .returning({
+        id: containers.id,
+        is_company_truck: containers.isCompanyTruck,
+        hauler: containers.hauler,
+      });
+    if (!updated) {
+      throw new ApiError(
+        409,
+        "HAULING_ASSIGNMENT_LOCKED",
+        "Hauling can only be changed before the container is delivered",
+      );
+    }
+    return updated;
   });
 
   app.post("/containers/:id/deliver", warehouseOnly, async (request) => {

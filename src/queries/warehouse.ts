@@ -37,6 +37,7 @@ import type {
   VoidDeliveryInput,
   UnloadContainerInput,
   UpdateContainerStatusInput,
+  UpdateContainerHaulingInput,
   VarianceParams,
 } from "./types";
 
@@ -207,8 +208,6 @@ export async function updateContainerStatus({
   status,
   dateDelivered,
   dateArrivedAtPort,
-  isCompanyTruck,
-  hauler,
   cancellationReason,
 }: UpdateContainerStatusInput) {
   if (status === "DOCUMENTED") {
@@ -219,8 +218,6 @@ export async function updateContainerStatus({
       method: "POST",
       body: JSON.stringify({
         date: dateArrivedAtPort,
-        isCompanyTruck,
-        hauler,
       }),
     });
   }
@@ -233,6 +230,16 @@ export async function updateContainerStatus({
   return apiRequest(`/containers/${containerId}/cancel`, {
     method: "POST",
     body: JSON.stringify({ reason: cancellationReason }),
+  });
+}
+
+export async function updateContainerHauling({
+  containerId,
+  ...input
+}: UpdateContainerHaulingInput) {
+  return apiRequest(`/containers/${containerId}/hauling`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
   });
 }
 

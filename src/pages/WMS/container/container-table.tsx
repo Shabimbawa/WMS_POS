@@ -169,7 +169,7 @@ export const shipmentContainerColumns = (t: Translate): ColumnDef<ShipmentContai
     size: 160,
     cell: (c) => {
       const container = c.row.original;
-      if (container.is_company_truck === null) return dash;
+      if (container.is_company_truck === null) return t("Not assigned");
       if (container.is_company_truck) return t("Own truck");
       return container.hauler ?? t("Third-party hauler");
     },

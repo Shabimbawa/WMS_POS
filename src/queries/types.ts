@@ -325,13 +325,19 @@ export interface UpdateContainerStatusInput {
   dateDelivered?: string;
   /** Required when status is ARRIVED_AT_PORT. */
   dateArrivedAtPort?: string;
-  /** Required when status is ARRIVED_AT_PORT: own truck vs third party. */
-  isCompanyTruck?: boolean;
-  /** Third-party hauler name, required when isCompanyTruck is false. */
-  hauler?: string | null;
   /** Required when status is CANCELLED. */
   cancellationReason?: string;
 }
+
+export type HaulingAssignment = "NOT_ASSIGNED" | "OWN_TRUCK" | "THIRD_PARTY";
+
+export type UpdateContainerHaulingInput = {
+  containerId: string;
+} & (
+  | { assignment: "NOT_ASSIGNED" }
+  | { assignment: "OWN_TRUCK" }
+  | { assignment: "THIRD_PARTY"; hauler: string }
+);
 
 export interface PortPullOutRow {
   id: string;
