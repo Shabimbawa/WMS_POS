@@ -5,6 +5,8 @@ import { ZodError } from "zod";
 import { config } from "./config.js";
 import { ApiError } from "./lib/api-error.js";
 import { authPlugin } from "./plugins/auth.js";
+import { auditLogPlugin } from "./plugins/audit-log.js";
+import { auditLogRoutes } from "./routes/audit-logs.js";
 import { authRoutes } from "./routes/auth.js";
 import { cashierRoutes } from "./routes/cashiers.js";
 import { deliveryRoutes } from "./routes/deliveries.js";
@@ -70,6 +72,7 @@ export async function buildApp() {
   // plugin would encapsulate it, so sibling route plugins would never receive
   // the authenticated currentUser.
   await authPlugin(app);
+  await auditLogPlugin(app);
   await app.register(healthRoutes, { prefix: "/api/v1" });
   await app.register(authRoutes, { prefix: "/api/v1/auth" });
   await app.register(referenceRoutes, { prefix: "/api/v1" });
@@ -82,6 +85,7 @@ export async function buildApp() {
   await app.register(deliveryRoutes, { prefix: "/api/v1" });
   await app.register(orderTrashRoutes, { prefix: "/api/v1" });
   await app.register(reportRoutes, { prefix: "/api/v1" });
+  await app.register(auditLogRoutes, { prefix: "/api/v1" });
 
   // Empties Trash of slips past their 30 days. Hourly is plenty: the
   // deadline is a day count, and a late run only keeps a slip a little longer.

@@ -19,6 +19,7 @@ import {
   createSupplier,
   deleteShippingCompany,
   deleteSupplier,
+  getAuditLogs,
   getContainer,
   getContainerVariance,
   getOpenQuestionCount,
@@ -62,6 +63,7 @@ import {
 } from "./pos.ts";
 
 import type {
+  AuditLogParams,
   LocalDeliveryParams,
   OpenQuestionParams,
   ProductCategoryParams,
@@ -91,6 +93,7 @@ const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 // invalidating ['notebook'] clears every shipment list at once.
 
 export const qk = {
+  auditLogs: (p: AuditLogParams) => ["audit-logs", p] as const,
   suppliers: (p: SupplierParams = {}) => ["suppliers", p] as const,
 
   shippingCompanies: ["shipping-companies"] as const,
@@ -136,6 +139,14 @@ export const qk = {
   cashierList: (includeInactive: boolean) =>
     ["pos", "cashiers", { includeInactive }] as const,
 };
+
+export function useAuditLogs(params: AuditLogParams) {
+  return useQuery({
+    queryKey: qk.auditLogs(params),
+    queryFn: () => getAuditLogs(params),
+    placeholderData: keepPreviousData,
+  });
+}
 
 // ---- reference data ---------------------------------------------
 //

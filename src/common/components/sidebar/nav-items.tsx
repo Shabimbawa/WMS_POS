@@ -10,6 +10,7 @@ import {
   TruckOutlined,
   IssuesCloseOutlined,
   BarChartOutlined,
+  AuditOutlined,
 
   TeamOutlined,
 } from '@ant-design/icons'
@@ -66,6 +67,9 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'order-slip', path: '/order-slip', label: 'Order Slips', icon: <FileDoneOutlined />, roles: ['pos_admin'], group: 'Point of Sale' },
   { key: 'order-summary', path: '/order-summary', label: 'Daily Summary', icon: <BarChartOutlined />, roles: ['pos_admin'], group: 'Point of Sale' },
   { key: 'cashiers', path: '/cashiers', label: 'Cashiers', icon: <TeamOutlined />, roles: ['pos_admin'], group: 'Point of Sale' },
+
+  // ---- System ----
+  { key: 'audit-log', path: '/audit-log', label: 'Audit Log', icon: <AuditOutlined />, roles: ['warehouse_admin', 'pos_admin'], group: 'System' },
 ]
 
 /** True when `pathname` is `prefix` itself or a route nested under it. */

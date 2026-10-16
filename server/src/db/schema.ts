@@ -6,6 +6,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -607,6 +608,34 @@ export const stockMovements = pgTable(
   ],
 );
 
+/** Append-only history of every state-changing API request. */
+export const auditLogs = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorUserId: uuid("actor_user_id").references(() => appUsers.id, { onDelete: "set null" }),
+    actorEmail: text("actor_email"),
+    actorRole: profileRole("actor_role"),
+    action: text("action").notNull(),
+    module: text("module").notNull(),
+    method: varchar("method", { length: 10 }).notNull(),
+    route: text("route").notNull(),
+    recordId: text("record_id"),
+    details: jsonb("details"),
+    statusCode: integer("status_code").notNull(),
+    success: boolean("success").notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("audit_log_occurred_at_idx").on(table.occurredAt),
+    index("audit_log_actor_user_idx").on(table.actorUserId),
+    index("audit_log_module_idx").on(table.module),
+    index("audit_log_action_idx").on(table.action),
+  ],
+);
+
 export const schema = {
   appUsers,
   profiles,
@@ -626,4 +655,5 @@ export const schema = {
   localDeliveryItems,
   stockBalances,
   stockMovements,
+  auditLogs,
 };

@@ -2,6 +2,8 @@ import { apiRequest, queryString } from "../utils/api-client";
 import type {
   AdjustStockInput,
   AdjustStockResult,
+  AuditLogParams,
+  AuditLogRow,
   ContainerDetail,
   CreateLocalDeliveryInput,
   CreateProductInput,
@@ -45,6 +47,10 @@ export async function getSuppliers(
   params: SupplierParams = {},
 ): Promise<Supplier[]> {
   return apiRequest<Supplier[]>(`/suppliers${queryString(params)}`);
+}
+
+export async function getAuditLogs(params: AuditLogParams): Promise<Page<AuditLogRow>> {
+  return apiRequest<Page<AuditLogRow>>(`/audit-logs${queryString(params)}`);
 }
 
 export async function createSupplier(input: CreateSupplierInput): Promise<Supplier> {

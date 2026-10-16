@@ -27,6 +27,7 @@ import DiscrepanciesPage from './pages/WMS/discrepancy/discrepancies-page.tsx'
 import ReportsPage from './pages/WMS/reports/reports-page.tsx'
 import SupplierPage from './pages/WMS/supplier/supplier-page.tsx'
 import ShippingCompanyPage from './pages/WMS/shipping-company/shipping-company-page.tsx'
+import AuditLogPage from './pages/audit/audit-log-page.tsx'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -57,6 +58,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/order-slip/:id/edit" element={<EditOrderSlipPage />} />
                 <Route path="/order-summary" element={<OrderSlipSummaryPage />} />
                 <Route path="/cashiers" element={<CashierPage />} />
+                <Route path="/audit-log" element={<AuditLogPage />} />
               </Route>
           </Routes>
           </BrowserRouter>

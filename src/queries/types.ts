@@ -53,6 +53,33 @@ export interface Page<T> {
   pageCount: number;
 }
 
+export interface AuditLogParams extends Pagination {
+  dateFrom?: string;
+  dateTo?: string;
+  module?: string;
+  success?: boolean;
+  search?: string;
+  sortDir?: SortDir;
+}
+
+export interface AuditLogRow {
+  id: string;
+  actorUserId: string | null;
+  actorEmail: string | null;
+  actorRole: "warehouse_admin" | "pos_admin" | null;
+  action: string;
+  module: string;
+  method: string;
+  route: string;
+  recordId: string | null;
+  details: unknown;
+  statusCode: number;
+  success: boolean;
+  ipAddress: string | null;
+  userAgent: string | null;
+  occurredAt: string;
+}
+
 // ---- row shapes -------------------------------------------------
 
 export type SupplierKind = "INTERNATIONAL" | "LOCAL" | "NATIONAL";

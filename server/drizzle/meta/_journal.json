@@ -127,6 +127,13 @@
       "when": 1792060000000,
       "tag": "0017_shipping_company_grace_period",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792140000000,
+      "tag": "0018_audit_log",
+      "breakpoints": true
     }
   ]
 }
