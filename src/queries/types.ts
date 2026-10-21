@@ -176,7 +176,7 @@ export interface ShipmentRow {
   reference: string | null;
   notes: string | null;
   archived_at: string | null;
-  supplier: Pick<Supplier, "id" | "name" | "code">;
+  supplier: Pick<Supplier, "id" | "name" | "code" | "origin" | "kind">;
   container: Array<{
     id: string;
     container_no: string | null;

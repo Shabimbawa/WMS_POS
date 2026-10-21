@@ -81,32 +81,29 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
 
             <div className="print-doc">
               <header className="print-letterhead">
-                <h1 className="print-company">{COMPANY_NAME}</h1>
-                <div className="print-doc-title">{t("Packing List")}</div>
+                <div className="print-party"><span className="print-party-label">{t("Supplier")}:</span><strong>{shipment.supplier.name}</strong><span><b>{t("Code")}:</b> {shipment.supplier.code || dash}</span><span><b>{t("Origin")}:</b> {shipment.supplier.origin || dash}</span><span><b>{t("Type")}:</b> {t(shipment.supplier.kind === "INTERNATIONAL" ? "International" : "National")}</span></div>
+                <div className="print-brand"><h1 className="print-company">{COMPANY_NAME}</h1><div className="print-doc-title">{t("Packing List")}</div></div>
+                <div className="print-reference"><span><b>{t("Document no.")}</b> {shipment.id.slice(0, 8).toUpperCase()}</span><span><b>{t("Date")}</b> {DateParser(shipment.date_list_received)}</span></div>
               </header>
 
-              <div className="print-details">
-                <div className="print-detail">
-                  <span className="print-label">{t("Supplier")}:</span>
-                  <span>
-                    {shipment.supplier.name}
-                    {shipment.supplier.code
-                      ? ` (${shipment.supplier.code})`
-                      : ""}
-                  </span>
-                </div>
-                <div className="print-detail">
-                  <span className="print-label">{t("List received")}:</span>
-                  <span>{DateParser(shipment.date_list_received)}</span>
-                </div>
-                {shipment.reference ? (
-                  <div className="print-detail">
-                    <span className="print-label">{t("Reference")}:</span>
-                    <span>{shipment.reference}</span>
-                  </div>
-                ) : null}
+              <table className="print-table print-consolidated-table">
+                <thead><tr><th>{t("Container")}</th><th>{t("Product")}</th><th className="num">{t("Sacks")}</th><th className="num">{t("Price / sack")}</th><th className="num">{t("Amount")}</th></tr></thead>
+                <tbody>{containers.flatMap((container, containerIndex) => container.container_item.map((item, itemIndex) => <tr key={item.id} className={itemIndex === 0 ? "print-container-start" : undefined}>
+                  <td>{itemIndex === 0 ? <><strong className="print-container-no">{container.container_no ?? t("No box")}</strong><small>{t("Container")} {containerIndex + 1}</small></> : null}</td>
+                  <td>{fmtProduct(item.product_category)}</td>
+                  <td className="num">{fmtInt(item.qty_sacks)}</td>
+                  <td className="num">{item.price_per_sack !== null ? fmtPhp(item.price_per_sack) : dash}</td>
+                  <td className="num">{item.price_per_sack !== null ? fmtPhp(item.price_per_sack * item.qty_sacks) : dash}</td>
+                </tr>))}</tbody>
+                <tfoot><tr><td>{fmtInt(containers.length)} {t("containers")}</td><td><strong>{t("Grand total")}</strong></td><td className="num">{fmtInt(totalSacks)}</td><td /><td className="num">{hasAnyPrice ? fmtPhp(totalAmount) : dash}</td></tr></tfoot>
+              </table>
+
+              <div className="print-logistics">
+                {containers.map((container) => <div key={container.id}><strong className="print-container-no">{container.container_no ?? t("No box")}</strong><span>{container.shipping_company?.name ?? dash}</span><span>{container.is_company_truck ? t("Own truck") : container.hauler || dash}</span><span>{container.date_arrived_at_port ? DateParser(container.date_arrived_at_port) : dash}</span><span>{container.date_delivered ? DateParser(container.date_delivered) : dash}</span></div>)}
+                <div className="print-logistics-head"><b>{t("Container")}</b><b>{t("Shipping line")}</b><b>{t("Hauling")}</b><b>{t("At port")}</b><b>{t("Delivered")}</b></div>
               </div>
 
+              <div className="print-legacy-containers">
               {containers.map((container, index) => {
                 const containerSacks = container.container_item.reduce(
                   (n, i) => n + i.qty_sacks,
@@ -127,9 +124,7 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
                 return (
                   <section className="print-container" key={container.id}>
                     <div className="print-container-head">
-                      <strong>
-                        {t("Container")} #{index + 1}
-                      </strong>
+                      <strong>{t("Container")} {index + 1}</strong>
                       <span className="print-container-no">
                         {container.container_no ?? t("No box")}
                       </span>
@@ -185,9 +180,16 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
                         </tr>
                       </tfoot>
                     </table>
+                    <div className="print-shipping-details">
+                      <span><b>{t("Shipping line")}</b>{container.shipping_company ? container.shipping_company.name : dash}</span>
+                      <span><b>{t("Hauling")}</b>{container.is_company_truck ? t("Own truck") : container.hauler || dash}</span>
+                      <span><b>{t("At port")}</b>{container.date_arrived_at_port ? DateParser(container.date_arrived_at_port) : dash}</span>
+                      <span><b>{t("Delivered")}</b>{container.date_delivered ? DateParser(container.date_delivered) : dash}</span>
+                    </div>
                   </section>
                 );
               })}
+              </div>
 
               <footer className="print-totals">
                 <span>
@@ -203,9 +205,8 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
                 ) : null}
               </footer>
 
-              <div className="print-footer">
-                {t("Printed")}: {dayjs().format("MMMM D, YYYY")}
-              </div>
+              {shipment.notes && <div className="print-notes"><b>{t("Notes")}:</b> {shipment.notes}</div>}
+              <div className="print-footer"><span>{t("This is a system-generated document. No signature is required.")}</span><span>{t("Generated")}: {dayjs().format("MMMM D, YYYY h:mm A")}</span></div>
             </div>
           </div>,
           document.body,

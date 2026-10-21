@@ -180,6 +180,8 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           id: suppliers.id,
           name: suppliers.name,
           code: suppliers.code,
+          origin: suppliers.origin,
+          kind: suppliers.kind,
         },
       })
       .from(shipments)
