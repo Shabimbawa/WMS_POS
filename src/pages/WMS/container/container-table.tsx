@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Card, Flex, Progress, Tag, Typography } from "antd";
+import { Card, Flex, Tag, Typography } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
@@ -295,44 +295,32 @@ const shipmentOverviewColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] =>
   },
   {
     id: "containers",
-    header: "Containers",
+    header: "No. of containers",
     accessorFn: (row) => row.container.length,
-    size: 330,
+    size: 170,
     cell: (cell) => {
       const containers = cell.row.original.container;
-      return <div className="shipment-primary-cell">
-        <Typography.Text type="secondary">{containers.length} {t(containers.length === 1 ? "container" : "containers")}</Typography.Text>
-        <OverflowList items={containers} max={4} layout="inline" getKey={(item) => item.id} title={`${containers.length} ${t("containers")}`} renderItem={(item) => <Tag color={STATUS_COLOR[item.status]} style={{ margin: 0, fontFamily: "var(--mono)" }}>{item.container_no || t("No box")}</Tag>} />
-      </div>;
+      return <div className="shipment-container-count"><strong>{containers.length}</strong><span>{t(containers.length === 1 ? "container" : "containers")}</span></div>;
     },
   },
   {
-    id: "load",
-    header: "Load summary",
+    id: "status",
+    header: "Container status",
     accessorFn: (row) => row.container.length,
-    size: 240,
-    cell: (cell) => {
-      const products = new Set(cell.row.original.container.flatMap((container) => container.container_item.map((item) => fmtProduct(item.product_category))));
-      const sacks = cell.row.original.container.reduce((sum, container) => sum + container.container_item.reduce((subtotal, item) => subtotal + item.qty_sacks, 0), 0);
-      return <div className="shipment-primary-cell"><Typography.Text strong>{fmtInt(sacks)} {t("sacks")}</Typography.Text><Typography.Text type="secondary">{products.size} {t(products.size === 1 ? "product" : "products")}</Typography.Text></div>;
-    },
-  },
-  {
-    id: "progress",
-    header: "Progress",
-    accessorFn: (row) => row.container.filter((container) => container.status === "UNLOADED" || container.status === "CANCELLED").length,
-    size: 210,
+    size: 310,
     cell: (cell) => {
       const containers = cell.row.original.container;
-      const complete = containers.filter((container) => container.status === "UNLOADED" || container.status === "CANCELLED").length;
-      const percent = containers.length ? Math.round((complete / containers.length) * 100) : 0;
-      return <div className="shipment-progress-cell"><Flex justify="space-between"><Typography.Text type="secondary">{complete} / {containers.length} {t("complete")}</Typography.Text><Typography.Text strong>{percent}%</Typography.Text></Flex><Progress percent={percent} showInfo={false} size="small" /></div>;
+      const counts = containers.reduce<Partial<Record<ContainerStatus, number>>>((result, container) => {
+        result[container.status] = (result[container.status] ?? 0) + 1;
+        return result;
+      }, {});
+      return <Flex gap={6} wrap>{Object.entries(counts).map(([status, count]) => <Tag key={status} color={STATUS_COLOR[status]} style={{ margin: 0 }}>{count} {t(STATUS_LABEL[status as ContainerStatus])}</Tag>)}</Flex>;
     },
   },
   { id: "actions", header: "", accessorFn: (row) => row.id, size: 96, meta: { fixed: "right" }, cell: (cell) => <ShipmentActions shipment={cell.row.original} /> },
 ];
 
-const containerOverviewColumns = (t: Translate): ColumnDef<ShipmentContainer, any>[] => [
+export const containerOverviewColumns = (t: Translate): ColumnDef<ShipmentContainer, any>[] => [
   {
     id: "container",
     header: "Container / shipping line",
@@ -364,6 +352,35 @@ const containerOverviewColumns = (t: Translate): ColumnDef<ShipmentContainer, an
   { id: "actions", header: "", accessorFn: (row) => row.id, size: 230, meta: { fixed: "right" }, cell: (cell) => <ContainerActions container={cell.row.original} /> },
 ];
 
+function ContainerDetails({ container, index, t }: { container: ShipmentContainer; index: number; t: Translate }) {
+  const hauling = container.is_company_truck === null ? t("Not assigned") : container.is_company_truck ? t("Own truck") : container.hauler || t("Third-party hauler");
+  const sacks = container.container_item.reduce((sum, item) => sum + (item.actual_qty_sacks ?? item.qty_sacks), 0);
+  const dates = [[t("At port"), container.date_arrived_at_port], [t("Delivered"), container.date_delivered], [t("Unloaded"), container.date_unloaded]] as const;
+
+  return <section className="shipment-container-detail">
+    <header className="shipment-container-detail-header">
+      <div>
+        <Flex gap={8} align="center" wrap>
+          <Typography.Text type="secondary">#{index + 1}</Typography.Text>
+          <Typography.Text strong><span className="shipment-container-number">{container.container_no || t("No box")}</span></Typography.Text>
+          <Tag color={STATUS_COLOR[container.status]} style={{ margin: 0 }}>{t(STATUS_LABEL[container.status])}</Tag>
+        </Flex>
+      </div>
+      <ContainerActions container={container} />
+    </header>
+    <div className="shipment-container-detail-grid">
+      <div className="shipment-detail-block"><small>{t("Shipping line")}</small><strong>{container.shipping_company ? [container.shipping_company.name, container.shipping_company.code].filter(Boolean).join(" · ") : t("No shipping line")}</strong></div>
+      <div className="shipment-detail-block"><small>{t("Hauling")}</small><strong>{hauling}</strong></div>
+      <div className="shipment-detail-block"><small>{t("Total load")}</small><strong>{fmtInt(sacks)} {t("sacks")}</strong></div>
+      <div className="shipment-detail-block shipment-detail-timeline">{dates.map(([label, date]) => <span key={label}><small>{label}</small><strong>{date ? fmtTableDate(date) : "—"}</strong></span>)}</div>
+    </div>
+    <div className="shipment-load-details">
+      <Typography.Text type="secondary" className="shipment-load-label">{t("Load")}</Typography.Text>
+      <div className="shipment-product-grid">{container.container_item.length ? container.container_item.map((item) => <div key={item.id} className="shipment-product-item"><span>{fmtProduct(item.product_category)}</span><strong>{fmtInt(item.actual_qty_sacks ?? item.qty_sacks)} {t("sacks")}</strong></div>) : dash}</div>
+    </div>
+  </section>;
+}
+
 export function ContainerTable({ data }: { data: ShipmentRow[] }) {
   const { t } = useLanguage();
   const columns = useMemo(() => shipmentOverviewColumns(t), [t]);
@@ -372,7 +389,7 @@ export function ContainerTable({ data }: { data: ShipmentRow[] }) {
   const complete = data.reduce((sum, shipment) => sum + shipment.container.filter((container) => container.status === "UNLOADED" || container.status === "CANCELLED").length, 0);
   return (
     <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{t("Shipment overview")}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{t("Select a row to view and update its containers")}</Typography.Text></div>} extra={<Flex gap={20} className="shipment-table-totals"><span><strong>{data.length}</strong> {t("shipments")}</span><span><strong>{containerCount}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks")}</span><span><strong>{complete}</strong> {t("complete")}</span></Flex>}>
-      <DataTable data={data} columns={columns} renderExpanded={(shipment) => shipment.container.length ? <div className="shipment-expanded"><DataTable data={shipment.container} columns={containerOverviewColumns(t)} /></div> : null} />
+      <DataTable data={data} columns={columns} renderExpanded={(shipment) => shipment.container.length ? <div className="shipment-expanded"><div className="shipment-expanded-heading"><Typography.Text strong>{t("Container details")}</Typography.Text><Typography.Text type="secondary">{t("Shipment information is grouped by container")}</Typography.Text></div>{shipment.container.map((container, index) => <ContainerDetails key={container.id} container={container} index={index} t={t} />)}</div> : null} />
     </Card>
   );
 }
