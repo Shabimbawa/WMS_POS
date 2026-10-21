@@ -341,6 +341,7 @@ export interface CreateShipmentInput {
   supplierId: string;
   dateListReceived: string;
   reference: string | null;
+  notes?: string | null;
   containers: CreateShipmentContainer[];
 }
 

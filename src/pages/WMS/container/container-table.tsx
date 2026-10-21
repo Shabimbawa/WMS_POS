@@ -274,13 +274,13 @@ export const shipmentContainerColumns = (t: Translate): ColumnDef<ShipmentContai
 const shipmentOverviewColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] => [
   {
     id: "received",
-    header: "Received / reference",
+    header: "Received / notes",
     accessorFn: (row) => row.date_list_received,
     size: 185,
     meta: { fixed: "left" },
     cell: (cell) => <div className="shipment-primary-cell">
       <Typography.Text strong>{fmtTableDate(cell.row.original.date_list_received)}</Typography.Text>
-      <Typography.Text type="secondary">{cell.row.original.reference || t("No reference")}</Typography.Text>
+      <Typography.Text type="secondary" ellipsis={{ tooltip: cell.row.original.notes || undefined }}>{cell.row.original.notes || t("No notes")}</Typography.Text>
     </div>,
   },
   {

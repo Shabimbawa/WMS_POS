@@ -1,534 +1,128 @@
 import { useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  DatePicker,
-  Empty,
-  Flex,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Popconfirm,
-  Select,
-  Skeleton,
-  Typography,
-  message,
-} from "antd";
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { Button, Card, DatePicker, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Typography, message } from "antd";
+import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import { useNavigate } from "react-router-dom";
 
-import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
-import {
-  useCreateShipment,
-  useProductCategories,
-  useShippingCompanies,
-  useSuppliers,
-} from "../../../queries/useHooks";
-import type { ProductCategory } from "../../../queries/types";
-import { fmtInt, fmtProduct } from "../type-format/format";
-import {
-  DraftItemTable,
-  ProductReferenceTable,
-  type DraftContainer,
-  type DraftItem,
-} from "./create-shipment-table";
+import { useCreateShipment, useProductCategories, useShippingCompanies, useSuppliers } from "../../../queries/useHooks";
+import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import type { DraftContainer, DraftItem } from "./create-shipment-table";
 import { useLanguage } from "../../../common/context/language-context";
 
-// ---- form value shapes -------------------------------------------
-
-type HeaderValues = {
-  supplier_id: string;
-  date_list_received: Dayjs;
-  reference?: string;
-};
-
-type ContainerValues = {
-  container_no?: string;
-  shipping_company_id: string;
-};
-
-type ItemValues = {
-  product_category_id: string;
-  qty_sacks: number;
-  price_per_sack?: number | null;
-};
-
+type HeaderValues = { supplier_id: string; date_list_received: Dayjs; notes?: string };
 const newKey = () => crypto.randomUUID();
+const blankContainer = (): DraftContainer => ({ key: newKey(), container_no: null, shipping_company_id: "", items: [] });
 
-const toContainerFields = (v: ContainerValues) => ({
-  container_no: v.container_no?.trim() || null,
-  shipping_company_id: v.shipping_company_id,
-});
-
-const toItemFields = (v: ItemValues) => ({
-  product_category_id: v.product_category_id,
-  qty_sacks: v.qty_sacks,
-  price_per_sack: v.price_per_sack ?? null,
-});
-
-// ---- modal forms ---------------------------------------------------
-
-function ContainerFormFields() {
-  const { t } = useLanguage();
-  const form = Form.useFormInstance<ContainerValues>();
-  const { data: shippingCompanies = [], isPending: loadingShipping } =
-    useShippingCompanies();
-
-  const detectShippingCompany = (containerNo: string) => {
-    const normalizedNumber = containerNo.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (!normalizedNumber) return;
-
-    const match = shippingCompanies
-      .flatMap((company) => {
-        const codes = company.codes?.length
-          ? company.codes
-          : company.code
-            ? [company.code]
-            : [];
-        return codes.map((code) => ({
-          companyId: company.id,
-          normalizedCode: code.toUpperCase().replace(/[^A-Z0-9]/g, ""),
-        }));
-      })
-      .filter(({ normalizedCode }) => normalizedCode && normalizedNumber.startsWith(normalizedCode))
-      .sort((a, b) => b.normalizedCode.length - a.normalizedCode.length)[0];
-
-    if (match) form.setFieldValue("shipping_company_id", match.companyId);
-  };
-
-  return (
-    <>
-      <Form.Item name="container_no" label={t("Container no.")}>
-        <Input
-          placeholder={t("e.g. OCLU1395985 — leave blank if none")}
-          style={{ fontFamily: "var(--mono)" }}
-          onChange={(event) => detectShippingCompany(event.target.value)}
-        />
-      </Form.Item>
-      <Form.Item
-        name="shipping_company_id"
-        label={t("Shipping company")}
-        rules={[{ required: true, message: t("Pick a shipping company") }]}
-      >
-        <Select
-          showSearch
-          optionFilterProp="label"
-          placeholder={t("Select shipping company")}
-          loading={loadingShipping}
-          options={shippingCompanies.map((s) => ({
-            label: s.codes?.length
-              ? `${s.name} (${s.codes.join(", ")})`
-              : s.code
-                ? `${s.name} (${s.code})`
-                : s.name,
-            value: s.id,
-          }))}
-        />
-      </Form.Item>
-      <Typography.Text type="secondary" style={{ display: "block", marginTop: -12, marginBottom: 16, fontSize: 12 }}>
-        {t("Automatically selected when the container number starts with a registered company code.")}
-      </Typography.Text>
-    </>
-  );
-}
-
-function ItemFormFields({
-  products,
-  takenProductIds,
-}: {
-  products: ProductCategory[];
-  /** Products already on this container, excluding the line being edited. */
-  takenProductIds: Set<string>;
-}) {
-  const { t } = useLanguage();
-  return (
-    <>
-      <Form.Item
-        name="product_category_id"
-        label={t("Product")}
-        rules={[
-          { required: true, message: t("Pick a product") },
-          {
-            validator: (_, id: string) =>
-              id && takenProductIds.has(id)
-                ? Promise.reject(
-                    new Error(t("This product is already on this container")),
-                  )
-                : Promise.resolve(),
-          },
-        ]}
-      >
-        <Select
-          showSearch
-          optionFilterProp="label"
-          placeholder={t("Search by code or brand")}
-          options={products.map((p) => ({ label: fmtProduct(p), value: p.id }))}
-        />
-      </Form.Item>
-      <Flex gap={12}>
-        <Form.Item
-          name="qty_sacks"
-          label={t("Sacks")}
-          rules={[{ required: true, message: t("Enter a quantity") }]}
-          style={{ flex: 1 }}
-        >
-          <InputNumber min={1} precision={0} style={{ width: "100%" }} />
-        </Form.Item>
-        <Form.Item name="price_per_sack" label={t("Price / sack")} style={{ flex: 1 }}>
-          <InputNumber
-            min={0}
-            precision={2}
-            prefix="₱"
-            placeholder={t("Optional")}
-            style={{ width: "100%" }}
-          />
-        </Form.Item>
-      </Flex>
-    </>
-  );
-}
-
-// ---- page ----------------------------------------------------------
-
-export default function CreateShipmentPage({
-  kind = "INTERNATIONAL",
-}: {
-  kind?: "INTERNATIONAL" | "NATIONAL";
-}) {
+export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: "INTERNATIONAL" | "NATIONAL" }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
-
   const listPath = kind === "INTERNATIONAL" ? "/containers" : "/national";
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind });
-  const { data: products = [], isPending: loadingProducts } =
-    useProductCategories();
+  const { data: products = [], isPending: loadingProducts } = useProductCategories();
+  const { data: shippingCompanies = [], isPending: loadingShipping } = useShippingCompanies();
   const createShipment = useCreateShipment();
-
   const [form] = Form.useForm<HeaderValues>();
   const supplierId = Form.useWatch("supplier_id", form);
-  const [containers, setContainers] = useState<DraftContainer[]>([]);
+  const [containers, setContainers] = useState<DraftContainer[]>(() => [blankContainer()]);
 
-  const productsById = useMemo(
-    () => new Map(products.map((p) => [p.id, p])),
-    [products],
-  );
+  const productOptions = useMemo(() => products.map((p) => ({ label: fmtProduct(p), value: p.id })), [products]);
+  const shippingOptions = useMemo(() => shippingCompanies.map((company) => ({
+    label: company.codes?.length ? `${company.name} (${company.codes.join(", ")})` : company.code ? `${company.name} (${company.code})` : company.name,
+    value: company.id,
+  })), [shippingCompanies]);
 
-  // ---- draft state helpers ----
+  const updateContainer = (key: string, fields: Partial<DraftContainer>) => setContainers((current) => current.map((container) => container.key === key ? { ...container, ...fields } : container));
+  const updateItem = (containerKey: string, itemKey: string, fields: Partial<DraftItem>) => setContainers((current) => current.map((container) => container.key === containerKey ? { ...container, items: container.items.map((item) => item.key === itemKey ? { ...item, ...fields } : item) } : container));
+  const selectProducts = (container: DraftContainer, productIds: string[]) => {
+    const existing = new Map(container.items.map((item) => [item.product_category_id, item]));
+    updateContainer(container.key, {
+      items: productIds.map((productId) => existing.get(productId) ?? { key: newKey(), product_category_id: productId, qty_sacks: 1, price_per_sack: null }),
+    });
+  };
+  const addContainer = () => setContainers((current) => [...current, blankContainer()]);
 
-  const addContainer = (v: ContainerValues) =>
-    setContainers((cs) => [
-      ...cs,
-      { key: newKey(), ...toContainerFields(v), items: [] },
-    ]);
+  const detectShippingCompany = (containerKey: string, containerNo: string) => {
+    const normalized = containerNo.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!normalized) {
+      updateContainer(containerKey, { container_no: null, shipping_company_id: "" });
+      return;
+    }
+    const match = shippingCompanies.flatMap((company) => {
+      const codes = company.codes?.length ? company.codes : company.code ? [company.code] : [];
+      return codes.map((code) => ({ id: company.id, code: code.toUpperCase().replace(/[^A-Z0-9]/g, "") }));
+    }).filter(({ code }) => code && normalized.startsWith(code)).sort((a, b) => b.code.length - a.code.length)[0];
+    updateContainer(containerKey, { container_no: containerNo.trim() || null, ...(match ? { shipping_company_id: match.id } : {}) });
+  };
 
-  const updateContainer = (key: string, v: ContainerValues) =>
-    setContainers((cs) =>
-      cs.map((c) => (c.key === key ? { ...c, ...toContainerFields(v) } : c)),
-    );
-
-  const removeContainer = (key: string) =>
-    setContainers((cs) => cs.filter((c) => c.key !== key));
-
-  const addItem = (containerKey: string, v: ItemValues) =>
-    setContainers((cs) =>
-      cs.map((c) =>
-        c.key === containerKey
-          ? { ...c, items: [...c.items, { key: newKey(), ...toItemFields(v) }] }
-          : c,
-      ),
-    );
-
-  const updateItem = (containerKey: string, itemKey: string, v: ItemValues) =>
-    setContainers((cs) =>
-      cs.map((c) =>
-        c.key === containerKey
-          ? {
-              ...c,
-              items: c.items.map((i) =>
-                i.key === itemKey ? { ...i, ...toItemFields(v) } : i,
-              ),
-            }
-          : c,
-      ),
-    );
-
-  const removeItem = (containerKey: string, itemKey: string) =>
-    setContainers((cs) =>
-      cs.map((c) =>
-        c.key === containerKey
-          ? { ...c, items: c.items.filter((i) => i.key !== itemKey) }
-          : c,
-      ),
-    );
-
-  const takenIds = (container: DraftContainer, exceptItemKey?: string) =>
-    new Set(
-      container.items
-        .filter((i) => i.key !== exceptItemKey)
-        .map((i) => i.product_category_id),
-    );
-
-  const renderItemActions = (container: DraftContainer) => (item: DraftItem) => (
-      <Flex gap={4} justify="end">
-        <CommonModalForm<ItemValues>
-          title={t("Edit item")}
-          triggerLabel={<EditOutlined />}
-          triggerButtonType="text"
-          initialValues={{
-            product_category_id: item.product_category_id,
-            qty_sacks: item.qty_sacks,
-            price_per_sack: item.price_per_sack,
-          }}
-          onSave={(v) => updateItem(container.key, item.key, v)}
-        >
-          <ItemFormFields
-            products={products}
-            takenProductIds={takenIds(container, item.key)}
-          />
-        </CommonModalForm>
-        <Popconfirm
-          title={t("Remove this item?")}
-          okText={t("Remove")}
-          okButtonProps={{ danger: true }}
-          onConfirm={() => removeItem(container.key, item.key)}
-        >
-          <Button type="text" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
-      </Flex>
-  );
-
-  // ---- submit ----
-
-  const allSacks = containers.reduce(
-    (n, c) => n + c.items.reduce((m, i) => m + i.qty_sacks, 0),
-    0,
-  );
-
-  const canSubmit =
-    Boolean(supplierId) &&
-    containers.length > 0 &&
-    containers.every((c) => c.items.length > 0);
+  const allSacks = containers.reduce((total, c) => total + c.items.reduce((subtotal, item) => subtotal + (item.qty_sacks || 0), 0), 0);
+  const isComplete = Boolean(supplierId) && containers.length > 0 && containers.every((c) => Boolean(c.container_no?.trim()) && Boolean(c.shipping_company_id) && c.items.length > 0 && c.items.every((item) => Boolean(item.product_category_id) && item.qty_sacks > 0));
 
   const submit = async () => {
     const header = await form.validateFields();
+    if (!isComplete) return;
     try {
       await createShipment.mutateAsync({
         supplierId: header.supplier_id,
         dateListReceived: header.date_list_received.format("YYYY-MM-DD"),
-        reference: header.reference?.trim() || null,
-        // client-side keys stay behind
-        containers: containers.map((c) => ({
-          container_no: c.container_no,
-          shipping_company_id: c.shipping_company_id,
-          items: c.items.map((i) => ({
-            product_category_id: i.product_category_id,
-            qty_sacks: i.qty_sacks,
-            price_per_sack: i.price_per_sack,
-          })),
-        })),
+        reference: null,
+        notes: header.notes?.trim() || null,
+        containers: containers.map((c) => ({ container_no: c.container_no, shipping_company_id: c.shipping_company_id, items: c.items.map((item) => ({ product_category_id: item.product_category_id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })),
       });
       msg.success(t("Shipment registered"));
       navigate(listPath);
-    } catch (e) {
-      showError(e, "Could not register shipment");
-    }
+    } catch (error) { showError(error, "Could not register shipment"); }
   };
 
   const cancel = () => {
-    if (!form.isFieldsTouched() && containers.length === 0) {
-      navigate(listPath);
-      return;
-    }
-    Modal.confirm({
-      title: t("Discard this shipment?"),
-      content: t("Everything entered on this page will be lost."),
-      okText: t("Discard"),
-      okButtonProps: { danger: true },
-      cancelText: t("Keep editing"),
-      onOk: () => navigate(listPath),
-    });
+    const untouchedDraft = containers.length === 1 && !containers[0].container_no && !containers[0].shipping_company_id && containers[0].items.length === 0;
+    if (!form.isFieldsTouched() && untouchedDraft) return navigate(listPath);
+    Modal.confirm({ title: t("Discard this shipment?"), content: t("Everything entered on this page will be lost."), okText: t("Discard"), okButtonProps: { danger: true }, cancelText: t("Keep editing"), onOk: () => navigate(listPath) });
   };
 
-  return (
-    <Flex gap={16} align="start">
-      {msgHolder}
-      {errorHolder}
-
-      {/* ---- main: shipment being built ---- */}
-      <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
-        <Flex justify="space-between" align="center">
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            {kind === "INTERNATIONAL"
-              ? t("Register Shipment")
-              : t("Register National Delivery")}
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            {fmtInt(containers.length)} {t("containers")} · {fmtInt(allSacks)} {t("sacks")}
-          </Typography.Text>
-        </Flex>
-
-        <Card size="small" title={t("Packing list")}>
-          <Form
-            form={form}
-            layout="vertical"
-            initialValues={{ date_list_received: dayjs() }}
-          >
-            <Flex wrap gap={12}>
-              <Form.Item
-                name="supplier_id"
-                label={t("Supplier")}
-                rules={[{ required: true, message: t("Pick a supplier") }]}
-                style={{ flex: 1, minWidth: 220, marginBottom: 0 }}
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder={t("Select supplier")}
-                  loading={loadingSuppliers}
-                  options={suppliers?.map((s) => ({
-                    label: s.name,
-                    value: s.id,
-                  }))}
-                />
-              </Form.Item>
-              <Form.Item
-                name="date_list_received"
-                label={t("List received")}
-                rules={[{ required: true, message: t("Pick a date") }]}
-                style={{ minWidth: 200, marginBottom: 0 }}
-              >
-                <DatePicker
-                  allowClear={false}
-                  format="MMMM DD, YYYY"
-                  style={{ width: "100%" }}
-                />
-              </Form.Item>
-              <Form.Item
-                name="reference"
-                label={t("Reference")}
-                style={{ flex: 1, minWidth: 200, marginBottom: 0 }}
-              >
-                <Input placeholder="e.g. PL-2026-0915 (optional)" />
-              </Form.Item>
-            </Flex>
-          </Form>
-        </Card>
-
-        {containers.map((container, index) => (
-          <Card
-            key={container.key}
-            size="small"
-            title={
-              <Flex align="center" gap={8}>
-                <Typography.Text type="secondary">#{index + 1}</Typography.Text>
-                <span style={{ fontFamily: "var(--mono)" }}>
-                  {container.container_no ?? t("No container no.")}
-                </span>
-              </Flex>
-            }
-            extra={
-              <Flex gap={8} align="center">
-                <CommonModalForm<ItemValues>
-                  title={t("Add item")}
-                  triggerLabel={
-                    <>
-                      <PlusOutlined /> {t("Add New Item")}
-                    </>
-                  }
-                  okText={t("Add")}
-                  onSave={(v) => addItem(container.key, v)}
-                >
-                  <ItemFormFields
-                    products={products}
-                    takenProductIds={takenIds(container)}
-                  />
-                </CommonModalForm>
-                <CommonModalForm<ContainerValues>
-                  title={t("Edit container")}
-                  triggerLabel={<EditOutlined />}
-                  triggerButtonType="default"
-                  initialValues={{
-                    container_no: container.container_no ?? undefined,
-                    shipping_company_id: container.shipping_company_id,
-                  }}
-                  onSave={(v) => updateContainer(container.key, v)}
-                >
-                  <ContainerFormFields />
-                </CommonModalForm>
-                <Popconfirm
-                  title={t("Remove this container?")}
-                  description={t("Its items are removed with it.")}
-                  okText={t("Remove")}
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => removeContainer(container.key)}
-                >
-                  <Button danger icon={<DeleteOutlined />} />
-                </Popconfirm>
-              </Flex>
-            }
-          >
-            {container.items.length ? (
-              <DraftItemTable
-                items={container.items}
-                productsById={productsById}
-                renderActions={renderItemActions(container)}
-              />
-            ) : (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={t("No items yet")}
-              />
-            )}
-          </Card>
-        ))}
-
-        <CommonModalForm<ContainerValues>
-          title={t("Add container")}
-          triggerLabel={
-            <>
-              <PlusOutlined /> {t("Add New Container")}
-            </>
-          }
-          triggerButtonType="dashed"
-          triggerButtonStyle={{ width: "100%", height: 48 }}
-          okText={t("Add")}
-          onSave={addContainer}
-        >
-          <ContainerFormFields />
-        </CommonModalForm>
-
-        <Flex justify="end" gap={8}>
-          <Button onClick={cancel}>{t("Cancel")}</Button>
-          <Button
-            type="primary"
-            onClick={submit}
-            disabled={!canSubmit}
-            loading={createShipment.isPending}
-          >
-            {t("Submit shipment")}
-          </Button>
-        </Flex>
-      </Flex>
-
-      {/* ---- side: registered products reference ---- */}
-      <Card
-        size="small"
-        title={t("Registered products")}
-        style={{ width: 380, flexShrink: 0, position: "sticky", top: 0 }}
-      >
-        {loadingProducts ? (
-          <Skeleton active paragraph={{ rows: 8 }} />
-        ) : (
-          <div style={{ maxHeight: "calc(100vh - 220px)", overflow: "auto" }}>
-            <ProductReferenceTable data={products} />
-          </div>
-        )}
-      </Card>
+  return <div className="shipment-register-page">
+    {msgHolder}{errorHolder}
+    <Flex justify="space-between" align="center" gap={12} wrap>
+      <div><Typography.Title level={4} style={{ margin: 0 }}>{kind === "INTERNATIONAL" ? t("Register Shipment") : t("Register National Delivery")}</Typography.Title><Typography.Text type="secondary">{t("Enter the shipment, containers, and products in one form.")}</Typography.Text></div>
+      <Flex gap={16} className="shipment-register-summary"><span><strong>{fmtInt(containers.length)}</strong> {t("containers")}</span><span><strong>{fmtInt(allSacks)}</strong> {t("sacks")}</span></Flex>
     </Flex>
-  );
+
+    <Card size="small" title={t("Shipment details")}>
+      <Form form={form} layout="vertical" initialValues={{ date_list_received: dayjs() }}><div className="shipment-header-fields">
+        <Form.Item name="supplier_id" label={t("Supplier")} rules={[{ required: true, message: t("Pick a supplier") }]}><Select showSearch optionFilterProp="label" placeholder={t("Select supplier")} loading={loadingSuppliers} options={suppliers?.map((s) => ({ label: s.name, value: s.id }))} /></Form.Item>
+        <Form.Item name="date_list_received" label={t("List received")} rules={[{ required: true, message: t("Pick a date") }]}><DatePicker allowClear={false} format="MMMM DD, YYYY" style={{ width: "100%" }} /></Form.Item>
+        <Form.Item name="notes" label={t("Notes (optional)")} className="shipment-notes-field"><Input.TextArea rows={4} maxLength={2000} showCount placeholder={t("Add notes about this shipment or packing list")} /></Form.Item>
+      </div></Form>
+    </Card>
+
+    <Flex vertical gap={10}>
+      {containers.map((container, index) => {
+        return <Card key={container.key} size="small" className="shipment-entry-card" title={<Flex gap={8} align="center"><span className="shipment-entry-index">{index + 1}</span><span>{t("Container")}</span></Flex>} extra={<Popconfirm title={t("Remove this container?")} description={t("Its product rows are removed with it.")} okText={t("Remove")} okButtonProps={{ danger: true }} onConfirm={() => setContainers((current) => current.filter((item) => item.key !== container.key))}><Button type="text" danger icon={<DeleteOutlined />}>{t("Remove")}</Button></Popconfirm>}>
+          <div className="shipment-container-fields">
+            <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} /></label>
+            <label><span>{t("Shipping company")}</span><Select value={container.shipping_company_id || undefined} showSearch optionFilterProp="label" placeholder={t("Select shipping company")} loading={loadingShipping} options={shippingOptions} onChange={(value) => updateContainer(container.key, { shipping_company_id: value })} /></label>
+          </div>
+          <div className="shipment-item-editor">
+            <label className="shipment-product-picker"><span>{t("Products")}</span><Select mode="multiple" value={container.items.map((item) => item.product_category_id)} showSearch optionFilterProp="label" placeholder={t("Select one or more products")} loading={loadingProducts} options={productOptions} onChange={(values) => selectProducts(container, values)} maxTagCount="responsive" /></label>
+            {!!container.items.length && <div className="shipment-item-header"><span>{t("Product")}</span><span>{t("Sacks")}</span><span>{t("Price / sack")}</span><span>{t("Subtotal")}</span><span /></div>}
+            {container.items.map((item) => <div className="shipment-item-row" key={item.key}>
+              <Typography.Text strong>{productOptions.find((option) => option.value === item.product_category_id)?.label ?? item.product_category_id}</Typography.Text>
+              <InputNumber min={1} precision={0} value={item.qty_sacks} onChange={(value) => updateItem(container.key, item.key, { qty_sacks: value ?? 1 })} />
+              <InputNumber min={0} precision={2} prefix="₱" placeholder={t("Optional")} value={item.price_per_sack} onChange={(value) => updateItem(container.key, item.key, { price_per_sack: value })} />
+              <Typography.Text>{item.price_per_sack === null ? "—" : fmtMoney(item.qty_sacks * item.price_per_sack)}</Typography.Text>
+              <Button type="text" danger aria-label={t("Remove product")} icon={<DeleteOutlined />} onClick={() => updateContainer(container.key, { items: container.items.filter((row) => row.key !== item.key) })} />
+            </div>)}
+          </div>
+        </Card>;
+      })}
+      <Button type="dashed" className="shipment-add-container" icon={<PlusOutlined />} onClick={addContainer}>{t("Add container")}</Button>
+    </Flex>
+
+    <Flex justify="space-between" align="center" gap={12} wrap className="shipment-register-footer">
+      <Typography.Text type="secondary">{!containers.length ? t("Add at least one container to continue.") : !isComplete ? t("Complete all required container and product fields.") : t("Ready to submit.")}</Typography.Text>
+      <Flex gap={8}><Button onClick={cancel}>{t("Cancel")}</Button><Button type="primary" disabled={!isComplete} loading={createShipment.isPending} onClick={submit}>{t("Submit shipment")}</Button></Flex>
+    </Flex>
+  </div>;
 }

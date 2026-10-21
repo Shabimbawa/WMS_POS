@@ -630,6 +630,27 @@ code {
 .shipment-product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px; }
 .shipment-product-item { display: flex; justify-content: space-between; gap: 12px; padding: 4px 7px; border-radius: 4px; background: var(--ant-color-fill-quaternary); font-size: 13px; }
 .shipment-product-item strong { white-space: nowrap; }
+.shipment-register-page { display: grid; gap: 14px; max-width: 1180px; margin: 0 auto; }
+.shipment-register-summary { color: var(--ant-color-text-secondary); font-size: 13px; }
+.shipment-register-summary strong { margin-right: 3px; color: var(--ant-color-text); font-size: 17px; }
+.shipment-header-fields { display: grid; grid-template-columns: minmax(220px, 1.4fr) minmax(180px, .8fr) minmax(200px, 1fr); gap: 12px; }
+.shipment-header-fields .ant-form-item { margin-bottom: 0; }
+.shipment-header-fields .shipment-notes-field { grid-column: 1 / -1; }
+.shipment-notes-field textarea { min-height: 96px; resize: vertical; }
+.shipment-entry-card .ant-card-head { min-height: 42px; }
+.shipment-entry-index { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ant-color-primary-bg); color: var(--ant-color-primary); font-size: 12px; }
+.shipment-container-fields { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(240px, 1fr); gap: 12px; margin-bottom: 12px; }
+.shipment-container-fields label { display: grid; gap: 5px; }
+.shipment-container-fields label > span { color: var(--ant-color-text-secondary); font-size: 12px; }
+.shipment-required-label::before { margin-right: 4px; color: var(--ant-color-error); content: "*"; }
+.shipment-item-editor { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--ant-color-border-secondary); }
+.shipment-product-picker { display: grid; gap: 5px; margin-bottom: 5px; }
+.shipment-product-picker > span { color: var(--ant-color-text-secondary); font-size: 12px; }
+.shipment-item-header, .shipment-item-row { display: grid; grid-template-columns: minmax(240px, 2fr) 100px 150px 130px 32px; gap: 8px; align-items: center; }
+.shipment-item-header { padding: 0 2px; color: var(--ant-color-text-secondary); font-size: 11px; }
+.shipment-item-row .ant-input-number { width: 100%; }
+.shipment-add-container { height: 42px; }
+.shipment-register-footer { position: sticky; bottom: 0; z-index: 5; padding: 10px 12px; border: 1px solid var(--ant-color-border-secondary); border-radius: 8px; background: color-mix(in srgb, var(--ant-color-bg-container) 94%, transparent); box-shadow: 0 -4px 14px rgba(0, 0, 0, .06); backdrop-filter: blur(8px); }
 .shipment-table-totals { color: var(--ant-color-text-secondary); font-size: 12px; }
 .shipment-table-totals strong { margin-right: 3px; color: var(--ant-color-text); font-size: 14px; }
 .shipment-notebook-card .ant-table-expanded-row > td { padding: 0 12px 12px !important; background: var(--ant-color-fill-quaternary) !important; }
@@ -639,6 +660,7 @@ code {
   .shipment-container-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shipment-detail-block:nth-child(2) { border-right: 0; }
   .shipment-detail-block:nth-child(-n+2) { border-bottom: 1px solid var(--ant-color-border-secondary); }
+  .shipment-item-header, .shipment-item-row { grid-template-columns: minmax(200px, 2fr) 90px 130px 110px 32px; }
 }
 
 @media (max-width: 640px) {
@@ -650,6 +672,12 @@ code {
   .shipment-table-totals { display: none; }
   .shipment-load-details { grid-template-columns: 1fr; gap: 4px; }
   .shipment-load-label { padding-top: 0; }
+  .shipment-header-fields, .shipment-container-fields { grid-template-columns: 1fr; }
+  .shipment-item-header { display: none; }
+  .shipment-item-row { grid-template-columns: minmax(0, 1fr) 80px 32px; padding: 8px; border: 1px solid var(--ant-color-border-secondary); border-radius: 6px; }
+  .shipment-item-row > :nth-child(3) { grid-column: 1 / 2; }
+  .shipment-item-row > :nth-child(4) { grid-column: 2 / 3; }
+  .shipment-item-row > :nth-child(5) { grid-column: 3; grid-row: 1; }
 }
 
 .print-overlay {

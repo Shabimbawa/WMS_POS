@@ -52,7 +52,7 @@ const shipmentBody = z.object({
   reference: z.string().trim().max(500).nullable().default(null),
   notes: z.string().trim().max(2_000).nullable().optional(),
   containers: z.array(z.object({
-    container_no: z.string().trim().min(1).max(100).nullable(),
+    container_no: z.string().trim().min(1).max(100),
     shipping_company_id: z.uuid(),
     items: z.array(z.object({
       product_category_id: z.uuid(),
