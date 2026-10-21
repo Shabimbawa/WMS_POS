@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 
 import { ConfigProvider, Table } from 'antd'
-import { useState, type Key, type ReactNode } from 'react'
+import { useEffect, useState, type Key, type ReactNode } from 'react'
 import { useLanguage } from '../../context/language-context'
 
 declare module '@tanstack/react-table' {
@@ -39,6 +39,8 @@ interface DataTableProps<TData> {
    * Return null for rows with nothing to show and they get no expand toggle.
    */
   renderExpanded?: (row: TData) => ReactNode
+  /** Opens all expandable rows, useful when a search result should reveal details immediately. */
+  expandAll?: boolean
 }
 
 export function DataTable<TData>({
@@ -48,6 +50,7 @@ export function DataTable<TData>({
   meta,
   columnVisibility,
   renderExpanded,
+  expandAll = false,
 }: DataTableProps<TData>) {
   const { t } = useLanguage()
   const table = useReactTable({
@@ -91,6 +94,11 @@ export function DataTable<TData>({
   const rowsById = new Map(table.getRowModel().rows.map((r) => [r.id, r]))
 
   const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
+
+  useEffect(() => {
+    if (!expandAll || !renderExpanded) return;
+    setExpandedRowKeys(table.getRowModel().rows.filter((row) => renderExpanded(row.original) !== null).map((row) => row.id));
+  }, [data, expandAll, renderExpanded, table]);
 
   const rowExpandable = (record: { key: string }) => {
     const row = rowsById.get(record.key)

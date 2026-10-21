@@ -256,6 +256,7 @@ export interface ShippingContainerNotebookParams
   extends ListParams<ShipmentDateField> {
   /** Omit to get every supplier, still paginated. */
   supplierId?: string;
+  containerNo?: string;
   /** Restrict to one inbound route (international vs national). */
   kind?: SupplierKind;
   /** Active notebook by default; true returns only archived shipments. */

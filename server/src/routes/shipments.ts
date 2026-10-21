@@ -38,6 +38,7 @@ const shipmentQuery = z.object({
   dateFrom: isoDate,
   dateTo: isoDate,
   supplierId: z.uuid().optional(),
+  containerNo: z.string().trim().max(100).optional(),
   kind: z.enum(["INTERNATIONAL", "NATIONAL"]).optional(),
   archived: z.stringbool().default(false),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
@@ -160,6 +161,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       query.archived ? isNotNull(shipments.archivedAt) : isNull(shipments.archivedAt),
       ...(query.kind ? [eq(suppliers.kind, query.kind)] : []),
       ...(query.supplierId ? [eq(shipments.supplierId, query.supplierId)] : []),
+      ...(query.containerNo ? [sql`exists (select 1 from container search_container where search_container.shipment_id = ${shipments.id} and lower(search_container.container_no) like ${`%${query.containerNo.toLowerCase()}%`})`] : []),
     ];
     const where = and(...filters);
     const [countRow] = await db

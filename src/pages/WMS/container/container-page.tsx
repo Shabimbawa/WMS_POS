@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import {
   Alert,
   Badge,
@@ -6,6 +6,7 @@ import {
   Card,
   Empty,
   Flex,
+  Input,
   Pagination,
   Segmented,
   Select,
@@ -55,10 +56,13 @@ export default function ContainerPage({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [statusFilter, setStatusFilter] = useState<ContainerStatus | undefined>();
+  const [containerSearch, setContainerSearch] = useState("");
+  const deferredContainerSearch = useDeferredValue(containerSearch);
 
   const params = useMemo(
     () => ({
       supplierId,
+      containerNo: deferredContainerSearch.trim() || undefined,
       kind,
       page,
       pageSize,
@@ -67,7 +71,7 @@ export default function ContainerPage({
       sortDir,
       archived: view === "archived" ? true : undefined,
     }),
-    [supplierId, kind, page, pageSize, range, sortDir, view],
+    [supplierId, deferredContainerSearch, kind, page, pageSize, range, sortDir, view],
   );
 
   const {
@@ -160,6 +164,17 @@ export default function ContainerPage({
             optionFilterProp="label"
           />
 
+          <Input.Search
+            allowClear
+            value={containerSearch}
+            placeholder={t("Search container no.")}
+            style={{ minWidth: 220, maxWidth: 280 }}
+            onChange={(event) => {
+              setContainerSearch(event.target.value.toUpperCase());
+              setPage(1);
+            }}
+          />
+
           <MonthRangePicker value={range} onChange={reset(setRange)} />
 
           <Segmented
@@ -196,7 +211,7 @@ export default function ContainerPage({
         />
       ) : (
         <div>
-          <ContainerTable data={statusFilter ? data.rows.filter((shipment) => shipment.container.some((container) => container.status === statusFilter)) : data.rows} />
+          <ContainerTable containerSearch={deferredContainerSearch} data={statusFilter ? data.rows.filter((shipment) => shipment.container.some((container) => container.status === statusFilter)) : data.rows} />
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination
               current={data.page}
