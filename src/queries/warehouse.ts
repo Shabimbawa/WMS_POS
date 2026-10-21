@@ -201,6 +201,11 @@ export async function createShipment(input: CreateShipmentInput): Promise<string
   return result.id;
 }
 
+export async function updateShipment({ id, input }: { id: string; input: CreateShipmentInput }): Promise<string> {
+  const result = await apiRequest<{ id: string }>(`/shipments/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+  return result.id;
+}
+
 export async function archiveShipment(id: string): Promise<void> {
   await apiRequest(`/shipments/${id}/archive`, { method: "POST" });
 }

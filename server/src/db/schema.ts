@@ -559,9 +559,7 @@ export const stockBalances = pgTable("stock_balance", {
     .references(() => productCategories.id, { onDelete: "restrict" }),
   remainingQty: integer("remaining_qty").notNull().default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  check("stock_balance_nonnegative", sql`${table.remainingQty} >= 0`),
-]);
+});
 
 export const stockMovements = pgTable(
   "stock_movement",
@@ -595,7 +593,6 @@ export const stockMovements = pgTable(
     index("stock_movement_order_slip_idx").on(table.orderSlipId),
     index("stock_movement_local_delivery_idx").on(table.localDeliveryId),
     check("stock_movement_delta_nonzero", sql`${table.quantityDelta} <> 0`),
-    check("stock_movement_balance_nonnegative", sql`${table.balanceAfter} >= 0`),
     check(
       "stock_movement_source_ck",
       sql`

@@ -51,10 +51,13 @@ const shipmentBody = z.object({
   dateListReceived: isoDate,
   reference: z.string().trim().max(500).nullable().default(null),
   notes: z.string().trim().max(2_000).nullable().optional(),
+  allowNegativeInventory: z.boolean().optional().default(false),
   containers: z.array(z.object({
+    id: z.uuid().optional(),
     container_no: z.string().trim().min(1).max(100),
     shipping_company_id: z.uuid(),
     items: z.array(z.object({
+      id: z.uuid().optional(),
       product_category_id: z.uuid(),
       qty_sacks: z.number().int().nonnegative(),
       price_per_sack: z.number().nonnegative().nullable(),
@@ -413,6 +416,92 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     });
 
     return reply.code(201).send({ id: shipmentId });
+  });
+
+  app.patch("/shipments/:id", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const input = shipmentBody.parse(request.body);
+    input.containers.forEach((container) => assertDistinct(container.items.map((item) => item.product_category_id), "A product can appear only once in a container"));
+
+    await db.transaction(async (tx) => {
+      const [existing] = await tx.select({ id: shipments.id, archivedAt: shipments.archivedAt }).from(shipments).where(eq(shipments.id, id)).limit(1);
+      if (!existing) throw new ApiError(404, "SHIPMENT_NOT_FOUND", "Shipment not found");
+      if (existing.archivedAt) throw new ApiError(409, "SHIPMENT_ARCHIVED", "Restore the shipment before editing it");
+
+      const oldContainers = await tx.select({ id: containers.id, status: containers.status, dateUnloaded: containers.dateUnloaded }).from(containers).where(eq(containers.shipmentId, id));
+      const hasProgress = oldContainers.some((container) => container.status !== "DOCUMENTED");
+
+      const [supplier] = await tx.select({ kind: suppliers.kind }).from(suppliers).where(and(eq(suppliers.id, input.supplierId), eq(suppliers.isActive, true))).limit(1);
+      if (!supplier || supplier.kind === "LOCAL") throw new ApiError(400, "UNKNOWN_SUPPLIER", "Supplier does not exist or cannot be used for shipments");
+      const productIds = [...new Set(input.containers.flatMap((container) => container.items.map((item) => item.product_category_id)))];
+      const validProducts = await tx.select({ id: productCategories.id }).from(productCategories).where(and(inArray(productCategories.id, productIds), eq(productCategories.isActive, true)));
+      if (validProducts.length !== productIds.length) throw new ApiError(400, "UNKNOWN_PRODUCT", "One or more products do not exist or are inactive");
+      const companyIds = [...new Set(input.containers.map((container) => container.shipping_company_id))];
+      const validCompanies = await tx.select({ id: shippingCompanies.id }).from(shippingCompanies).where(and(inArray(shippingCompanies.id, companyIds), eq(shippingCompanies.isActive, true)));
+      if (validCompanies.length !== companyIds.length) throw new ApiError(400, "UNKNOWN_SHIPPING_COMPANY", "One or more shipping companies do not exist or are inactive");
+
+      await tx.update(shipments).set({ supplierId: input.supplierId, supplierKind: supplier.kind, dateListReceived: input.dateListReceived, reference: input.reference, notes: input.notes }).where(eq(shipments.id, id));
+      if (hasProgress) {
+        const oldItems = oldContainers.length ? await tx.select({ id: containerItems.id, containerId: containerItems.containerId, productCategoryId: containerItems.productCategoryId, qtySacks: containerItems.qtySacks, actualQtySacks: containerItems.actualQtySacks, pricePerSack: containerItems.pricePerSack }).from(containerItems).where(inArray(containerItems.containerId, oldContainers.map((container) => container.id))) : [];
+        const oldMovements = oldContainers.length ? await tx.select().from(stockMovements).where(and(inArray(stockMovements.containerId, oldContainers.map((container) => container.id)), eq(stockMovements.movementType, "INBOUND_UNLOAD"))) : [];
+        const balanceDelta = new Map<string, number>();
+        oldMovements.forEach((movement) => balanceDelta.set(movement.productCategoryId, (balanceDelta.get(movement.productCategoryId) ?? 0) - movement.quantityDelta));
+        const oldById = new Map(oldContainers.map((container) => [container.id, container]));
+        for (const container of input.containers) {
+          const previous = container.id ? oldById.get(container.id) : undefined;
+          if (previous?.status === "UNLOADED") container.items.forEach((item) => balanceDelta.set(item.product_category_id, (balanceDelta.get(item.product_category_id) ?? 0) + item.qty_sacks));
+        }
+        const affectedProducts = [...balanceDelta.keys()];
+        const balances = affectedProducts.length ? await tx.select({ id: stockBalances.productCategoryId, remaining: stockBalances.remainingQty }).from(stockBalances).where(inArray(stockBalances.productCategoryId, affectedProducts)) : [];
+        const currentByProduct = new Map(balances.map((balance) => [balance.id, balance.remaining]));
+        const negative = affectedProducts.map((productId) => ({ productId, balance: (currentByProduct.get(productId) ?? 0) + (balanceDelta.get(productId) ?? 0) })).filter((item) => item.balance < 0);
+        if (negative.length && !input.allowNegativeInventory) throw new ApiError(409, "NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED", "This edit will make inventory negative", negative);
+
+        for (const [productId, delta] of balanceDelta) {
+          if (!delta) continue;
+          await tx.insert(stockBalances).values({ productCategoryId: productId, remainingQty: delta }).onConflictDoUpdate({ target: stockBalances.productCategoryId, set: { remainingQty: sql`${stockBalances.remainingQty} + ${delta}`, updatedAt: new Date() } });
+        }
+        if (oldMovements.length) await tx.delete(stockMovements).where(inArray(stockMovements.id, oldMovements.map((movement) => movement.id)));
+        if (oldContainers.length) await tx.delete(containerDiscrepancies).where(inArray(containerDiscrepancies.containerId, oldContainers.map((container) => container.id)));
+        if (oldItems.length) await tx.delete(containerItems).where(inArray(containerItems.id, oldItems.map((item) => item.id)));
+
+        const submittedExistingIds = new Set(input.containers.map((container) => container.id).filter(Boolean));
+        const removed = oldContainers.filter((container) => !submittedExistingIds.has(container.id));
+        if (removed.length) await tx.delete(containers).where(inArray(containers.id, removed.map((container) => container.id)));
+
+        for (const container of input.containers) {
+          const previous = container.id ? oldById.get(container.id) : undefined;
+          let containerId = previous?.id;
+          if (containerId) await tx.update(containers).set({ containerNo: container.container_no, shippingCompanyId: container.shipping_company_id }).where(eq(containers.id, containerId));
+          else {
+            const [created] = await tx.insert(containers).values({ shipmentId: id, containerNo: container.container_no, shippingCompanyId: container.shipping_company_id }).returning({ id: containers.id });
+            containerId = created!.id;
+          }
+          const unloaded = previous?.status === "UNLOADED";
+          const createdItems = await tx.insert(containerItems).values(container.items.map((item) => ({ containerId: containerId!, productCategoryId: item.product_category_id, qtySacks: item.qty_sacks, actualQtySacks: unloaded ? item.qty_sacks : null, pricePerSack: item.price_per_sack }))).returning({ productCategoryId: containerItems.productCategoryId, actualQtySacks: containerItems.actualQtySacks });
+          if (unloaded) {
+            const batchId = randomUUID();
+            for (const item of createdItems) {
+              if (!item.actualQtySacks) continue;
+              const [balance] = await tx.select({ remaining: stockBalances.remainingQty }).from(stockBalances).where(eq(stockBalances.productCategoryId, item.productCategoryId)).limit(1);
+              await tx.insert(stockMovements).values({ batchId, productCategoryId: item.productCategoryId, movementType: "INBOUND_UNLOAD", quantityDelta: item.actualQtySacks, balanceAfter: balance?.remaining ?? item.actualQtySacks, containerId, occurredAt: new Date(`${previous.dateUnloaded ?? input.dateListReceived}T12:00:00Z`), createdBy: request.currentUser!.id });
+            }
+          }
+        }
+        (request as typeof request & { body: unknown }).body = { before: { shipment: existing, containers: oldContainers, items: oldItems }, after: input, inventoryReconciled: true };
+        return;
+      }
+      if (oldContainers.length) {
+        await tx.delete(containerItems).where(inArray(containerItems.containerId, oldContainers.map((container) => container.id)));
+        await tx.delete(containers).where(eq(containers.shipmentId, id));
+      }
+      for (const container of input.containers) {
+        const [created] = await tx.insert(containers).values({ shipmentId: id, containerNo: container.container_no, shippingCompanyId: container.shipping_company_id }).returning({ id: containers.id });
+        if (!created) throw new ApiError(500, "UPDATE_FAILED", "Container was not created");
+        await tx.insert(containerItems).values(container.items.map((item) => ({ containerId: created.id, productCategoryId: item.product_category_id, qtySacks: item.qty_sacks, pricePerSack: item.price_per_sack })));
+      }
+    });
+    return { id };
   });
 
   app.get("/containers/:id", warehouseOnly, async (request) => {

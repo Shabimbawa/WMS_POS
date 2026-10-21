@@ -134,6 +134,13 @@
       "when": 1792140000000,
       "tag": "0018_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792530000000,
+      "tag": "0019_allow_audited_negative_stock",
+      "breakpoints": true
     }
   ]
 }

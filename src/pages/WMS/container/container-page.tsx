@@ -22,7 +22,7 @@ import {
   usePortPullOuts,
   useSuppliers,
 } from "../../../queries/useHooks";
-import type { SortDir } from "../../../queries/types";
+import type { ContainerStatus, SortDir } from "../../../queries/types";
 import { ContainerTable } from "./container-table";
 import { StatusLegend } from "./status-legend";
 import { PortPullOutTable } from "./port-pull-out-table";
@@ -54,6 +54,7 @@ export default function ContainerPage({
   const [view, setView] = useState<"active" | "port" | "archived">("active");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [statusFilter, setStatusFilter] = useState<ContainerStatus | undefined>();
 
   const params = useMemo(
     () => ({
@@ -170,7 +171,7 @@ export default function ContainerPage({
             ]}
           />
 
-          <StatusLegend />
+          <StatusLegend value={statusFilter} onChange={setStatusFilter} />
         </Flex>
       </Card>}
 
@@ -195,7 +196,7 @@ export default function ContainerPage({
         />
       ) : (
         <div>
-          <ContainerTable data={data.rows} />
+          <ContainerTable data={statusFilter ? data.rows.filter((shipment) => shipment.container.some((container) => container.status === statusFilter)) : data.rows} />
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination
               current={data.page}

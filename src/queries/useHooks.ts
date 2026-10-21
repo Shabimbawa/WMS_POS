@@ -15,6 +15,7 @@ import {
   createDelivery,
   createProduct,
   createShipment,
+  updateShipment,
   createShippingCompany,
   createSupplier,
   deleteShippingCompany,
@@ -354,6 +355,11 @@ export function useCreateShipment() {
       qc.invalidateQueries({ queryKey: qk.notebooks });
     },
   });
+}
+
+export function useUpdateShipment() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: updateShipment, onSuccess: () => qc.invalidateQueries({ queryKey: qk.notebooks }) });
 }
 
 /** Logging or voiding a delivery moves stock, so every stock view is stale. */

@@ -1,5 +1,6 @@
 import { Button, Flex, Popconfirm, Tooltip, message } from "antd";
-import { InboxOutlined, UndoOutlined } from "@ant-design/icons";
+import { EditOutlined, InboxOutlined, UndoOutlined } from "@ant-design/icons";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import type { ShipmentRow } from "../../../queries/types";
 import {
@@ -12,6 +13,8 @@ import { ShipmentPrintButton } from "./print-shipment";
 
 export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder } = ErrorNotificationPopup();
   const archive = useArchiveShipment();
@@ -22,6 +25,7 @@ export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
     shipment.container.every(
       ({ status }) => status === "UNLOADED" || status === "CANCELLED",
     );
+  const canEdit = !isArchived;
 
   const archiveShipment = async () => {
     try {
@@ -46,6 +50,9 @@ export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
       {msgHolder}
       {contextHolder}
       <ShipmentPrintButton shipment={shipment} />
+      <Tooltip title={canEdit ? t("Edit shipment") : t("Restore the shipment before editing")}>
+        <span><Button type="text" icon={<EditOutlined />} aria-label={t("Edit shipment")} disabled={!canEdit} onClick={() => navigate(`${location.pathname.startsWith("/national") ? "/national" : "/containers"}/${shipment.id}/edit`, { state: { shipment } })} /></span>
+      </Tooltip>
 
       {isArchived ? (
         <Popconfirm

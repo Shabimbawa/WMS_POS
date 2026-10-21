@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { Button, Card, DatePicker, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Typography, message } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
-import { useCreateShipment, useProductCategories, useShippingCompanies, useSuppliers } from "../../../queries/useHooks";
+import { ApiError } from "../../../utils/api-client";
+import { useCreateShipment, useProductCategories, useShippingCompanies, useSuppliers, useUpdateShipment } from "../../../queries/useHooks";
+import type { ShipmentRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import type { DraftContainer, DraftItem } from "./create-shipment-table";
 import { useLanguage } from "../../../common/context/language-context";
@@ -17,6 +19,10 @@ const blankContainer = (): DraftContainer => ({ key: newKey(), container_no: nul
 export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: "INTERNATIONAL" | "NATIONAL" }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { shipmentId } = useParams();
+  const editingShipment = (location.state as { shipment?: ShipmentRow } | null)?.shipment;
+  const isEditing = Boolean(shipmentId && editingShipment);
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
   const listPath = kind === "INTERNATIONAL" ? "/containers" : "/national";
@@ -24,9 +30,10 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   const { data: products = [], isPending: loadingProducts } = useProductCategories();
   const { data: shippingCompanies = [], isPending: loadingShipping } = useShippingCompanies();
   const createShipment = useCreateShipment();
+  const updateShipment = useUpdateShipment();
   const [form] = Form.useForm<HeaderValues>();
   const supplierId = Form.useWatch("supplier_id", form);
-  const [containers, setContainers] = useState<DraftContainer[]>(() => [blankContainer()]);
+  const [containers, setContainers] = useState<DraftContainer[]>(() => editingShipment ? editingShipment.container.map((container) => ({ key: container.id, container_no: container.container_no, shipping_company_id: container.shipping_company?.id ?? "", items: container.container_item.map((item) => ({ key: item.id, product_category_id: item.product_category.id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })) : [blankContainer()]);
 
   const productOptions = useMemo(() => products.map((p) => ({ label: fmtProduct(p), value: p.id })), [products]);
   const shippingOptions = useMemo(() => shippingCompanies.map((company) => ({
@@ -60,20 +67,30 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   const allSacks = containers.reduce((total, c) => total + c.items.reduce((subtotal, item) => subtotal + (item.qty_sacks || 0), 0), 0);
   const isComplete = Boolean(supplierId) && containers.length > 0 && containers.every((c) => Boolean(c.container_no?.trim()) && Boolean(c.shipping_company_id) && c.items.length > 0 && c.items.every((item) => Boolean(item.product_category_id) && item.qty_sacks > 0));
 
-  const submit = async () => {
+  const submit = async (allowNegativeInventory = false) => {
     const header = await form.validateFields();
     if (!isComplete) return;
     try {
-      await createShipment.mutateAsync({
+      const input = {
         supplierId: header.supplier_id,
         dateListReceived: header.date_list_received.format("YYYY-MM-DD"),
         reference: null,
         notes: header.notes?.trim() || null,
-        containers: containers.map((c) => ({ container_no: c.container_no, shipping_company_id: c.shipping_company_id, items: c.items.map((item) => ({ product_category_id: item.product_category_id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })),
-      });
-      msg.success(t("Shipment registered"));
+        allowNegativeInventory,
+        containers: containers.map((c) => ({ id: isEditing ? c.key : undefined, container_no: c.container_no, shipping_company_id: c.shipping_company_id, items: c.items.map((item) => ({ id: isEditing ? item.key : undefined, product_category_id: item.product_category_id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })),
+      };
+      if (isEditing && shipmentId) await updateShipment.mutateAsync({ id: shipmentId, input });
+      else await createShipment.mutateAsync(input);
+      msg.success(t(isEditing ? "Shipment updated" : "Shipment registered"));
       navigate(listPath);
-    } catch (error) { showError(error, "Could not register shipment"); }
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED") {
+        const deficits = error.details as Array<{ productId: string; balance: number }>;
+        Modal.confirm({ title: t("Inventory will become negative"), content: <div><Typography.Paragraph>{t("Saving these corrections will result in negative stock:")}</Typography.Paragraph>{deficits.map((item) => <Typography.Text key={item.productId} type="danger" style={{ display: "block" }}>{productOptions.find((product) => product.value === item.productId)?.label ?? item.productId}: {fmtInt(item.balance)} {t("sacks")}</Typography.Text>)}</div>, okText: t("Save anyway"), okButtonProps: { danger: true }, cancelText: t("Review changes"), onOk: () => submit(true) });
+        return;
+      }
+      showError(error, isEditing ? "Could not update shipment" : "Could not register shipment");
+    }
   };
 
   const cancel = () => {
@@ -85,12 +102,12 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   return <div className="shipment-register-page">
     {msgHolder}{errorHolder}
     <Flex justify="space-between" align="center" gap={12} wrap>
-      <div><Typography.Title level={4} style={{ margin: 0 }}>{kind === "INTERNATIONAL" ? t("Register Shipment") : t("Register National Delivery")}</Typography.Title><Typography.Text type="secondary">{t("Enter the shipment, containers, and products in one form.")}</Typography.Text></div>
+      <div><Typography.Title level={4} style={{ margin: 0 }}>{isEditing ? t("Edit Shipment") : kind === "INTERNATIONAL" ? t("Register Shipment") : t("Register National Delivery")}</Typography.Title><Typography.Text type="secondary">{t("Enter the shipment, containers, and products in one form.")}</Typography.Text></div>
       <Flex gap={16} className="shipment-register-summary"><span><strong>{fmtInt(containers.length)}</strong> {t("containers")}</span><span><strong>{fmtInt(allSacks)}</strong> {t("sacks")}</span></Flex>
     </Flex>
 
     <Card size="small" title={t("Shipment details")}>
-      <Form form={form} layout="vertical" initialValues={{ date_list_received: dayjs() }}><div className="shipment-header-fields">
+      <Form form={form} layout="vertical" initialValues={{ supplier_id: editingShipment?.supplier.id, date_list_received: editingShipment ? dayjs(editingShipment.date_list_received) : dayjs(), notes: editingShipment?.notes ?? undefined }}><div className="shipment-header-fields">
         <Form.Item name="supplier_id" label={t("Supplier")} rules={[{ required: true, message: t("Pick a supplier") }]}><Select showSearch optionFilterProp="label" placeholder={t("Select supplier")} loading={loadingSuppliers} options={suppliers?.map((s) => ({ label: s.name, value: s.id }))} /></Form.Item>
         <Form.Item name="date_list_received" label={t("List received")} rules={[{ required: true, message: t("Pick a date") }]}><DatePicker allowClear={false} format="MMMM DD, YYYY" style={{ width: "100%" }} /></Form.Item>
         <Form.Item name="notes" label={t("Notes (optional)")} className="shipment-notes-field"><Input.TextArea rows={4} maxLength={2000} showCount placeholder={t("Add notes about this shipment or packing list")} /></Form.Item>
@@ -122,7 +139,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
 
     <Flex justify="space-between" align="center" gap={12} wrap className="shipment-register-footer">
       <Typography.Text type="secondary">{!containers.length ? t("Add at least one container to continue.") : !isComplete ? t("Complete all required container and product fields.") : t("Ready to submit.")}</Typography.Text>
-      <Flex gap={8}><Button onClick={cancel}>{t("Cancel")}</Button><Button type="primary" disabled={!isComplete} loading={createShipment.isPending} onClick={submit}>{t("Submit shipment")}</Button></Flex>
+      <Flex gap={8}><Button onClick={cancel}>{t("Cancel")}</Button><Button type="primary" disabled={!isComplete} loading={createShipment.isPending || updateShipment.isPending} onClick={() => submit()}>{t(isEditing ? "Save changes" : "Submit shipment")}</Button></Flex>
     </Flex>
   </div>;
 }

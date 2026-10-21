@@ -317,7 +317,7 @@ const shipmentOverviewColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] =>
       return <Flex gap={6} wrap>{Object.entries(counts).map(([status, count]) => <Tag key={status} color={STATUS_COLOR[status]} style={{ margin: 0 }}>{count} {t(STATUS_LABEL[status as ContainerStatus])}</Tag>)}</Flex>;
     },
   },
-  { id: "actions", header: "", accessorFn: (row) => row.id, size: 96, meta: { fixed: "right" }, cell: (cell) => <ShipmentActions shipment={cell.row.original} /> },
+  { id: "actions", header: "", accessorFn: (row) => row.id, size: 132, meta: { fixed: "right" }, cell: (cell) => <ShipmentActions shipment={cell.row.original} /> },
 ];
 
 export const containerOverviewColumns = (t: Translate): ColumnDef<ShipmentContainer, any>[] => [

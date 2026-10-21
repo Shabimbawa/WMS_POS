@@ -6,6 +6,7 @@ import {
   Flex,
   Form,
   Input,
+  Popover,
   Popconfirm,
   Radio,
   Select,
@@ -13,6 +14,7 @@ import {
   Typography,
   message,
 } from "antd";
+import { DownOutlined } from "@ant-design/icons";
 import type { FormInstance } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useNavigate } from "react-router-dom";
@@ -262,11 +264,8 @@ export function ContainerActions({
     }
   };
 
-  return (
-    <Flex gap={8} justify="end">
-      {msgHolder}
-      {errorHolder}
-
+  const actions = (
+    <Flex vertical gap={8} className="container-manage-actions">
       {(container.status === "DOCUMENTED" || container.status === "ARRIVED_AT_PORT") && (
         <CommonModalForm<HaulingValues>
           title={`${t("Hauling")} · ${container.container_no ?? t("No box")}`}
@@ -352,5 +351,15 @@ export function ContainerActions({
         </Popconfirm>
       </Tooltip>
     </Flex>
+  );
+
+  return (
+    <>
+      {msgHolder}
+      {errorHolder}
+      <Popover content={actions} title={t("Container actions")} trigger="click" placement="bottomRight">
+        <Button>{t("Manage")} <DownOutlined /></Button>
+      </Popover>
+    </>
   );
 }

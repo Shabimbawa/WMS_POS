@@ -31,6 +31,7 @@ function routeInfo(method: string, route: string): { action: string; module: str
     [/\/auth\/logout$/, "Signed out", "Authentication"],
     [/\/shipments\/:id\/archive$/, "Archived shipment", "Shipments"],
     [/\/shipments\/:id\/restore$/, "Restored shipment", "Shipments"],
+    [/\/shipments\/:id$/, "Updated shipment", "Shipments"],
     [/\/shipments$/, "Registered shipment", "Shipments"],
     [/\/containers\/:id\/arrive-at-port$/, "Marked container at port", "Containers"],
     [/\/containers\/:id\/hauling$/, "Changed hauling assignment", "Containers"],

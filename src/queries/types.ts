@@ -325,12 +325,14 @@ export interface UpdateProductInput {
 }
 
 export interface CreateShipmentItem {
+  id?: string;
   product_category_id: string;
   qty_sacks: number;
   price_per_sack: number | null;
 }
 
 export interface CreateShipmentContainer {
+  id?: string;
   container_no: string | null;
   /** Ocean carrier that ships this container port to port. */
   shipping_company_id: string;
@@ -342,6 +344,7 @@ export interface CreateShipmentInput {
   dateListReceived: string;
   reference: string | null;
   notes?: string | null;
+  allowNegativeInventory?: boolean;
   containers: CreateShipmentContainer[];
 }
 

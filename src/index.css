@@ -630,6 +630,8 @@ code {
 .shipment-product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px; }
 .shipment-product-item { display: flex; justify-content: space-between; gap: 12px; padding: 4px 7px; border-radius: 4px; background: var(--ant-color-fill-quaternary); font-size: 13px; }
 .shipment-product-item strong { white-space: nowrap; }
+.container-manage-actions { min-width: 180px; }
+.container-manage-actions .ant-btn { width: 100%; }
 .shipment-register-page { display: grid; gap: 14px; max-width: 1180px; margin: 0 auto; }
 .shipment-register-summary { color: var(--ant-color-text-secondary); font-size: 13px; }
 .shipment-register-summary strong { margin-right: 3px; color: var(--ant-color-text); font-size: 17px; }
@@ -894,6 +896,9 @@ code {
   padding-inline: 8px;
   line-height: 22px;
 }
+.shipment-status-filter { cursor: pointer; opacity: .68; transition: opacity .15s, box-shadow .15s, transform .15s; }
+.shipment-status-filter:hover { opacity: 1; }
+.shipment-status-filter.is-active { opacity: 1; box-shadow: 0 0 0 2px var(--ant-color-primary); transform: translateY(-1px); }
 
 @media (max-width: 640px) {
   .shipment-page-header {
