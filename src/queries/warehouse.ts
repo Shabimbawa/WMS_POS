@@ -5,6 +5,8 @@ import type {
   AuditLogParams,
   AuditLogRow,
   ContainerDetail,
+  ContainerListParams,
+  ContainerListRow,
   CreateLocalDeliveryInput,
   CreateProductInput,
   CreateShippingCompanyInput,
@@ -191,6 +193,12 @@ export async function getStockLog(
   params: StockLogParams,
 ): Promise<Page<StockLogRow>> {
   return apiRequest<Page<StockLogRow>>(`/stock/movements${queryString(params)}`);
+}
+
+export async function getContainers(
+  params: ContainerListParams,
+): Promise<Page<ContainerListRow>> {
+  return apiRequest<Page<ContainerListRow>>(`/containers${queryString(params)}`);
 }
 
 export async function createShipment(input: CreateShipmentInput): Promise<string> {

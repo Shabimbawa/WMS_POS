@@ -19,12 +19,14 @@ import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import {
+  useContainers,
   useShippingContainerNotebook,
   usePortPullOuts,
   useSuppliers,
 } from "../../../queries/useHooks";
 import type { ContainerStatus, SortDir } from "../../../queries/types";
-import { ContainerTable } from "./container-table";
+import { ContainerStatusTable, ContainerTable } from "./container-table";
+import { STATUS_LABEL } from "../type-format/format";
 import { StatusLegend } from "./status-legend";
 import { PortPullOutTable } from "./port-pull-out-table";
 import {
@@ -82,7 +84,13 @@ export default function ContainerPage({
     isPlaceholderData,
     isFetching,
     refetch,
-  } = useShippingContainerNotebook(params, view !== "port");
+  } = useShippingContainerNotebook(params, view !== "port" && !statusFilter);
+  // A status chip switches the notebook to a flat list of containers.
+  const containerList = useContainers(
+    { ...params, status: statusFilter ?? "DOCUMENTED" },
+    view !== "port" && Boolean(statusFilter),
+  );
+  const active = statusFilter ? containerList : { data, isPending, isError, error, isPlaceholderData, isFetching };
 
   const reset = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
@@ -98,7 +106,7 @@ export default function ContainerPage({
             : t("National Shipments")}
         </Typography.Title>
         <Flex gap={8} align="center" className="shipment-page-actions">
-          <Button onClick={() => refetch()} loading={isFetching}>
+          <Button onClick={() => (statusFilter ? containerList.refetch() : refetch())} loading={active.isFetching}>
             {t("Refresh")}
           </Button>
           <Button
@@ -186,37 +194,41 @@ export default function ContainerPage({
             ]}
           />
 
-          <StatusLegend value={statusFilter} onChange={setStatusFilter} />
+          <StatusLegend value={statusFilter} onChange={reset(setStatusFilter)} />
         </Flex>
       </Card>}
 
-      {view === "port" ? <PortPullOutTable kind={kind} /> : isError ? (
+      {view === "port" ? <PortPullOutTable kind={kind} /> : active.isError ? (
         <Alert
           type="error"
           showIcon
-          message={t("Could not load packing lists")}
-          description={t((error as Error)?.message)}
+          message={t(statusFilter ? "Could not load containers" : "Could not load packing lists")}
+          description={t((active.error as Error)?.message)}
         />
-      ) : isPending || (isFetching && isPlaceholderData) ? (
+      ) : active.isPending || (active.isFetching && active.isPlaceholderData) ? (
         <Card size="small" aria-busy="true" aria-label={t("Loading shipments")}>
           <Skeleton active title={false} paragraph={{ rows: 7 }} />
         </Card>
-      ) : !data?.rows.length ? (
+      ) : !active.data?.rows.length ? (
         <Empty
-          description={t(
-            view === "archived"
-              ? "No archived shipments in this date range"
-              : "No packing lists in this date range",
-          )}
+          description={statusFilter
+            ? t("No {status} containers in this date range", { status: t(STATUS_LABEL[statusFilter]).toLowerCase() })
+            : t(
+              view === "archived"
+                ? "No archived shipments in this date range"
+                : "No packing lists in this date range",
+            )}
         />
       ) : (
         <div>
-          <ContainerTable containerSearch={deferredContainerSearch} data={statusFilter ? data.rows.filter((shipment) => shipment.container.some((container) => container.status === statusFilter)) : data.rows} />
+          {statusFilter && containerList.data
+            ? <ContainerStatusTable data={containerList.data.rows} status={statusFilter} total={containerList.data.total} />
+            : data && <ContainerTable containerSearch={deferredContainerSearch} data={data.rows} />}
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination
-              current={data.page}
-              pageSize={data.pageSize}
-              total={data.total}
+              current={active.data.page}
+              pageSize={active.data.pageSize}
+              total={active.data.total}
               showSizeChanger
               pageSizeOptions={[10, 25, 50, 100]}
               onChange={(p, ps) => {

@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
 import { LabelValue, OverflowList } from "../../../common/items/overflow-list/overflow-list";
-import type { ContainerStatus, ShipmentRow } from "../../../queries/types";
+import type { ContainerListRow, ContainerStatus, ShipmentRow } from "../../../queries/types";
 import {
   STATUS_COLOR,
   STATUS_LABEL,
@@ -323,13 +323,13 @@ const shipmentOverviewColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] =>
   { id: "actions", header: "", accessorFn: (row) => row.id, size: 172, meta: { fixed: "right" }, cell: (cell) => <ShipmentActions shipment={cell.row.original} /> },
 ];
 
-export const containerOverviewColumns = (t: Translate): ColumnDef<ShipmentContainer, any>[] => [
+export const containerOverviewColumns = <T extends ShipmentContainer>(t: Translate): ColumnDef<T, any>[] => [
   {
     id: "container",
     header: "Container / shipping line",
     accessorFn: (row) => row.container_no,
     size: 230,
-    cell: (cell) => { const row = cell.row.original; return <div className="shipment-primary-cell"><Typography.Text strong code>{row.container_no || t("No box")}</Typography.Text><Typography.Text type="secondary">{row.shipping_company ? [row.shipping_company.name, row.shipping_company.code].filter(Boolean).join(" · ") : t("No shipping line")}</Typography.Text></div>; },
+    cell: (cell) => { const row = cell.row.original; return <div className="shipment-primary-cell"><Typography.Text strong code>{row.container_no || t("No box")}</Typography.Text><Typography.Text type="secondary">{row.shipping_company ? [row.shipping_company.name, row.shipping_company.code].filter(Boolean).join(" · ") : t("No shipping line")}</Typography.Text>{row.notes && <Typography.Text type="secondary" ellipsis={{ tooltip: row.notes }} style={{ maxWidth: 210, fontSize: 12 }}>{row.notes}</Typography.Text>}</div>; },
   },
   {
     id: "status",
@@ -354,6 +354,39 @@ export const containerOverviewColumns = (t: Translate): ColumnDef<ShipmentContai
   },
   { id: "actions", header: "", accessorFn: (row) => row.id, size: 230, meta: { fixed: "right" }, cell: (cell) => <ContainerActions container={cell.row.original} /> },
 ];
+
+/** Which shipment a container belongs to, for the status list. */
+const containerShipmentColumn = (t: Translate): ColumnDef<ContainerListRow, any> => ({
+  id: "shipment",
+  header: "Shipment",
+  accessorFn: (row) => row.shipment.date_list_received,
+  size: 200,
+  cell: (cell) => {
+    const { shipment } = cell.row.original;
+    return <div className="shipment-primary-cell">
+      <Flex gap={6} align="center" wrap>
+        <Typography.Text strong>{fmtTableDate(shipment.date_list_received)}</Typography.Text>
+        {shipment.archived_at && <Tag style={{ margin: 0 }}>{t("Archived")}</Tag>}
+      </Flex>
+      <Typography.Text type="secondary">{[shipment.supplier.name, shipment.supplier.code].filter(Boolean).join(" · ")}</Typography.Text>
+    </div>;
+  },
+});
+
+/** Every container in one status, one row each, whatever shipment it is on. */
+export function ContainerStatusTable({ data, status, total }: { data: ContainerListRow[]; status: ContainerStatus; total: number }) {
+  const { t } = useLanguage();
+  const columns = useMemo(() => {
+    const [container, ...rest] = containerOverviewColumns<ContainerListRow>(t);
+    return [container, containerShipmentColumn(t), ...rest];
+  }, [t]);
+  const sacks = data.reduce((sum, container) => sum + container.container_item.reduce((quantity, item) => quantity + (item.actual_qty_sacks ?? item.qty_sacks), 0), 0);
+  return (
+    <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{t("{status} containers", { status: t(STATUS_LABEL[status]) })}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{t("Every container in this status, across shipments")}</Typography.Text></div>} extra={<Flex gap={20} className="shipment-table-totals"><span><strong>{fmtInt(total)}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks on this page")}</span></Flex>}>
+      <DataTable data={data} columns={columns} />
+    </Card>
+  );
+}
 
 function ContainerDetails({ container, index, t }: { container: ShipmentContainer; index: number; t: Translate }) {
   const hauling = container.is_company_truck === null ? t("Not assigned") : container.is_company_truck ? t("Own truck") : container.hauler || t("Third-party hauler");

@@ -584,6 +584,11 @@ const zh: Record<string, string> = {
   'No shipments with a variance': '没有存在差异的货运',
   'No shipments with unloaded containers': '没有包含已卸货货柜的货运',
   'issues': '问题',
+  'Could not load containers': '无法加载货柜',
+  '{status} containers': '{status}货柜',
+  'Every container in this status, across shipments': '此状态下的所有货柜（跨货运）',
+  'sacks on this page': '袋（本页）',
+  'No {status} containers in this date range': '此日期范围内没有{status}货柜',
 }
 
 const interpolate = (text: string, values?: Record<string, string | number>) =>

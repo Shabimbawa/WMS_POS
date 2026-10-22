@@ -23,6 +23,7 @@ import {
   deleteSupplier,
   getAuditLogs,
   getContainer,
+  getContainers,
   getContainerVariance,
   getOpenQuestionCount,
   getOpenQuestions,
@@ -66,6 +67,7 @@ import {
 
 import type {
   AuditLogParams,
+  ContainerListParams,
   LocalDeliveryParams,
   OpenQuestionParams,
   ProductCategoryParams,
@@ -109,6 +111,7 @@ export const qk = {
   shippingNotebook: (p: ShippingContainerNotebookParams) =>
     ["notebook", "shipping", p] as const,
   portPullOuts: (kind: "INTERNATIONAL" | "NATIONAL") => ["notebook", "port-pull-outs", kind] as const,
+  containerList: (p: ContainerListParams) => ["notebook", "containers", p] as const,
   // Under "notebook" so anything that invalidates shipments refreshes it too.
   container: (id: string) => ["notebook", "container", id] as const,
 
@@ -183,6 +186,17 @@ export function useShippingContainerNotebook(
   return useQuery({
     queryKey: qk.shippingNotebook(params),
     queryFn: () => getShippingContainerNotebook(params),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
+  });
+}
+
+/** Every container in one status, across shipments. */
+export function useContainers(params: ContainerListParams, enabled = true) {
+  return useQuery({
+    queryKey: qk.containerList(params),
+    queryFn: () => getContainers(params),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: STALE_TIME,

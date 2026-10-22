@@ -198,6 +198,11 @@ export interface ShipmentRow {
   }>;
 }
 
+/** GET /containers — one container in the chosen status, with its shipment. */
+export type ContainerListRow = ShipmentRow["container"][number] & {
+  shipment: Pick<ShipmentRow, "id" | "date_list_received" | "reference" | "archived_at" | "supplier">;
+};
+
 /** GET /stock — one row per product balance, from the stock_balance table. */
 export interface StockStatusRow {
   id: string;
@@ -264,6 +269,11 @@ export interface ShippingContainerNotebookParams
   kind?: SupplierKind;
   /** Active notebook by default; true returns only archived shipments. */
   archived?: boolean;
+}
+
+/** The notebook filters, narrowed to containers in one status. */
+export interface ContainerListParams extends ShippingContainerNotebookParams {
+  status: ContainerStatus;
 }
 
 export interface StockStatusParams extends Pagination {

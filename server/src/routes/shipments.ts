@@ -12,11 +12,13 @@ import {
   isNull,
   lte,
   sql,
+  type SQL,
 } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
   containerDiscrepancies,
+  containerStatus,
   containerItems,
   containers,
   productCategories,
@@ -266,6 +268,106 @@ function addCalendarDays(isoDateValue: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+const containerListQuery = shipmentQuery.extend({
+  status: z.enum(containerStatus.enumValues),
+});
+
+/** Filters on the shipment and its supplier, shared by the shipment and container lists. */
+function shipmentFilters(query: z.infer<typeof shipmentQuery>) {
+  return [
+    gte(shipments.dateListReceived, query.dateFrom),
+    lte(shipments.dateListReceived, query.dateTo),
+    query.archived ? isNotNull(shipments.archivedAt) : isNull(shipments.archivedAt),
+    ...(query.kind ? [eq(suppliers.kind, query.kind)] : []),
+    ...(query.supplierId ? [eq(shipments.supplierId, query.supplierId)] : []),
+  ];
+}
+
+/** A shipment's own fields, as the shipment list and container list return them. */
+const shipmentSummaryFields = {
+  id: shipments.id,
+  date_list_received: shipments.dateListReceived,
+  reference: shipments.reference,
+  archived_at: shipments.archivedAt,
+  supplier: {
+    id: suppliers.id,
+    name: suppliers.name,
+    code: suppliers.code,
+    origin: suppliers.origin,
+    kind: suppliers.kind,
+  },
+};
+
+/**
+ * Containers matching `where`, each with its items, in the shape the notebook
+ * renders. The shipment id is returned beside each container for grouping.
+ */
+async function loadContainers(where: SQL) {
+  const containerRows = await db
+    .select({
+      id: containers.id,
+      shipmentId: containers.shipmentId,
+      container_no: containers.containerNo,
+      notes: containers.notes,
+      is_company_truck: containers.isCompanyTruck,
+      hauler: containers.hauler,
+      shipping_company: {
+        id: shippingCompanies.id,
+        name: shippingCompanies.name,
+        code: shippingCompanies.code,
+        grace_period_days: shippingCompanies.gracePeriodDays,
+      },
+      status: containers.status,
+      date_arrived_at_port: containers.dateArrivedAtPort,
+      pull_out_before: containers.pullOutBefore,
+      date_delivered: containers.dateDelivered,
+      date_unloaded: containers.dateUnloaded,
+      items_match: containers.itemsMatch,
+    })
+    .from(containers)
+    .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
+    .where(where)
+    .orderBy(asc(containers.createdAt));
+
+  const itemRows = containerRows.length
+    ? await db
+      .select({
+        id: containerItems.id,
+        containerId: containerItems.containerId,
+        qty_sacks: containerItems.qtySacks,
+        actual_qty_sacks: containerItems.actualQtySacks,
+        price_per_sack: containerItems.pricePerSack,
+        product_category: {
+          id: productCategories.id,
+          brand: productCategories.brand,
+          variety: productCategories.variety,
+          code: productCategories.code,
+          size_kg: productCategories.sizeKg,
+        },
+      })
+      .from(containerItems)
+      .innerJoin(productCategories, eq(containerItems.productCategoryId, productCategories.id))
+      .where(inArray(containerItems.containerId, containerRows.map((row) => row.id)))
+      .orderBy(asc(containerItems.createdAt))
+    : [];
+  const itemsByContainer = groupBy(itemRows, (row) => row.containerId);
+
+  return containerRows.map(({ shipmentId, shipping_company, ...container }) => ({
+    shipmentId,
+    container: {
+      ...container,
+      shipping_company: shipping_company?.id ? shipping_company : null,
+      container_item: (itemsByContainer.get(container.id) ?? []).map((item) => ({
+        id: item.id,
+        qty_sacks: item.qty_sacks,
+        actual_qty_sacks: item.actual_qty_sacks,
+        price_per_sack: item.price_per_sack,
+        product_category: item.product_category,
+      })),
+    },
+  }));
+}
+
 export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   const warehouseOnly = { preHandler: requireRole("warehouse_admin") };
 
@@ -297,11 +399,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const filters = [
-      gte(shipments.dateListReceived, query.dateFrom),
-      lte(shipments.dateListReceived, query.dateTo),
-      query.archived ? isNotNull(shipments.archivedAt) : isNull(shipments.archivedAt),
-      ...(query.kind ? [eq(suppliers.kind, query.kind)] : []),
-      ...(query.supplierId ? [eq(shipments.supplierId, query.supplierId)] : []),
+      ...shipmentFilters(query),
       ...(query.containerNo ? [sql`exists (select 1 from container search_container where search_container.shipment_id = ${shipments.id} and lower(search_container.container_no) like ${`%${query.containerNo.toLowerCase()}%`})`] : []),
     ];
     const where = and(...filters);
@@ -313,19 +411,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     const total = countRow?.value ?? 0;
 
     const shipmentRows = await db
-      .select({
-        id: shipments.id,
-        date_list_received: shipments.dateListReceived,
-        reference: shipments.reference,
-        archived_at: shipments.archivedAt,
-        supplier: {
-          id: suppliers.id,
-          name: suppliers.name,
-          code: suppliers.code,
-          origin: suppliers.origin,
-          kind: suppliers.kind,
-        },
-      })
+      .select(shipmentSummaryFields)
       .from(shipments)
       .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
       .where(where)
@@ -338,92 +424,68 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
 
     if (!shipmentRows.length) return pageResult([], total, query.page, query.pageSize);
 
-    const containerRows = await db
-      .select({
-        id: containers.id,
-        shipmentId: containers.shipmentId,
-        container_no: containers.containerNo,
-        notes: containers.notes,
-        is_company_truck: containers.isCompanyTruck,
-        hauler: containers.hauler,
-        shipping_company: {
-          id: shippingCompanies.id,
-          name: shippingCompanies.name,
-          code: shippingCompanies.code,
-          grace_period_days: shippingCompanies.gracePeriodDays,
-        },
-        status: containers.status,
-        date_arrived_at_port: containers.dateArrivedAtPort,
-        pull_out_before: containers.pullOutBefore,
-        date_delivered: containers.dateDelivered,
-        date_unloaded: containers.dateUnloaded,
-        items_match: containers.itemsMatch,
-      })
-      .from(containers)
-      .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
-      .where(inArray(containers.shipmentId, shipmentRows.map((row) => row.id)))
-      .orderBy(asc(containers.createdAt));
-
-    const itemRows = containerRows.length
-      ? await db
-        .select({
-          id: containerItems.id,
-          containerId: containerItems.containerId,
-          qty_sacks: containerItems.qtySacks,
-          actual_qty_sacks: containerItems.actualQtySacks,
-          price_per_sack: containerItems.pricePerSack,
-          product_category: {
-            id: productCategories.id,
-            brand: productCategories.brand,
-            variety: productCategories.variety,
-            code: productCategories.code,
-            size_kg: productCategories.sizeKg,
-          },
-        })
-        .from(containerItems)
-        .innerJoin(productCategories, eq(containerItems.productCategoryId, productCategories.id))
-        .where(inArray(containerItems.containerId, containerRows.map((row) => row.id)))
-        .orderBy(asc(containerItems.createdAt))
-      : [];
-
-    const itemsByContainer = groupBy(itemRows, (row) => row.containerId);
-    const enrichedContainers = containerRows.map((container) => ({
-      ...container,
-      container_item: (itemsByContainer.get(container.id) ?? []).map((item) => ({
-        id: item.id,
-        qty_sacks: item.qty_sacks,
-        actual_qty_sacks: item.actual_qty_sacks,
-        price_per_sack: item.price_per_sack,
-        product_category: item.product_category,
-      })),
-    }));
-    const containersByShipment = groupBy(enrichedContainers, (row) => row.shipmentId);
+    const loaded = await loadContainers(inArray(containers.shipmentId, shipmentRows.map((row) => row.id)));
+    const containersByShipment = groupBy(loaded, (entry) => entry.shipmentId);
 
     return pageResult(
       shipmentRows.map((row) => ({
         ...row,
-        container: (containersByShipment.get(row.id) ?? []).map((container) => ({
-          id: container.id,
-          container_no: container.container_no,
-          notes: container.notes,
-          is_company_truck: container.is_company_truck,
-          hauler: container.hauler,
-          shipping_company: container.shipping_company?.id
-            ? container.shipping_company
-            : null,
-          status: container.status,
-          date_arrived_at_port: container.date_arrived_at_port,
-          pull_out_before: container.pull_out_before,
-          date_delivered: container.date_delivered,
-          date_unloaded: container.date_unloaded,
-          items_match: container.items_match,
-          container_item: container.container_item,
-        })),
+        container: (containersByShipment.get(row.id) ?? []).map((entry) => entry.container),
       })),
       total,
       query.page,
       query.pageSize,
     );
+  });
+
+  // Every container in one status, whatever shipment it belongs to. The
+  // shipment filters still apply; containerNo matches the container itself.
+  app.get("/containers", warehouseOnly, async (request) => {
+    const query = containerListQuery.parse(request.query);
+    if (query.dateFrom > query.dateTo) {
+      throw new ApiError(400, "INVALID_DATE_RANGE", "dateFrom cannot be after dateTo");
+    }
+
+    const where = and(
+      eq(containers.status, query.status),
+      ...shipmentFilters(query),
+      ...(query.containerNo ? [sql`lower(${containers.containerNo}) like ${`%${query.containerNo.toLowerCase()}%`}`] : []),
+    );
+    const [countRow] = await db
+      .select({ value: count() })
+      .from(containers)
+      .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .where(where);
+    const total = countRow?.value ?? 0;
+
+    const order = query.sortDir === "asc" ? asc : desc;
+    const pageIds = (await db
+      .select({ id: containers.id })
+      .from(containers)
+      .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .where(where)
+      .orderBy(order(shipments.dateListReceived), order(shipments.createdAt), asc(containers.createdAt))
+      .limit(query.pageSize)
+      .offset((query.page - 1) * query.pageSize)).map((row) => row.id);
+
+    if (!pageIds.length) return pageResult([], total, query.page, query.pageSize);
+
+    const loaded = new Map((await loadContainers(inArray(containers.id, pageIds))).map((entry) => [entry.container.id, entry]));
+    const shipmentIds = [...new Set([...loaded.values()].map((entry) => entry.shipmentId))];
+    const summaries = new Map((await db
+      .select(shipmentSummaryFields)
+      .from(shipments)
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .where(inArray(shipments.id, shipmentIds))).map((row) => [row.id, row]));
+
+    const rows = pageIds.flatMap((id) => {
+      const entry = loaded.get(id);
+      const shipment = entry && summaries.get(entry.shipmentId);
+      return entry && shipment ? [{ ...entry.container, shipment }] : [];
+    });
+    return pageResult(rows, total, query.page, query.pageSize);
   });
 
   app.post("/shipments/:id/archive", warehouseOnly, async (request) => {
