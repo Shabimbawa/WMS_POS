@@ -50,6 +50,7 @@ export const MOVEMENT_LABEL: Record<StockMovementType, string> = {
   MANUAL_ADJUSTMENT: "Adjustment",
   INBOUND_LOCAL: "Local delivery",
   LOCAL_REVERSAL: "Local reversal",
+  SHIPMENT_REVERSAL: "Shipment reversal",
 };
 
 export const MOVEMENT_COLOR: Record<StockMovementType, string> = {
@@ -60,6 +61,7 @@ export const MOVEMENT_COLOR: Record<StockMovementType, string> = {
   MANUAL_ADJUSTMENT: "purple",
   INBOUND_LOCAL: "success",
   LOCAL_REVERSAL: "warning",
+  SHIPMENT_REVERSAL: "error",
 };
 
 export const STATUS_LABEL: Record<ContainerStatus, string> = {

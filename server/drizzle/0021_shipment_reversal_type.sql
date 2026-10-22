@@ -1,0 +1,1 @@
+ALTER TYPE "public"."stock_movement_type" ADD VALUE IF NOT EXISTS 'SHIPMENT_REVERSAL';

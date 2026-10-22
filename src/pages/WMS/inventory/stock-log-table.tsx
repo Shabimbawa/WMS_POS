@@ -116,6 +116,10 @@ export const stockLogColumns = (translate: Translate): ColumnDef<StockLogRow, an
           </span>
         );
       }
+      // Its shipment was hard-deleted; the note names the container.
+      if (r.movement_type === "INBOUND_UNLOAD" || r.movement_type === "SHIPMENT_REVERSAL") {
+        return <span style={{ opacity: 0.65 }}>{translate("Deleted container")}</span>;
+      }
       return dash;
     },
   },

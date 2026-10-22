@@ -60,6 +60,8 @@ export const stockMovementType = pgEnum("stock_movement_type", [
   // Local suppliers arrive unannounced by truck: counted once, logged once.
   "INBOUND_LOCAL",
   "LOCAL_REVERSAL",
+  // Takes back unloaded stock when its container is deleted or recounted.
+  "SHIPMENT_REVERSAL",
 ]);
 
 const auditTimestamps = {
@@ -592,10 +594,12 @@ export const stockMovements = pgTable(
     index("stock_movement_order_slip_idx").on(table.orderSlipId),
     index("stock_movement_local_delivery_idx").on(table.localDeliveryId),
     check("stock_movement_delta_nonzero", sql`${table.quantityDelta} <> 0`),
+    // Container movements keep their container until its shipment is hard
+    // deleted; then container_id is cleared and the note names the container.
     check(
       "stock_movement_source_ck",
       sql`
-        (${table.movementType} = 'INBOUND_UNLOAD' and ${table.containerId} is not null and ${table.orderSlipId} is null and ${table.localDeliveryId} is null)
+        (${table.movementType} in ('INBOUND_UNLOAD', 'SHIPMENT_REVERSAL') and ${table.orderSlipId} is null and ${table.localDeliveryId} is null)
         or (${table.movementType} in ('OUTBOUND_ORDER', 'ORDER_REVERSAL') and ${table.orderSlipId} is not null and ${table.containerId} is null and ${table.localDeliveryId} is null and ${table.orderRevision} is not null)
         or (${table.movementType} in ('INBOUND_LOCAL', 'LOCAL_REVERSAL') and ${table.localDeliveryId} is not null and ${table.containerId} is null and ${table.orderSlipId} is null)
         or (${table.movementType} in ('OPENING_BALANCE', 'MANUAL_ADJUSTMENT') and ${table.containerId} is null and ${table.orderSlipId} is null and ${table.localDeliveryId} is null)

@@ -214,7 +214,9 @@ export type StockMovementType =
   | "ORDER_REVERSAL"
   | "MANUAL_ADJUSTMENT"
   | "INBOUND_LOCAL"
-  | "LOCAL_REVERSAL";
+  | "LOCAL_REVERSAL"
+  /** Takes back unloaded stock when its container is deleted or recounted. */
+  | "SHIPMENT_REVERSAL";
 
 /**
  * GET /stock/movements — the append-only ledger behind every balance.

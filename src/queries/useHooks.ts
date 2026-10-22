@@ -357,9 +357,17 @@ export function useCreateShipment() {
   });
 }
 
+/** Editing or deleting a shipment can move stock and drop discrepancies. */
+function shipmentInvalidation(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: qk.notebooks });
+  qc.invalidateQueries({ queryKey: qk.discrepancies });
+  qc.invalidateQueries({ queryKey: qk.stock });
+  qc.invalidateQueries({ queryKey: qk.posProducts });
+}
+
 export function useUpdateShipment() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: updateShipment, onSuccess: () => qc.invalidateQueries({ queryKey: qk.notebooks }) });
+  return useMutation({ mutationFn: updateShipment, onSuccess: () => shipmentInvalidation(qc) });
 }
 
 /** Logging or voiding a delivery moves stock, so every stock view is stale. */

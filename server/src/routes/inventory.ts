@@ -50,6 +50,7 @@ const movementQuery = z.object({
       "MANUAL_ADJUSTMENT",
       "INBOUND_LOCAL",
       "LOCAL_REVERSAL",
+      "SHIPMENT_REVERSAL",
     ])
     .optional(),
   direction: z.enum(["IN", "OUT"]).optional(),

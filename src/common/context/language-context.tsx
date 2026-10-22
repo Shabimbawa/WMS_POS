@@ -152,6 +152,8 @@ const zh: Record<string, string> = {
   'Adjustment': '调整',
   'Local delivery': '本地送货',
   'Local reversal': '本地送货冲销',
+  'Shipment reversal': '货运冲销',
+  'Deleted container': '已删除的货柜',
   'Documented': '已登记',
   'At port': '已到港',
   'Delivered': '已送达',
