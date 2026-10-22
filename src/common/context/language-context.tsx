@@ -556,6 +556,18 @@ const zh: Record<string, string> = {
   'Not unloaded yet': '尚未卸货',
   'Notes (optional)': '备注（选填）',
   'Add notes about this container': '添加此货柜的备注',
+  'National': '国内',
+  'Containers with variance': '存在差异的货柜',
+  '{count} not unloaded yet': '{count} 个尚未卸货',
+  'All containers unloaded': '所有货柜已卸货',
+  'Net variance': '净差异',
+  'Last unloaded': '最近卸货',
+  'Container / shipping line': '货柜 / 船公司',
+  'No shipping line': '无船公司',
+  'Compare packing-list quantities with the sacks counted during unloading. Each shipment shows how many of its unloaded containers have a variance; open it to see those containers, then open a container to see its products.': '比较装箱单数量与卸货时的实点袋数。每个货运显示其已卸货货柜中有多少存在差异；展开货运查看货柜，再展开货柜查看商品。',
+  'No shipments with a variance': '没有存在差异的货运',
+  'No shipments with unloaded containers': '没有包含已卸货货柜的货运',
+  'issues': '问题',
 }
 
 const interpolate = (text: string, values?: Record<string, string | number>) =>

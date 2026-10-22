@@ -514,21 +514,46 @@ export interface ContainerVarianceItem {
   discrepancies: VarianceDiscrepancy[];
 }
 
+/** One unloaded container inside a shipment variance row. */
 export interface ContainerVarianceRow {
   container_id: string;
   container_no: string | null;
+  notes: string | null;
+  shipping_company: string | null;
+  shipping_company_code: string | null;
   status: ContainerStatus;
   items_match: boolean | null;
   date_unloaded: string | null;
-  date_list_received: string;
-  supplier: string;
   declared_sacks: number;
   actual_sacks: number;
-
+  /** actual − declared; negative is a shortfall. */
   variance_sacks: number;
   discrepancy_count: number;
-
   container_items: ContainerVarianceItem[] | null;
+}
+
+/**
+ * GET /discrepancies/variance — one row per shipment with at least one
+ * unloaded container. Sack totals cover unloaded containers only.
+ */
+export interface ShipmentVarianceRow {
+  shipment_id: string;
+  date_list_received: string;
+  reference: string | null;
+  supplier: string;
+  supplier_code: string | null;
+  supplier_kind: SupplierKind;
+  /** Every container on the shipment, unloaded or not. */
+  container_count: number;
+  unloaded_count: number;
+  /** Unloaded containers whose totals differ or that have a logged issue. */
+  variance_count: number;
+  declared_sacks: number;
+  actual_sacks: number;
+  variance_sacks: number;
+  discrepancy_count: number;
+  last_unloaded: string | null;
+  containers: ContainerVarianceRow[];
 }
 
 

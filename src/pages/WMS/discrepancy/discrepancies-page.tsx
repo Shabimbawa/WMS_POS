@@ -58,7 +58,7 @@ export default function DiscrepanciesPage() {
       </Flex>
       <Typography.Text type="secondary">
         {view === "variance"
-          ? t("Compare packing-list quantities with the sacks counted during unloading. Review shortages, overages, damaged stock, and undeclared items for each completed container.")
+          ? t("Compare packing-list quantities with the sacks counted during unloading. Each shipment shows how many of its unloaded containers have a variance; open it to see those containers, then open a container to see its products.")
           : t("Review unresolved notes logged as Other. These entries do not change stock quantities and remain open until they are recorded again with the correct discrepancy reason.")}
       </Typography.Text>
 
@@ -106,7 +106,7 @@ export default function DiscrepanciesPage() {
         <Empty
           description={
             view === "variance"
-              ? t("No unloaded containers with a variance")
+              ? t(mismatchOnly ? "No shipments with a variance" : "No shipments with unloaded containers")
               : t("No open questions")
           }
         />

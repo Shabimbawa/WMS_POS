@@ -10,7 +10,7 @@ import type {
   CreateShippingCompanyInput,
   LocalDeliveryParams,
   LocalDeliveryRow,
-  ContainerVarianceRow,
+  ShipmentVarianceRow,
   CreateShipmentInput,
   CreateSupplierInput,
   OpenQuestionParams,
@@ -270,8 +270,8 @@ export async function getContainer(id: string): Promise<ContainerDetail> {
 
 export async function getContainerVariance(
   params: VarianceParams,
-): Promise<Page<ContainerVarianceRow>> {
-  return apiRequest<Page<ContainerVarianceRow>>(
+): Promise<Page<ShipmentVarianceRow>> {
+  return apiRequest<Page<ShipmentVarianceRow>>(
     `/discrepancies/variance${queryString(params)}`,
   );
 }

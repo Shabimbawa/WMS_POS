@@ -12,6 +12,7 @@ import {
   orderSlips,
   productCategories,
   shipments,
+  shippingCompanies,
   stockBalances,
   stockMovements,
   suppliers,
@@ -84,18 +85,37 @@ function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
   return grouped;
 }
 
-type VarianceRow = {
+type ContainerVarianceRow = {
   container_id: string;
+  shipment_id: string;
   container_no: string | null;
+  notes: string | null;
+  shipping_company: string | null;
+  shipping_company_code: string | null;
   status: string;
   items_match: boolean | null;
   date_unloaded: string | null;
-  date_list_received: string;
-  supplier: string;
   declared_sacks: number;
   actual_sacks: number;
   variance_sacks: number;
   discrepancy_count: number;
+};
+
+type ShipmentVarianceRow = {
+  shipment_id: string;
+  date_list_received: string;
+  reference: string | null;
+  supplier: string;
+  supplier_code: string | null;
+  supplier_kind: string;
+  container_count: number;
+  unloaded_count: number;
+  variance_count: number;
+  declared_sacks: number;
+  actual_sacks: number;
+  variance_sacks: number;
+  discrepancy_count: number;
+  last_unloaded: string | null;
 };
 
 /** suppliers is already joined through the container, so the delivery's
@@ -296,44 +316,69 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireRole("warehouse_admin") },
     async (request) => {
       const query = discrepancyListQuery.parse(request.query);
-      const mismatchFilter = query.mismatchOnly ? sql`and totals.actual_sacks <> totals.declared_sacks` : sql``;
-      const totalResult = await db.execute(sql`
-        with totals as (
-          select c.id,
-            coalesce(sum(ci.qty_sacks), 0)::int as declared_sacks,
-            coalesce(sum(ci.actual_qty_sacks), 0)::int as actual_sacks
-          from ${containers} c
-          left join ${containerItems} ci on ci.container_id = c.id
-          where c.status = 'UNLOADED'
-          group by c.id
-        )
-        select count(*)::int as total from totals where true ${mismatchFilter}
-      `);
-      const total = Number(totalResult[0]?.total ?? 0);
-
-      const result = await db.execute(sql`
-        with totals as (
-          select c.id as container_id, c.container_no, c.status, c.items_match,
-            c.date_unloaded, s.date_list_received, sup.name as supplier,
+      // Pending containers would read as total losses, so only UNLOADED ones
+      // are compared. A shipment appears once any of its containers is unloaded.
+      const containerTotals = sql`
+        container_totals as (
+          select c.id as container_id, c.shipment_id, c.container_no, c.notes, c.status,
+            c.items_match, c.date_unloaded,
+            sc.name as shipping_company, sc.code as shipping_company_code,
             coalesce(sum(ci.qty_sacks), 0)::int as declared_sacks,
             coalesce(sum(ci.actual_qty_sacks), 0)::int as actual_sacks,
             (select count(*)::int from ${containerDiscrepancies} cd where cd.container_id = c.id) as discrepancy_count
           from ${containers} c
-          join ${shipments} s on s.id = c.shipment_id
-          join ${suppliers} sup on sup.id = s.supplier_id
+          left join ${shippingCompanies} sc on sc.id = c.shipping_company_id
           left join ${containerItems} ci on ci.container_id = c.id
           where c.status = 'UNLOADED'
-          group by c.id, s.id, sup.id
-        )
+          group by c.id, sc.id
+        )`;
+      // A container has a variance when its sack totals differ or any issue
+      // was logged (lines can cancel out, or a DAMAGED count can match).
+      const shipmentTotals = sql`
+        with ${containerTotals},
+        shipment_totals as (
+          select s.id as shipment_id, s.date_list_received, s.reference,
+            sup.name as supplier, sup.code as supplier_code, sup.kind as supplier_kind,
+            (select count(*)::int from ${containers} ac where ac.shipment_id = s.id) as container_count,
+            count(ct.container_id)::int as unloaded_count,
+            (count(*) filter (where ct.actual_sacks <> ct.declared_sacks or ct.items_match = false))::int as variance_count,
+            sum(ct.declared_sacks)::int as declared_sacks,
+            sum(ct.actual_sacks)::int as actual_sacks,
+            sum(ct.discrepancy_count)::int as discrepancy_count,
+            max(ct.date_unloaded) as last_unloaded
+          from ${shipments} s
+          join ${suppliers} sup on sup.id = s.supplier_id
+          join container_totals ct on ct.shipment_id = s.id
+          group by s.id, sup.id
+        )`;
+      const mismatchFilter = query.mismatchOnly ? sql`and variance_count > 0` : sql``;
+
+      const totalResult = await db.execute(sql`
+        ${shipmentTotals}
+        select count(*)::int as total from shipment_totals where true ${mismatchFilter}
+      `);
+      const total = Number(totalResult[0]?.total ?? 0);
+
+      const result = await db.execute(sql`
+        ${shipmentTotals}
         select *, (actual_sacks - declared_sacks)::int as variance_sacks
-        from totals
+        from shipment_totals
         where true ${mismatchFilter}
-        order by date_unloaded desc nulls last
+        order by last_unloaded desc nulls last, date_list_received desc
         limit ${query.pageSize} offset ${(query.page - 1) * query.pageSize}
       `);
-      const rows = Array.from(result) as VarianceRow[];
-      if (!rows.length) return pageResult(rows, total, query.page, query.pageSize);
+      const shipmentRows = Array.from(result) as ShipmentVarianceRow[];
+      if (!shipmentRows.length) return pageResult([], total, query.page, query.pageSize);
 
+      const containerResult = await db.execute(sql`
+        with ${containerTotals}
+        select *, (actual_sacks - declared_sacks)::int as variance_sacks
+        from container_totals
+        where shipment_id in ${shipmentRows.map((row) => row.shipment_id)}
+          ${query.mismatchOnly ? sql`and (actual_sacks <> declared_sacks or items_match = false)` : sql``}
+        order by date_unloaded desc nulls last, container_no
+      `);
+      const rows = Array.from(containerResult) as ContainerVarianceRow[];
       const containerIds = rows.map((row) => row.container_id);
 
       const lineRows = await db
@@ -398,7 +443,13 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
         }),
       }));
 
-      return pageResult(withItems, total, query.page, query.pageSize);
+      const containersByShipment = groupBy(withItems, (row) => row.shipment_id);
+      const grouped = shipmentRows.map((shipment) => ({
+        ...shipment,
+        containers: containersByShipment.get(shipment.shipment_id) ?? [],
+      }));
+
+      return pageResult(grouped, total, query.page, query.pageSize);
     },
   );
 

@@ -1,4 +1,5 @@
-import { Tag } from "antd";
+import { useMemo } from "react";
+import { Tag, Typography } from "antd";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
@@ -7,6 +8,7 @@ import type {
   ContainerVarianceItem,
   ContainerVarianceRow,
   OpenQuestionRow,
+  ShipmentVarianceRow,
 } from "../../../queries/types";
 import {
   REASON_COLOR,
@@ -26,78 +28,70 @@ const containerNoCell = (v: string | null, t: Translate) => (
   <span style={{ fontFamily: "var(--mono)" }}>{v ?? t("No box")}</span>
 );
 
-// ---- v_container_variance ----------------------------------------
+// ---- variance: shipment -> container -> product line ------------
 
-const varianceColumns = (t: Translate): ColumnDef<ContainerVarianceRow, any>[] => [
+const varianceTag = (v: number) =>
+  v === 0 ? fmtInt(0) : (
+    <Tag color={v < 0 ? "error" : "processing"} style={{ margin: 0 }}>
+      {signedSacks(v)}
+    </Tag>
+  );
+
+const hasVariance = (r: ContainerVarianceRow) =>
+  r.variance_sacks !== 0 || r.items_match === false;
+
+/** One row per shipment with at least one unloaded container. */
+const shipmentVarianceColumns = (t: Translate): ColumnDef<ShipmentVarianceRow, any>[] => [
   {
-    id: "container_no",
-    header: "Container",
-    accessorFn: (r) => r.container_no,
+    id: "date_list_received",
+    header: "List received",
+    accessorFn: (r) => r.date_list_received,
     size: 150,
     meta: { fixed: "left" },
-    cell: (c) => containerNoCell(c.getValue<string | null>(), t),
+    cell: (c) => (
+      <div className="shipment-primary-cell">
+        <Typography.Text strong>{fmtTableDate(c.getValue<string>())}</Typography.Text>
+        <Typography.Text type="secondary">
+          {t(c.row.original.supplier_kind === "NATIONAL" ? "National" : "International")}
+        </Typography.Text>
+      </div>
+    ),
   },
   {
     id: "supplier",
     header: "Supplier",
     accessorFn: (r) => r.supplier,
-    size: 130,
+    size: 180,
+    cell: (c) => (
+      <div className="shipment-primary-cell">
+        <Typography.Text strong>{c.row.original.supplier}</Typography.Text>
+        {c.row.original.supplier_code && (
+          <Typography.Text type="secondary">{c.row.original.supplier_code}</Typography.Text>
+        )}
+      </div>
+    ),
   },
   {
-    id: "date_list_received",
-    header: "List received",
-    accessorFn: (r) => r.date_list_received,
-    size: 140,
-    cell: (c) => fmtTableDate(c.getValue<string>()),
-  },
-  {
-    id: "date_unloaded",
-    header: "Unloaded",
-    accessorFn: (r) => r.date_unloaded,
-    size: 140,
+    id: "variance_count",
+    header: "Containers with variance",
+    accessorFn: (r) => r.variance_count,
+    size: 190,
     cell: (c) => {
-      const v = c.getValue<string | null>();
-      return v ? fmtTableDate(v) : dash;
-    },
-  },
-  {
-    id: "items_match",
-    header: "Items match",
-    accessorFn: (r) => r.items_match,
-    size: 110,
-    cell: (c) => {
-      const v = c.getValue<boolean | null>();
-      if (v === null) return dash;
-      return v ? <Tag color="success">{t("Yes")}</Tag> : <Tag color="error">{t("No")}</Tag>;
-    },
-  },
-  {
-    id: "declared_sacks",
-    header: "Declared",
-    accessorFn: (r) => r.declared_sacks,
-    size: 100,
-    cell: (c) => fmtInt(c.getValue<number>()),
-  },
-  {
-    id: "actual_sacks",
-    header: "Actual",
-    accessorFn: (r) => r.actual_sacks,
-    size: 100,
-    cell: (c) => fmtInt(c.getValue<number>()),
-  },
-  {
-    id: "variance_sacks",
-    header: "Variance",
-    accessorFn: (r) => r.variance_sacks,
-    size: 110,
-    // actual − declared: negative is a shortfall
-    cell: (c) => {
-      const v = c.getValue<number>();
-      if (v === 0) return fmtInt(0);
+      const r = c.row.original;
+      const pending = r.container_count - r.unloaded_count;
       return (
-        <Tag color={v < 0 ? "error" : "processing"} style={{ margin: 0 }}>
-          {signedSacks(v)}
-        </Tag>
+        <div className="shipment-primary-cell">
+          <div>
+            <Tag color={r.variance_count ? "error" : "success"} style={{ margin: 0 }}>
+              {fmtInt(r.variance_count)} / {fmtInt(r.unloaded_count)}
+            </Tag>
+          </div>
+          <Typography.Text type="secondary">
+            {pending
+              ? t("{count} not unloaded yet", { count: pending })
+              : t("All containers unloaded")}
+          </Typography.Text>
+        </div>
       );
     },
   },
@@ -107,6 +101,73 @@ const varianceColumns = (t: Translate): ColumnDef<ContainerVarianceRow, any>[] =
     accessorFn: (r) => r.discrepancy_count,
     size: 90,
     cell: (c) => fmtInt(c.getValue<number>()),
+  },
+  {
+    id: "last_unloaded",
+    header: "Last unloaded",
+    accessorFn: (r) => r.last_unloaded,
+    size: 140,
+    cell: (c) => {
+      const v = c.getValue<string | null>();
+      return v ? fmtTableDate(v) : dash;
+    },
+  },
+];
+
+/** The unloaded containers of one shipment, shown when its row is expanded. */
+const containerVarianceColumns = (t: Translate): ColumnDef<ContainerVarianceRow, any>[] => [
+  {
+    id: "container_no",
+    header: "Container / shipping line",
+    accessorFn: (r) => r.container_no,
+    size: 210,
+    cell: (c) => {
+      const r = c.row.original;
+      return (
+        <div className="shipment-primary-cell">
+          {containerNoCell(r.container_no, t)}
+          <Typography.Text type="secondary">
+            {r.shipping_company
+              ? [r.shipping_company, r.shipping_company_code].filter(Boolean).join(" · ")
+              : t("No shipping line")}
+          </Typography.Text>
+        </div>
+      );
+    },
+  },
+  {
+    id: "date_unloaded",
+    header: "Unloaded",
+    accessorFn: (r) => r.date_unloaded,
+    size: 130,
+    cell: (c) => {
+      const v = c.getValue<string | null>();
+      return v ? fmtTableDate(v) : dash;
+    },
+  },
+  {
+    id: "discrepancy_count",
+    header: "Issues",
+    accessorFn: (r) => r.discrepancy_count,
+    size: 110,
+    // Red when the container varies; open it for the per-product counts.
+    cell: (c) => hasVariance(c.row.original)
+      ? <Tag color="error" style={{ margin: 0 }}>{fmtInt(c.getValue<number>())} {t(c.getValue<number>() === 1 ? "issue" : "issues")}</Tag>
+      : <Tag color="success" style={{ margin: 0 }}>{t("Matched")}</Tag>,
+  },
+  {
+    id: "notes",
+    header: "Notes",
+    accessorFn: (r) => r.notes,
+    size: 240,
+    cell: (c) => {
+      const v = c.getValue<string | null>();
+      return v ? (
+        <Typography.Text type="secondary" ellipsis={{ tooltip: v }} style={{ maxWidth: 220 }}>
+          {v}
+        </Typography.Text>
+      ) : dash;
+    },
   },
 ];
 
@@ -143,15 +204,7 @@ const varianceItemColumns = (t: Translate): ColumnDef<ContainerVarianceItem, any
     header: "Variance",
     accessorFn: (r) => r.variance,
     size: 110,
-    cell: (c) => {
-      const v = c.getValue<number>();
-      if (v === 0) return fmtInt(0);
-      return (
-        <Tag color={v < 0 ? "error" : "processing"} style={{ margin: 0 }}>
-          {signedSacks(v)}
-        </Tag>
-      );
-    },
+    cell: (c) => varianceTag(c.getValue<number>()),
   },
   {
     id: "price_per_sack",
@@ -190,16 +243,39 @@ const varianceItemColumns = (t: Translate): ColumnDef<ContainerVarianceItem, any
   },
 ];
 
-export function VarianceTable({ data }: { data: ContainerVarianceRow[] }) {
+function ContainerVarianceTable({ data }: { data: ContainerVarianceRow[] }) {
   const { t } = useLanguage();
+  const columns = useMemo(() => containerVarianceColumns(t), [t]);
+  const itemColumns = useMemo(() => varianceItemColumns(t), [t]);
+  // Containers with a variance first; the API already orders by unload date.
+  const rows = useMemo(
+    () => [...data].sort((a, b) => Number(hasVariance(b)) - Number(hasVariance(a))),
+    [data],
+  );
+  return (
+    <div className="shipment-expanded">
+      <DataTable
+        data={rows}
+        columns={columns}
+        renderExpanded={(row) =>
+          row.container_items?.length ? (
+            <DataTable data={row.container_items} columns={itemColumns} />
+          ) : null
+        }
+      />
+    </div>
+  );
+}
+
+export function VarianceTable({ data }: { data: ShipmentVarianceRow[] }) {
+  const { t } = useLanguage();
+  const columns = useMemo(() => shipmentVarianceColumns(t), [t]);
   return (
     <DataTable
       data={data}
-      columns={varianceColumns(t)}
+      columns={columns}
       renderExpanded={(row) =>
-        row.container_items?.length ? (
-          <DataTable data={row.container_items} columns={varianceItemColumns(t)} />
-        ) : null
+        row.containers.length ? <ContainerVarianceTable data={row.containers} /> : null
       }
     />
   );
