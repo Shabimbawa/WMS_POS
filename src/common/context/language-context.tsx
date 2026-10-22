@@ -290,6 +290,7 @@ const zh: Record<string, string> = {
   'Audit every received product line by supplier, including declared quantity, counted quantity, variance, price, and value.': '按供应商核查每条收货明细，包括申报数量、实点数量、差异、价格和价值。',
   'Only stock received inside these dates is included.': '仅包含在这些日期内收到的库存。',
   'Optional · choose one or more products.': '可选 · 选择一个或多个产品。',
+  'Optional · each product includes all of its sizes.': '可选 · 每个产品包含其所有规格。',
   'Optional · choose one or more suppliers.': '可选 · 选择一个或多个供应商。',
   'Choose where the received stock came from.': '选择收货库存的来源渠道。',
   'Print': '打印',

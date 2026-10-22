@@ -25,7 +25,7 @@ import {
   useReportShipmentOptions,
   useSuppliers,
 } from "../../../queries/useHooks";
-import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import { fmtInt, fmtMoney } from "../type-format/format";
 import { printReport, type PrintableReport } from "./print-report";
 import {
   buildGrids,
@@ -83,7 +83,8 @@ export default function ReportsPage() {
   const [reportType, setReportType] = useState<ReportType>("stock");
   const [source, setSource] = useState<SourceFilter>("ALL");
   const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>(() => [today().startOf("month"), today()]);
-  const [productIds, setProductIds] = useState<string[]>([]);
+  // Selected brand + variety groups; each covers every size of that product.
+  const [productGroupKeys, setProductGroupKeys] = useState<string[]>([]);
   const [supplierIds, setSupplierIds] = useState<string[]>([]);
   const [shipmentIds, setShipmentIds] = useState<string[]>([]);
   const [applied, setApplied] = useState<Applied | null>(null);
@@ -103,10 +104,34 @@ export default function ReportsPage() {
   const { data: shipmentOptionsData, isLoading: loadingShipments } =
     useReportShipmentOptions(reportOptionParams);
 
-  const productOptions = useMemo(
-    () => (products ?? []).map((p) => ({ label: fmtProduct(p), value: p.id })),
-    [products],
+  // One option per brand + variety, e.g. "PAL · Palawan (5 / 25 / 50 kg)".
+  // Picking it selects every size of that product.
+  const productGroups = useMemo(() => {
+    const groups = new Map<string, { value: string; name: string; code: string | null; ids: string[]; sizes: number[] }>();
+    for (const product of products ?? []) {
+      const value = `${product.brand.trim().toLowerCase()}|${(product.variety ?? "").trim().toLowerCase()}`;
+      const group = groups.get(value) ?? { value, name: [product.brand, product.variety].filter(Boolean).join(" "), code: null, ids: [], sizes: [] };
+      group.ids.push(product.id);
+      group.sizes.push(Number(product.size_kg));
+      group.code ??= product.code;
+      groups.set(value, group);
+    }
+    return [...groups.values()]
+      .map((group) => ({
+        value: group.value,
+        ids: group.ids,
+        name: group.code ? `${group.code} · ${group.name}` : group.name,
+        label: `${group.code ? `${group.code} · ` : ""}${group.name} (${[...group.sizes].sort((a, b) => a - b).join(" / ")} kg)`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [products]);
+  const productIds = useMemo(
+    () => productGroupKeys.flatMap((key) => productGroups.find((group) => group.value === key)?.ids ?? []),
+    [productGroupKeys, productGroups],
   );
+  const productLine = productGroupKeys.length
+    ? productGroupKeys.map((key) => productGroups.find((group) => group.value === key)?.name ?? key).join(", ")
+    : null;
   const supplierOptions = useMemo(
     () =>
       (suppliers ?? [])
@@ -141,9 +166,7 @@ export default function ReportsPage() {
         shipmentIds.length
           ? `${t("Shipments")}: ${shipmentIds.map((id) => shipmentOptions.find((option) => option.value === id)?.label ?? id).join(", ")}`
           : null,
-        productIds.length
-          ? `${t("Products")}: ${productIds.map((id) => productOptions.find((o) => o.value === id)?.label ?? id).join(", ")}`
-          : `${t("Products")}: ${t("All")}`,
+        `${t("Products")}: ${productLine ?? t("All")}`,
       ].filter((line): line is string => Boolean(line));
       setApplied({
         type: "stock",
@@ -167,7 +190,7 @@ export default function ReportsPage() {
         shipmentIds.length
           ? `${t("Shipments")}: ${shipmentIds.map((id) => shipmentOptions.find((option) => option.value === id)?.label ?? id).join(", ")}`
           : null,
-        `${t("Products")}: ${productIds.length ? productIds.map((id) => productOptions.find((option) => option.value === id)?.label ?? id).join(", ") : t("All")}`,
+        `${t("Products")}: ${productLine ?? t("All")}`,
       ].filter((line): line is string => Boolean(line));
       setApplied({
         type: "receiving",
@@ -238,7 +261,7 @@ export default function ReportsPage() {
     setSource("ALL");
     setSupplierIds([]);
     setShipmentIds([]);
-    setProductIds([]);
+    setProductGroupKeys([]);
     setReportRange([today().startOf("month"), today()]);
   };
 
@@ -293,7 +316,7 @@ export default function ReportsPage() {
                     onChange={(value) => value?.[0] && value[1] && setReportRange([value[0], value[1]])}
                   />
                 </Form.Item>
-                <Form.Item label={t("Products")} extra={t("Optional · choose one or more products.")} style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
+                <Form.Item label={t("Products")} extra={t("Optional · each product includes all of its sizes.")} style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
                   <Select
                     mode="multiple"
                     allowClear
@@ -302,9 +325,9 @@ export default function ReportsPage() {
                     maxTagCount="responsive"
                     placeholder={t("All products")}
                     loading={loadingProducts}
-                    value={productIds}
-                    onChange={setProductIds}
-                    options={productOptions}
+                    value={productGroupKeys}
+                    onChange={setProductGroupKeys}
+                    options={productGroups}
                   />
                 </Form.Item>
                 <Form.Item label={t("Suppliers")} extra={t("Optional · choose one or more suppliers.")} style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
@@ -356,7 +379,7 @@ export default function ReportsPage() {
                     options={supplierOptions}
                   />
                 </Form.Item>
-                <Form.Item label={t("Products")} extra={t("Optional · choose one or more products.")} style={{ marginBottom: 0, minWidth: 260, flex: 1 }}>
+                <Form.Item label={t("Products")} extra={t("Optional · each product includes all of its sizes.")} style={{ marginBottom: 0, minWidth: 260, flex: 1 }}>
                   <Select
                     mode="multiple"
                     allowClear
@@ -365,9 +388,9 @@ export default function ReportsPage() {
                     maxTagCount="responsive"
                     placeholder={t("All products")}
                     loading={loadingProducts}
-                    value={productIds}
-                    onChange={setProductIds}
-                    options={productOptions}
+                    value={productGroupKeys}
+                    onChange={setProductGroupKeys}
+                    options={productGroups}
                   />
                 </Form.Item>
               </>
