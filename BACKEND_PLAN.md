@@ -120,6 +120,46 @@ One transaction creates the shipment, every container, and every declared
 item. A product may occur only once per container. A failure rolls back the
 whole packing list.
 
+### Edit shipment
+
+`PATCH /shipments/:id` runs in one transaction and refuses archived shipments
+(`SHIPMENT_ARCHIVED`); restore the shipment first.
+
+- While every container is still `DOCUMENTED`, the containers and items are
+  replaced outright.
+- Once any container has progressed, every container is rebuilt from the
+  submitted list, even for a price-only edit:
+  - all of the shipment's discrepancies are cleared;
+  - the stock each container added is reversed with `SHIPMENT_REVERSAL`
+    movements;
+  - unloaded containers are recounted at their declared sacks, with new
+    inbound movements;
+  - removed containers are unlinked from the ledger and deleted.
+
+Under review with the client: whether editing an unloaded container should
+keep its counted sacks and discrepancies instead.
+
+When the net change would take a balance below zero, the API answers
+`NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED` with the affected products. The
+client asks the user, then resends with `allowNegativeInventory`.
+
+### Delete shipment
+
+`DELETE /shipments/:id` is a hard delete, but the ledger keeps its history. In
+one transaction it:
+
+1. Posts a `SHIPMENT_REVERSAL` movement per container and product for the
+   sacks still in stock, using the same negative-stock confirmation as an edit
+   (`?allowNegativeInventory=true`).
+2. Clears `container_id` on the container's existing movements and appends
+   "Shipment deleted: <container no.> (<supplier>)" to their note, because
+   the FK is RESTRICT.
+3. Deletes the discrepancies and the shipment; containers and items cascade.
+
+The audit log keeps a snapshot of what was deleted. Editing a shipment uses
+the same reversal for removed containers (unlinked) and rebuilt containers
+(still linked). Ledger rows are never deleted.
+
 ### Advance container
 
 Allowed transitions are:
@@ -176,12 +216,15 @@ All routes are below `/api/v1`.
 | `GET /products` | warehouse/POS | Product and price choices |
 | `GET /shipments` | warehouse | Filtered, paged packing lists |
 | `POST /shipments` | warehouse | Atomic shipment creation |
+| `PATCH /shipments/:id` | warehouse | Edit an active shipment |
+| `DELETE /shipments/:id` | warehouse | Hard delete with stock reversal |
+| `GET /containers` | warehouse | Containers in one status, across shipments |
 | `GET /containers/:id` | warehouse | Unload/detail view |
 | `POST /containers/:id/arrive-at-port` | warehouse | Guarded transition |
 | `POST /containers/:id/deliver` | warehouse | Guarded transition |
 | `POST /containers/:id/cancel` | warehouse | Guarded transition |
 | `POST /containers/:id/unload` | warehouse | Count and add stock |
-| `GET /discrepancies/variance` | warehouse | Paged variance report |
+| `GET /discrepancies/variance` | warehouse | Variance report, paged by shipment |
 | `GET /discrepancies/open-questions` | warehouse | Paged unresolved queue |
 | `POST /discrepancies/:id/resolve` | warehouse | Close an open question |
 | `GET /stock` | warehouse/POS | Filtered balances |

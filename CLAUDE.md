@@ -57,7 +57,9 @@ Three layers. Pages never call `fetch` directly.
   - SHORT, OVER and DAMAGED need `actual_qty`.
   - UNDECLARED needs `actual_qty` and creates a new line.
   - OTHER needs a `note` and writes nothing.
-- Always filter `v_container_variance` to `status = 'UNLOADED'`, or pending containers read as total losses.
+- Always filter variance to `status = 'UNLOADED'`, or pending containers read as total losses. `GET /discrepancies/variance` pages by shipment and nests its unloaded containers, each with its product lines.
+- Notes live on `container.notes` (optional). `shipment` has no notes column.
+- Editing a shipment (`PATCH /shipments/:id`) is refused while it's archived. Once any container has progressed, a save rebuilds every container: discrepancies are cleared and unloaded containers are recounted at declared sacks (under review with the client). `DELETE /shipments/:id` hard-deletes and reverses stock. Neither deletes ledger rows: they post `SHIPMENT_REVERSAL` movements, and a deleted container's movements lose `container_id` and get its name in `note`. Both ask for confirmation through `NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED` (see `container/negative-inventory.tsx`).
 - `product_category.is_available` is the only availability signal. `selling_price` lives on `product_category`, not `stock_status`.
 - PostgREST can't order parent rows by an embedded table's column. `order(..., { referencedTable })` only sorts the embed.
 

@@ -185,6 +185,10 @@ total sacks, and how many containers are unloaded.
 
 - Filters: supplier, list-received date range, newest/oldest. Paged
   server-side.
+- **Container status chips** (Documented, At port, Delivered…) switch the
+  page to a flat list of every container in that status, one row each with
+  its shipment and actions. The other filters still apply. Click the chip
+  again to return to shipments.
 - **Expand a row** to see its containers: number, status, products, sacks,
   delivered and unloaded dates, and an actions column.
 - Top right: **Refresh**, **View discrepancies** (badged with the open-question
@@ -195,10 +199,10 @@ total sacks, and how many containers are unloaded.
 Builds a whole packing list locally, then submits it as one
 `create_shipment` call.
 
-1. Fill in the packing list: supplier (required), date list received
-   (defaults to today), reference (optional).
-2. **Add New Container** (below the list) → container no. (optional, blank
-   for truck loads with no box) and "own truck" toggle.
+1. Fill in the packing list: supplier (required) and date list received
+   (defaults to today).
+2. **Add container** (below the list) → container no., shipping company, and
+   optional notes. Notes belong to the container, not the shipment.
 3. On each container card, **Add New Item** (card header) → product, sacks,
    price per sack (optional). The same product can't appear twice in one
    container.
@@ -249,10 +253,16 @@ One container, same card layout as registration.
 
 Toggle between the two backend views:
 
-- **Variance** (`v_container_variance`) — declared vs actual sacks per
-  container, variance (negative = shortfall), items match, issue count.
-  Always filtered to `UNLOADED` so pending containers don't read as total
-  losses. "Mismatches only" hides containers with zero variance.
+- **Variance** — grouped as shipment → container → product line. A shipment
+  row shows how many of its unloaded containers have a variance (e.g. `1 / 4`),
+  its issue count and its last unload date. Expanding a shipment lists its
+  containers, each with its unload date, notes, and an Issues tag that is red
+  when the container varies and green ("Matched") when it doesn't. Expanding a
+  container lists its products with declared, actual and variance sacks
+  (negative = shortfall). Only `UNLOADED` containers are compared,
+  so pending containers don't read as total losses. "Mismatches only" keeps
+  shipments with at least one varying container and lists only those
+  containers; matched sister containers are hidden.
 - **Open questions** (`v_open_questions`) — every `OTHER` issue: when,
   container, supplier, product, note.
 
@@ -278,8 +288,6 @@ A price on an unavailable product is shown dimmed and excluded from value —
 - **Viewing past discrepancies per container.** Logged issues are only
   visible in aggregate (variance count) or for `OTHER`; there's no
   per-container discrepancy detail for unloaded containers.
-- **Editing a registered shipment.** Shipments, containers and items can
-  only be created, not edited or deleted after submit.
 - **Product and supplier management.** No screens for adding products,
   assigning notebook codes, setting selling prices or `is_available`, or
   managing suppliers. Currently done directly in the local database.
