@@ -51,12 +51,12 @@ const shipmentBody = z.object({
   supplierId: z.uuid(),
   dateListReceived: isoDate,
   reference: z.string().trim().max(500).nullable().default(null),
-  notes: z.string().trim().max(2_000).nullable().optional(),
   allowNegativeInventory: z.boolean().optional().default(false),
   containers: z.array(z.object({
     id: z.uuid().optional(),
     container_no: z.string().trim().min(1).max(100),
     shipping_company_id: z.uuid(),
+    notes: z.string().trim().max(2_000).nullable().optional(),
     items: z.array(z.object({
       id: z.uuid().optional(),
       product_category_id: z.uuid(),
@@ -176,7 +176,6 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         id: shipments.id,
         date_list_received: shipments.dateListReceived,
         reference: shipments.reference,
-        notes: shipments.notes,
         archived_at: shipments.archivedAt,
         supplier: {
           id: suppliers.id,
@@ -203,6 +202,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         id: containers.id,
         shipmentId: containers.shipmentId,
         container_no: containers.containerNo,
+        notes: containers.notes,
         is_company_truck: containers.isCompanyTruck,
         hauler: containers.hauler,
         shipping_company: {
@@ -264,6 +264,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         container: (containersByShipment.get(row.id) ?? []).map((container) => ({
           id: container.id,
           container_no: container.container_no,
+          notes: container.notes,
           is_company_truck: container.is_company_truck,
           hauler: container.hauler,
           shipping_company: container.shipping_company?.id
@@ -392,7 +393,6 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           supplierKind: supplier.kind,
           dateListReceived: input.dateListReceived,
           reference: input.reference,
-          notes: input.notes,
           createdBy: request.currentUser!.id,
         })
         .returning({ id: shipments.id });
@@ -405,6 +405,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
             shipmentId: created.id,
             containerNo: container.container_no,
             shippingCompanyId: container.shipping_company_id,
+            notes: container.notes || null,
           })
           .returning({ id: containers.id });
         if (!createdContainer) throw new ApiError(500, "CREATE_FAILED", "Container was not created");
@@ -444,7 +445,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       const validCompanies = await tx.select({ id: shippingCompanies.id }).from(shippingCompanies).where(and(inArray(shippingCompanies.id, companyIds), eq(shippingCompanies.isActive, true)));
       if (validCompanies.length !== companyIds.length) throw new ApiError(400, "UNKNOWN_SHIPPING_COMPANY", "One or more shipping companies do not exist or are inactive");
 
-      await tx.update(shipments).set({ supplierId: input.supplierId, supplierKind: supplier.kind, dateListReceived: input.dateListReceived, reference: input.reference, notes: input.notes }).where(eq(shipments.id, id));
+      await tx.update(shipments).set({ supplierId: input.supplierId, supplierKind: supplier.kind, dateListReceived: input.dateListReceived, reference: input.reference }).where(eq(shipments.id, id));
       if (hasProgress) {
         const oldItems = oldContainers.length ? await tx.select({ id: containerItems.id, containerId: containerItems.containerId, productCategoryId: containerItems.productCategoryId, qtySacks: containerItems.qtySacks, actualQtySacks: containerItems.actualQtySacks, pricePerSack: containerItems.pricePerSack }).from(containerItems).where(inArray(containerItems.containerId, oldContainers.map((container) => container.id))) : [];
         const oldMovements = oldContainers.length ? await tx.select().from(stockMovements).where(and(inArray(stockMovements.containerId, oldContainers.map((container) => container.id)), eq(stockMovements.movementType, "INBOUND_UNLOAD"))) : [];
@@ -476,9 +477,9 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         for (const container of input.containers) {
           const previous = container.id ? oldById.get(container.id) : undefined;
           let containerId = previous?.id;
-          if (containerId) await tx.update(containers).set({ containerNo: container.container_no, shippingCompanyId: container.shipping_company_id }).where(eq(containers.id, containerId));
+          if (containerId) await tx.update(containers).set({ containerNo: container.container_no, shippingCompanyId: container.shipping_company_id, notes: container.notes || null }).where(eq(containers.id, containerId));
           else {
-            const [created] = await tx.insert(containers).values({ shipmentId: id, containerNo: container.container_no, shippingCompanyId: container.shipping_company_id }).returning({ id: containers.id });
+            const [created] = await tx.insert(containers).values({ shipmentId: id, containerNo: container.container_no, shippingCompanyId: container.shipping_company_id, notes: container.notes || null }).returning({ id: containers.id });
             containerId = created!.id;
           }
           const unloaded = previous?.status === "UNLOADED";
@@ -500,7 +501,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         await tx.delete(containers).where(eq(containers.shipmentId, id));
       }
       for (const container of input.containers) {
-        const [created] = await tx.insert(containers).values({ shipmentId: id, containerNo: container.container_no, shippingCompanyId: container.shipping_company_id }).returning({ id: containers.id });
+        const [created] = await tx.insert(containers).values({ shipmentId: id, containerNo: container.container_no, shippingCompanyId: container.shipping_company_id, notes: container.notes || null }).returning({ id: containers.id });
         if (!created) throw new ApiError(500, "UPDATE_FAILED", "Container was not created");
         await tx.insert(containerItems).values(container.items.map((item) => ({ containerId: created.id, productCategoryId: item.product_category_id, qtySacks: item.qty_sacks, pricePerSack: item.price_per_sack })));
       }
@@ -514,6 +515,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .select({
         id: containers.id,
         container_no: containers.containerNo,
+        notes: containers.notes,
         is_company_truck: containers.isCompanyTruck,
         hauler: containers.hauler,
         shipping_company: {

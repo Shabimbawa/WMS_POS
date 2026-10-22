@@ -552,6 +552,10 @@ const zh: Record<string, string> = {
   'e.g. Opening count, warehouse audit': '例如期初盘点、仓库审计',
   'e.g. Counted twice by mistake': '例如误重复清点',
   'e.g. OCLU1395985 — leave blank if none': '例如 OCLU1395985；没有则留空',
+  'Last unloaded {date}': '最近卸货 {date}',
+  'Not unloaded yet': '尚未卸货',
+  'Notes (optional)': '备注（选填）',
+  'Add notes about this container': '添加此货柜的备注',
 }
 
 const interpolate = (text: string, values?: Record<string, string | number>) =>

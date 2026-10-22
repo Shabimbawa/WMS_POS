@@ -205,7 +205,10 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
                 ) : null}
               </footer>
 
-              {shipment.notes && <div className="print-notes"><b>{t("Notes")}:</b> {shipment.notes}</div>}
+              {containers.some((container) => container.notes) && <div className="print-notes">
+                <b>{t("Notes")}:</b>
+                {containers.filter((container) => container.notes).map((container) => <div key={container.id}><strong className="print-container-no">{container.container_no ?? t("No box")}</strong> — {container.notes}</div>)}
+              </div>}
               <div className="print-footer"><span>{t("This is a system-generated document. No signature is required.")}</span><span>{t("Generated")}: {dayjs().format("MMMM D, YYYY h:mm A")}</span></div>
             </div>
           </div>,

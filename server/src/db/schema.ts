@@ -219,7 +219,6 @@ export const shipments = pgTable(
     supplierKind: supplierKind("supplier_kind").notNull().default("INTERNATIONAL"),
     dateListReceived: date("date_list_received", { mode: "string" }).notNull(),
     reference: text("reference"),
-    notes: text("notes"),
     /** Soft archive: completed shipments stay reportable but leave the active notebook. */
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     archivedBy: uuid("archived_by").references(() => appUsers.id, { onDelete: "set null" }),

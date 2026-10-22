@@ -274,14 +274,17 @@ export const shipmentContainerColumns = (t: Translate): ColumnDef<ShipmentContai
 const shipmentOverviewColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] => [
   {
     id: "received",
-    header: "Received / notes",
+    header: "List received",
     accessorFn: (row) => row.date_list_received,
     size: 185,
     meta: { fixed: "left" },
-    cell: (cell) => <div className="shipment-primary-cell">
-      <Typography.Text strong>{fmtTableDate(cell.row.original.date_list_received)}</Typography.Text>
-      <Typography.Text type="secondary" ellipsis={{ tooltip: cell.row.original.notes || undefined }}>{cell.row.original.notes || t("No notes")}</Typography.Text>
-    </div>,
+    cell: (cell) => {
+      const lastUnloaded = cell.row.original.container.reduce<string | null>((latest, container) => container.date_unloaded && (!latest || container.date_unloaded > latest) ? container.date_unloaded : latest, null);
+      return <div className="shipment-primary-cell">
+        <Typography.Text strong>{fmtTableDate(cell.row.original.date_list_received)}</Typography.Text>
+        <Typography.Text type="secondary">{lastUnloaded ? t("Last unloaded {date}", { date: fmtTableDate(lastUnloaded) }) : t("Not unloaded yet")}</Typography.Text>
+      </div>;
+    },
   },
   {
     id: "supplier",
@@ -378,6 +381,10 @@ function ContainerDetails({ container, index, t }: { container: ShipmentContaine
       <Typography.Text type="secondary" className="shipment-load-label">{t("Load")}</Typography.Text>
       <div className="shipment-product-grid">{container.container_item.length ? container.container_item.map((item) => <div key={item.id} className="shipment-product-item"><span>{fmtProduct(item.product_category)}</span><strong>{fmtInt(item.actual_qty_sacks ?? item.qty_sacks)} {t("sacks")}</strong></div>) : dash}</div>
     </div>
+    {container.notes && <div className="shipment-container-notes-text">
+      <Typography.Text type="secondary">{t("Notes")}</Typography.Text>
+      <span>{container.notes}</span>
+    </div>}
   </section>;
 }
 

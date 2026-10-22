@@ -1,0 +1,1 @@
+ALTER TABLE "shipment" DROP COLUMN IF EXISTS "notes";

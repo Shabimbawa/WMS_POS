@@ -174,12 +174,13 @@ export interface ShipmentRow {
   id: string;
   date_list_received: string;
   reference: string | null;
-  notes: string | null;
   archived_at: string | null;
   supplier: Pick<Supplier, "id" | "name" | "code" | "origin" | "kind">;
   container: Array<{
     id: string;
     container_no: string | null;
+    /** Free-text notes for this container; optional. */
+    notes: string | null;
     /** Null until the container arrives at port; true = own truck. */
     is_company_truck: boolean | null;
     /** Third-party hauler name, set when is_company_truck is false. */
@@ -337,6 +338,7 @@ export interface CreateShipmentContainer {
   container_no: string | null;
   /** Ocean carrier that ships this container port to port. */
   shipping_company_id: string;
+  notes?: string | null;
   items: CreateShipmentItem[];
 }
 
@@ -344,7 +346,6 @@ export interface CreateShipmentInput {
   supplierId: string;
   dateListReceived: string;
   reference: string | null;
-  notes?: string | null;
   allowNegativeInventory?: boolean;
   containers: CreateShipmentContainer[];
 }
@@ -464,6 +465,7 @@ export interface UnloadContainerInput {
 export interface ContainerDetail {
   id: string;
   container_no: string | null;
+  notes: string | null;
   is_company_truck: boolean | null;
   hauler: string | null;
   shipping_company: Pick<ShippingCompany, "id" | "name" | "code"> | null;

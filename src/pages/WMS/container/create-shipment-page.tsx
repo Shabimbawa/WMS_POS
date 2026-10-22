@@ -12,9 +12,9 @@ import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import type { DraftContainer, DraftItem } from "./create-shipment-table";
 import { useLanguage } from "../../../common/context/language-context";
 
-type HeaderValues = { supplier_id: string; date_list_received: Dayjs; notes?: string };
+type HeaderValues = { supplier_id: string; date_list_received: Dayjs };
 const newKey = () => crypto.randomUUID();
-const blankContainer = (): DraftContainer => ({ key: newKey(), container_no: null, shipping_company_id: "", items: [] });
+const blankContainer = (): DraftContainer => ({ key: newKey(), container_no: null, shipping_company_id: "", notes: null, items: [] });
 
 export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: "INTERNATIONAL" | "NATIONAL" }) {
   const { t } = useLanguage();
@@ -33,7 +33,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   const updateShipment = useUpdateShipment();
   const [form] = Form.useForm<HeaderValues>();
   const supplierId = Form.useWatch("supplier_id", form);
-  const [containers, setContainers] = useState<DraftContainer[]>(() => editingShipment ? editingShipment.container.map((container) => ({ key: container.id, container_no: container.container_no, shipping_company_id: container.shipping_company?.id ?? "", items: container.container_item.map((item) => ({ key: item.id, product_category_id: item.product_category.id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })) : [blankContainer()]);
+  const [containers, setContainers] = useState<DraftContainer[]>(() => editingShipment ? editingShipment.container.map((container) => ({ key: container.id, container_no: container.container_no, shipping_company_id: container.shipping_company?.id ?? "", notes: container.notes, items: container.container_item.map((item) => ({ key: item.id, product_category_id: item.product_category.id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })) : [blankContainer()]);
 
   const productOptions = useMemo(() => products.map((p) => ({ label: fmtProduct(p), value: p.id })), [products]);
   const shippingOptions = useMemo(() => shippingCompanies.map((company) => ({
@@ -75,9 +75,8 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
         supplierId: header.supplier_id,
         dateListReceived: header.date_list_received.format("YYYY-MM-DD"),
         reference: null,
-        notes: header.notes?.trim() || null,
         allowNegativeInventory,
-        containers: containers.map((c) => ({ id: isEditing ? c.key : undefined, container_no: c.container_no, shipping_company_id: c.shipping_company_id, items: c.items.map((item) => ({ id: isEditing ? item.key : undefined, product_category_id: item.product_category_id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })),
+        containers: containers.map((c) => ({ id: isEditing ? c.key : undefined, container_no: c.container_no, shipping_company_id: c.shipping_company_id, notes: c.notes?.trim() || null, items: c.items.map((item) => ({ id: isEditing ? item.key : undefined, product_category_id: item.product_category_id, qty_sacks: item.qty_sacks, price_per_sack: item.price_per_sack })) })),
       };
       if (isEditing && shipmentId) await updateShipment.mutateAsync({ id: shipmentId, input });
       else await createShipment.mutateAsync(input);
@@ -107,10 +106,9 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
     </Flex>
 
     <Card size="small" title={t("Shipment details")}>
-      <Form form={form} layout="vertical" initialValues={{ supplier_id: editingShipment?.supplier.id, date_list_received: editingShipment ? dayjs(editingShipment.date_list_received) : dayjs(), notes: editingShipment?.notes ?? undefined }}><div className="shipment-header-fields">
+      <Form form={form} layout="vertical" initialValues={{ supplier_id: editingShipment?.supplier.id, date_list_received: editingShipment ? dayjs(editingShipment.date_list_received) : dayjs() }}><div className="shipment-header-fields">
         <Form.Item name="supplier_id" label={t("Supplier")} rules={[{ required: true, message: t("Pick a supplier") }]}><Select showSearch optionFilterProp="label" placeholder={t("Select supplier")} loading={loadingSuppliers} options={suppliers?.map((s) => ({ label: s.name, value: s.id }))} /></Form.Item>
         <Form.Item name="date_list_received" label={t("List received")} rules={[{ required: true, message: t("Pick a date") }]}><DatePicker allowClear={false} format="MMMM DD, YYYY" style={{ width: "100%" }} /></Form.Item>
-        <Form.Item name="notes" label={t("Notes (optional)")} className="shipment-notes-field"><Input.TextArea rows={4} maxLength={2000} showCount placeholder={t("Add notes about this shipment or packing list")} /></Form.Item>
       </div></Form>
     </Card>
 
@@ -120,6 +118,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
           <div className="shipment-container-fields">
             <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} /></label>
             <label><span>{t("Shipping company")}</span><Select value={container.shipping_company_id || undefined} showSearch optionFilterProp="label" placeholder={t("Select shipping company")} loading={loadingShipping} options={shippingOptions} onChange={(value) => updateContainer(container.key, { shipping_company_id: value })} /></label>
+            <label className="shipment-container-notes"><span>{t("Notes (optional)")}</span><Input.TextArea rows={2} maxLength={2000} showCount value={container.notes ?? ""} placeholder={t("Add notes about this container")} onChange={(event) => updateContainer(container.key, { notes: event.target.value })} /></label>
           </div>
           <div className="shipment-item-editor">
             <label className="shipment-product-picker"><span>{t("Products")}</span><Select mode="multiple" value={container.items.map((item) => item.product_category_id)} showSearch optionFilterProp="label" placeholder={t("Select one or more products")} loading={loadingProducts} options={productOptions} onChange={(values) => selectProducts(container, values)} maxTagCount="responsive" /></label>

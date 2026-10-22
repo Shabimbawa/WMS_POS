@@ -141,6 +141,13 @@
       "when": 1792530000000,
       "tag": "0019_allow_audited_negative_stock",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792540000000,
+      "tag": "0020_container_notes",
+      "breakpoints": true
     }
   ]
 }
