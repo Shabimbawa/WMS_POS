@@ -206,6 +206,20 @@ export async function updateShipment({ id, input }: { id: string; input: CreateS
   return result.id;
 }
 
+/** Hard delete. Unloaded stock is reversed; the API refuses with
+ *  NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED unless allowNegativeInventory. */
+export async function deleteShipment({
+  id,
+  allowNegativeInventory = false,
+}: {
+  id: string;
+  allowNegativeInventory?: boolean;
+}): Promise<void> {
+  await apiRequest(`/shipments/${id}${queryString({ allowNegativeInventory })}`, {
+    method: "DELETE",
+  });
+}
+
 export async function archiveShipment(id: string): Promise<void> {
   await apiRequest(`/shipments/${id}/archive`, { method: "POST" });
 }

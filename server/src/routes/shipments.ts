@@ -122,6 +122,10 @@ function groupBy<T, K>(rows: T[], keyOf: (row: T) => K): Map<K, T[]> {
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type ShipmentInput = z.infer<typeof shipmentBody>;
 
+const deleteShipmentQuery = z.object({
+  allowNegativeInventory: z.stringbool().default(false),
+});
+
 /** Checks the supplier, products and shipping companies, returning the supplier's kind. */
 async function assertShipmentReferences(tx: Tx, input: ShipmentInput) {
   const [supplier] = await tx
@@ -699,6 +703,69 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         inventoryReconciled: true,
       };
     });
+    return { id };
+  });
+
+  app.delete("/shipments/:id", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const { allowNegativeInventory } = deleteShipmentQuery.parse(request.query);
+
+    const snapshot = await db.transaction(async (tx) => {
+      const [shipment] = await tx
+        .select({
+          id: shipments.id,
+          supplierId: shipments.supplierId,
+          dateListReceived: shipments.dateListReceived,
+          reference: shipments.reference,
+        })
+        .from(shipments)
+        .where(eq(shipments.id, id))
+        .for("update");
+      if (!shipment) throw new ApiError(404, "SHIPMENT_NOT_FOUND", "Shipment not found");
+
+      const oldContainers = await tx
+        .select({ id: containers.id, containerNo: containers.containerNo, status: containers.status, notes: containers.notes })
+        .from(containers)
+        .where(eq(containers.shipmentId, id));
+      const containerIds = oldContainers.map((container) => container.id);
+      const items = containerIds.length
+        ? await tx
+          .select({
+            containerId: containerItems.containerId,
+            productCategoryId: containerItems.productCategoryId,
+            qtySacks: containerItems.qtySacks,
+            actualQtySacks: containerItems.actualQtySacks,
+            pricePerSack: containerItems.pricePerSack,
+          })
+          .from(containerItems)
+          .where(inArray(containerItems.containerId, containerIds))
+        : [];
+
+      if (containerIds.length) {
+        const nets = await containerStockNet(tx, containerIds);
+        const delta = new Map<string, number>();
+        nets.forEach((row) => delta.set(row.productCategoryId, (delta.get(row.productCategoryId) ?? 0) - row.net));
+        await assertStockCovers(tx, delta, allowNegativeInventory);
+
+        // The unload rows stay in the ledger, unlinked and named in their
+        // note, and a reversal row takes the sacks back out.
+        const labels = await containerLabels(tx, containerIds);
+        const deletedNote = (containerId: string) => `Shipment deleted: ${labels.get(containerId)}`;
+        await reverseContainerStock(tx, nets, {
+          userId: request.currentUser!.id,
+          unlinked: new Set(containerIds),
+          noteFor: deletedNote,
+        });
+        await detachContainers(tx, new Map(containerIds.map((containerId) => [containerId, deletedNote(containerId)])));
+        // container_discrepancy -> container_item is RESTRICT, so these go
+        // before the cascade removes the items.
+        await tx.delete(containerDiscrepancies).where(inArray(containerDiscrepancies.containerId, containerIds));
+      }
+      await tx.delete(shipments).where(eq(shipments.id, id));
+      return { shipment, containers: oldContainers, items };
+    });
+
+    (request as typeof request & { body: unknown }).body = { deleted: snapshot, allowNegativeInventory };
     return { id };
   });
 

@@ -1,15 +1,18 @@
 import { Button, Flex, Popconfirm, Tooltip, message } from "antd";
-import { EditOutlined, InboxOutlined, UndoOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, InboxOutlined, UndoOutlined } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import type { ShipmentRow } from "../../../queries/types";
 import {
   useArchiveShipment,
+  useDeleteShipment,
   useRestoreShipment,
 } from "../../../queries/useHooks";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import { useLanguage } from "../../../common/context/language-context";
+import { fmtProduct } from "../type-format/format";
 import { ShipmentPrintButton } from "./print-shipment";
+import { confirmNegativeInventory, isNegativeInventoryError } from "./negative-inventory";
 
 export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
   const { t } = useLanguage();
@@ -19,6 +22,7 @@ export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
   const { showError, contextHolder } = ErrorNotificationPopup();
   const archive = useArchiveShipment();
   const restore = useRestoreShipment();
+  const remove = useDeleteShipment();
   const isArchived = Boolean(shipment.archived_at);
   const isComplete =
     shipment.container.length > 0 &&
@@ -26,6 +30,7 @@ export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
       ({ status }) => status === "UNLOADED" || status === "CANCELLED",
     );
   const canEdit = !isArchived;
+  const unloadedCount =shipment.container.filter(({ status }) => status === "UNLOADED").length;
 
   const archiveShipment = async () => {
     try {
@@ -42,6 +47,31 @@ export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
       msg.success(t("Shipment restored"));
     } catch (error) {
       showError(error, t("Could not restore shipment"));
+    }
+  };
+
+  const deleteShipment = async (allowNegativeInventory = false) => {
+    try {
+      await remove.mutateAsync({ id: shipment.id, allowNegativeInventory });
+      msg.success(t("Shipment deleted"));
+    } catch (error) {
+      if (isNegativeInventoryError(error)) {
+        const products = new Map(
+          shipment.container.flatMap((container) =>
+            container.container_item.map((item) => [item.product_category.id, fmtProduct(item.product_category)] as const),
+          ),
+        );
+        confirmNegativeInventory({
+          error,
+          t,
+          intro: t("Some of this shipment's stock has already been sold. Deleting it will result in negative stock:"),
+          okText: t("Delete anyway"),
+          labelOf: (productId) => products.get(productId) ?? productId,
+          onOk: () => deleteShipment(true),
+        });
+        return;
+      }
+      showError(error, t("Could not delete shipment"));
     }
   };
 
@@ -99,6 +129,31 @@ export function ShipmentActions({ shipment }: { shipment: ShipmentRow }) {
           </span>
         </Tooltip>
       )}
+
+      <Popconfirm
+        title={t("Permanently delete this shipment?")}
+        description={
+          <div style={{ maxWidth: 300 }}>
+            {t("Its {count} containers, their products and discrepancies are deleted too.", { count: shipment.container.length })}
+            {unloadedCount > 0 && <> {t("Sacks from {count} unloaded containers are removed from stock.", { count: unloadedCount })}</>}
+            {" "}{t("This cannot be undone.")}
+          </div>
+        }
+        okText={t("Delete")}
+        okButtonProps={{ danger: true }}
+        cancelText={t("Cancel")}
+        onConfirm={() => deleteShipment()}
+      >
+        <Tooltip title={t("Delete shipment")}>
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            aria-label={t("Delete shipment")}
+            loading={remove.isPending}
+          />
+        </Tooltip>
+      </Popconfirm>
     </Flex>
   );
 }

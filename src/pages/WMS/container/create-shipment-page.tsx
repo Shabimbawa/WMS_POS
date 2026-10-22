@@ -5,7 +5,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
-import { ApiError } from "../../../utils/api-client";
+import { confirmNegativeInventory, isNegativeInventoryError } from "./negative-inventory";
 import { useCreateShipment, useProductCategories, useShippingCompanies, useSuppliers, useUpdateShipment } from "../../../queries/useHooks";
 import type { ShipmentRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
@@ -83,9 +83,16 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
       msg.success(t(isEditing ? "Shipment updated" : "Shipment registered"));
       navigate(listPath);
     } catch (error) {
-      if (error instanceof ApiError && error.code === "NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED") {
-        const deficits = error.details as Array<{ productId: string; balance: number }>;
-        Modal.confirm({ title: t("Inventory will become negative"), content: <div><Typography.Paragraph>{t("Saving these corrections will result in negative stock:")}</Typography.Paragraph>{deficits.map((item) => <Typography.Text key={item.productId} type="danger" style={{ display: "block" }}>{productOptions.find((product) => product.value === item.productId)?.label ?? item.productId}: {fmtInt(item.balance)} {t("sacks")}</Typography.Text>)}</div>, okText: t("Save anyway"), okButtonProps: { danger: true }, cancelText: t("Review changes"), onOk: () => submit(true) });
+      if (isNegativeInventoryError(error)) {
+        confirmNegativeInventory({
+          error,
+          t,
+          intro: t("Saving these corrections will result in negative stock:"),
+          okText: t("Save anyway"),
+          cancelText: t("Review changes"),
+          labelOf: (productId) => productOptions.find((product) => product.value === productId)?.label ?? productId,
+          onOk: () => submit(true),
+        });
         return;
       }
       showError(error, isEditing ? "Could not update shipment" : "Could not register shipment");

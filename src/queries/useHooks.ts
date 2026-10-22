@@ -16,6 +16,7 @@ import {
   createProduct,
   createShipment,
   updateShipment,
+  deleteShipment,
   createShippingCompany,
   createSupplier,
   deleteShippingCompany,
@@ -368,6 +369,11 @@ function shipmentInvalidation(qc: ReturnType<typeof useQueryClient>) {
 export function useUpdateShipment() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: updateShipment, onSuccess: () => shipmentInvalidation(qc) });
+}
+
+export function useDeleteShipment() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: deleteShipment, onSuccess: () => shipmentInvalidation(qc) });
 }
 
 /** Logging or voiding a delivery moves stock, so every stock view is stale. */
