@@ -11,7 +11,6 @@ import {
   Modal,
   Popconfirm,
   Select,
-  Skeleton,
   Typography,
   message,
 } from "antd";
@@ -30,7 +29,6 @@ import type { ProductCategory } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import {
   DraftItemTable,
-  ProductReferenceTable,
   type DraftItem,
 } from "../container/create-shipment-table";
 import { useLanguage } from "../../../common/context/language-context";
@@ -102,7 +100,7 @@ export default function CreateDeliveryPage() {
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({
     kind: "LOCAL",
   });
-  const { data: products = [], isPending: loadingProducts } =
+  const { data: products = [] } =
     useProductCategories();
   const create = useCreateDelivery();
 
@@ -226,122 +224,106 @@ export default function CreateDeliveryPage() {
   };
 
   return (
-    <Flex gap={16} align="start">
+    <Flex vertical gap={16}>
       {msgHolder}
       {errorHolder}
 
-      <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          {t("Log local delivery")}
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          {t("Counted as it came off the truck. Submitting moves stock immediately.")}
-        </Typography.Text>
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        {t("Log local delivery")}
+      </Typography.Title>
+      <Typography.Text type="secondary">
+        {t("Counted as it came off the truck. Submitting moves stock immediately.")}
+      </Typography.Text>
 
-        <Card size="small">
-          <Flex wrap gap={12} align="start">
-            <Form layout="vertical" style={{ marginBottom: 0 }}>
-              <Form.Item label={t("Supplier")} required style={{ marginBottom: 0 }}>
-                <Select
-                  placeholder={t("Select local supplier")}
-                  style={{ minWidth: 240 }}
-                  loading={loadingSuppliers}
-                  value={supplierId}
-                  onChange={setSupplierId}
-                  options={suppliers?.map((s) => ({
-                    label: s.name,
-                    value: s.id,
-                  }))}
-                  showSearch
-                  optionFilterProp="label"
-                />
-              </Form.Item>
-            </Form>
-            <Form layout="vertical">
-              <Form.Item label={t("Date received")} style={{ marginBottom: 0 }}>
-                <DatePicker
-                  value={dateReceived}
-                  allowClear={false}
-                  format="MMMM DD, YYYY"
-                  onChange={(d) => d && setDateReceived(d)}
-                />
-              </Form.Item>
-            </Form>
-            <Form layout="vertical">
-              <Form.Item label={t("Reference")} style={{ marginBottom: 0 }}>
-                <Input
-                  placeholder={t("Delivery receipt no. (optional)")}
-                  style={{ minWidth: 220 }}
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                  maxLength={500}
-                />
-              </Form.Item>
-            </Form>
-          </Flex>
-        </Card>
-
-        <Card
-          size="small"
-          title={t("Items counted")}
-          extra={
-            <CommonModalForm<ItemValues>
-              title={t("Add item")}
-              triggerLabel={
-                <>
-                  <PlusOutlined /> {t("Add Item")}
-                </>
-              }
-              okText={t("Add")}
-              onSave={addItem}
-            >
-              <ItemFields products={products} taken={taken} />
-            </CommonModalForm>
-          }
-        >
-          {items.length ? (
-            <DraftItemTable
-              items={items}
-              productsById={productsById}
-              renderActions={renderActions}
-            />
-          ) : (
-            <Empty description={t("No items yet")} />
-          )}
-        </Card>
-
-        <Flex justify="space-between" align="center" wrap gap={8}>
-          <Typography.Text type="secondary">
-            {fmtInt(items.length)} {t("items")} · {fmtInt(totals.sacks)} {t("sacks")} ·{" "}
-            {fmtMoney(totals.value)}
-          </Typography.Text>
-          <Flex gap={8}>
-            <Button onClick={cancel}>{t("Cancel")}</Button>
-            <Button
-              type="primary"
-              onClick={submit}
-              disabled={!canSubmit}
-              loading={create.isPending}
-            >
-              {t("Log delivery")}
-            </Button>
-          </Flex>
+      <Card size="small">
+        <Flex wrap gap={12} align="start">
+          <Form layout="vertical" style={{ marginBottom: 0 }}>
+            <Form.Item label={t("Supplier")} required style={{ marginBottom: 0 }}>
+              <Select
+                placeholder={t("Select local supplier")}
+                style={{ minWidth: 240 }}
+                loading={loadingSuppliers}
+                value={supplierId}
+                onChange={setSupplierId}
+                options={suppliers?.map((s) => ({
+                  label: s.name,
+                  value: s.id,
+                }))}
+                showSearch
+                optionFilterProp="label"
+              />
+            </Form.Item>
+          </Form>
+          <Form layout="vertical">
+            <Form.Item label={t("Date received")} style={{ marginBottom: 0 }}>
+              <DatePicker
+                value={dateReceived}
+                allowClear={false}
+                format="MMMM DD, YYYY"
+                onChange={(d) => d && setDateReceived(d)}
+              />
+            </Form.Item>
+          </Form>
+          <Form layout="vertical">
+            <Form.Item label={t("Reference")} style={{ marginBottom: 0 }}>
+              <Input
+                placeholder={t("Delivery receipt no. (optional)")}
+                style={{ minWidth: 220 }}
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                maxLength={500}
+              />
+            </Form.Item>
+          </Form>
         </Flex>
-      </Flex>
+      </Card>
 
       <Card
         size="small"
-        title={t("Registered products")}
-        style={{ width: 380, flexShrink: 0, position: "sticky", top: 0 }}
+        title={t("Items counted")}
+        extra={
+          <CommonModalForm<ItemValues>
+            title={t("Add item")}
+            triggerLabel={
+              <>
+                <PlusOutlined /> {t("Add Item")}
+              </>
+            }
+            okText={t("Add")}
+            onSave={addItem}
+          >
+            <ItemFields products={products} taken={taken} />
+          </CommonModalForm>
+        }
       >
-        {loadingProducts ? (
-          <Skeleton active paragraph={{ rows: 8 }} />
+        {items.length ? (
+          <DraftItemTable
+            items={items}
+            productsById={productsById}
+            renderActions={renderActions}
+          />
         ) : (
-          <div style={{ maxHeight: "calc(100vh - 220px)", overflow: "auto" }}>
-            <ProductReferenceTable data={products} />
-          </div>
+          <Empty description={t("No items yet")} />
         )}
       </Card>
+
+      <Flex justify="space-between" align="center" wrap gap={8}>
+        <Typography.Text type="secondary">
+          {fmtInt(items.length)} {t("items")} · {fmtInt(totals.sacks)} {t("sacks")} ·{" "}
+          {fmtMoney(totals.value)}
+        </Typography.Text>
+        <Flex gap={8}>
+          <Button onClick={cancel}>{t("Cancel")}</Button>
+          <Button
+            type="primary"
+            onClick={submit}
+            disabled={!canSubmit}
+            loading={create.isPending}
+          >
+            {t("Log delivery")}
+          </Button>
+        </Flex>
+      </Flex>
     </Flex>
   );
 }
