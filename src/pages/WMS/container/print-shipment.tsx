@@ -59,7 +59,6 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
     <>
       <Button
         type="text"
-        size="small"
         icon={<PrinterOutlined />}
         title={t("Print packing list")}
         onClick={() => setOpen(true)}
@@ -97,11 +96,6 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
                 </tr>))}</tbody>
                 <tfoot><tr><td>{fmtInt(containers.length)} {t("containers")}</td><td><strong>{t("Grand total")}</strong></td><td className="num">{fmtInt(totalSacks)}</td><td /><td className="num">{hasAnyPrice ? fmtPhp(totalAmount) : dash}</td></tr></tfoot>
               </table>
-
-              <div className="print-logistics">
-                {containers.map((container) => <div key={container.id}><strong className="print-container-no">{container.container_no ?? t("No box")}</strong><span>{container.shipping_company?.name ?? dash}</span><span>{container.is_company_truck ? t("Own truck") : container.hauler || dash}</span><span>{container.date_arrived_at_port ? DateParser(container.date_arrived_at_port) : dash}</span><span>{container.date_delivered ? DateParser(container.date_delivered) : dash}</span></div>)}
-                <div className="print-logistics-head"><b>{t("Container")}</b><b>{t("Shipping line")}</b><b>{t("Hauling")}</b><b>{t("At port")}</b><b>{t("Delivered")}</b></div>
-              </div>
 
               <div className="print-legacy-containers">
               {containers.map((container, index) => {

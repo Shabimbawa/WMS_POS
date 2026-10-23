@@ -799,10 +799,6 @@ code {
 .print-legacy-containers { display: none; }
 .print-consolidated-table small { display: block; margin-top: 1px; color: #666; font-size: 9px; }
 .print-consolidated-table .print-container-start td { padding-top: 9px; }
-.print-consolidated-table tbody tr.print-container-start:not(:first-child) td { border-top: 1px solid #bbb; }
-.print-logistics { display: flex; flex-direction: column; gap: 0; margin-top: 24px; }
-.print-logistics > div { display: grid; grid-template-columns: 1.2fr 1.5fr 1.2fr 1fr 1fr; gap: 14px; padding: 3px 6px; }
-.print-logistics-head { order: -1; border-bottom: 1px solid #111; padding-bottom: 4px !important; font-size: 10px; }
 .print-shipping-details { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 24px; margin-top: 14px; }
 .print-shipping-details span { display: grid; gap: 2px; }
 
