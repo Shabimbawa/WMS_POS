@@ -22,6 +22,7 @@ import {
   useContainers,
   useShippingContainerNotebook,
   usePortPullOuts,
+  useShippingCompanies,
   useSuppliers,
 } from "../../../queries/useHooks";
 import type { ContainerStatus, SortDir } from "../../../queries/types";
@@ -45,6 +46,7 @@ export default function ContainerPage({
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind });
+  const { data: shippingCompanies = [], isLoading: loadingShippingCompanies } = useShippingCompanies();
   const { data: pullOutRows = [] } = usePortPullOuts(kind);
   const today = dayjs().startOf("day");
   const overduePullOuts = pullOutRows.filter((row) => dayjs(row.pull_out_before).startOf("day").diff(today, "day") <= 0).length;
@@ -52,6 +54,7 @@ export default function ContainerPage({
 
   // undefined = all suppliers
   const [supplierId, setSupplierId] = useState<string | undefined>();
+  const [shippingCompanyId, setShippingCompanyId] = useState<string | undefined>();
   const [range, setRange] = useState<MonthRange>(() => lastMonths(3));
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [view, setView] = useState<"active" | "port" | "archived">("active");
@@ -64,6 +67,7 @@ export default function ContainerPage({
   const params = useMemo(
     () => ({
       supplierId,
+      shippingCompanyId,
       containerNo: deferredContainerSearch.trim() || undefined,
       kind,
       page,
@@ -73,7 +77,7 @@ export default function ContainerPage({
       sortDir,
       archived: view === "archived" ? true : undefined,
     }),
-    [supplierId, deferredContainerSearch, kind, page, pageSize, range, sortDir, view],
+    [supplierId, shippingCompanyId, deferredContainerSearch, kind, page, pageSize, range, sortDir, view],
   );
 
   const {
@@ -168,6 +172,21 @@ export default function ContainerPage({
             value={supplierId}
             onChange={reset(setSupplierId)}
             options={suppliers?.map((s) => ({ label: s.name, value: s.id }))}
+            showSearch
+            optionFilterProp="label"
+          />
+
+          <Select
+            allowClear
+            placeholder={t("All shipping companies")}
+            style={{ minWidth: 210 }}
+            loading={loadingShippingCompanies}
+            value={shippingCompanyId}
+            onChange={reset(setShippingCompanyId)}
+            options={shippingCompanies.map((company) => ({
+              label: company.code ? `${company.name} (${company.code})` : company.name,
+              value: company.id,
+            }))}
             showSearch
             optionFilterProp="label"
           />

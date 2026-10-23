@@ -40,6 +40,7 @@ const shipmentQuery = z.object({
   dateFrom: isoDate,
   dateTo: isoDate,
   supplierId: z.uuid().optional(),
+  shippingCompanyId: z.uuid().optional(),
   containerNo: z.string().trim().max(100).optional(),
   kind: z.enum(["INTERNATIONAL", "NATIONAL"]).optional(),
   archived: z.stringbool().default(false),
@@ -400,6 +401,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
 
     const filters = [
       ...shipmentFilters(query),
+      ...(query.shippingCompanyId ? [sql`exists (select 1 from container shipping_company_container where shipping_company_container.shipment_id = ${shipments.id} and shipping_company_container.shipping_company_id = ${query.shippingCompanyId})`] : []),
       ...(query.containerNo ? [sql`exists (select 1 from container search_container where search_container.shipment_id = ${shipments.id} and lower(search_container.container_no) like ${`%${query.containerNo.toLowerCase()}%`})`] : []),
     ];
     const where = and(...filters);
@@ -449,6 +451,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     const where = and(
       eq(containers.status, query.status),
       ...shipmentFilters(query),
+      ...(query.shippingCompanyId ? [eq(containers.shippingCompanyId, query.shippingCompanyId)] : []),
       ...(query.containerNo ? [sql`lower(${containers.containerNo}) like ${`%${query.containerNo.toLowerCase()}%`}`] : []),
     );
     const [countRow] = await db
