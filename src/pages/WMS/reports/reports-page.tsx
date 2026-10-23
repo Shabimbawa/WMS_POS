@@ -12,7 +12,9 @@ import {
   Skeleton,
   Space,
   Statistic,
+  Tooltip,
   Typography,
+  type SelectProps,
 } from "antd";
 import { FilePdfOutlined, ReloadOutlined, TableOutlined } from "@ant-design/icons";
 import type { Dayjs } from "dayjs";
@@ -77,6 +79,47 @@ const sourceLine = (source: SourceFilter, t: (text: string) => string) =>
 type Applied =
   | { type: "stock"; params: InboundReportParams; granularity: Granularity; keepEmpty: boolean; subtitle: string[] }
   | { type: "receiving"; params: ReceivingParams; subtitle: string[] };
+
+/**
+ * A multi-select whose option list stays closed until something is typed, so
+ * clicking the field does not drop down every product at once. Options already
+ * picked are left out of the list; the tag's x or Backspace removes them.
+ */
+function TypeToSearchSelect(
+  props: Omit<SelectProps<string[]>, "mode" | "open" | "searchValue" | "onSearch" | "filterOption">,
+) {
+  const [search, setSearch] = useState("");
+  const picked = new Set(props.value ?? []);
+  const filterProps = [props.optionFilterProp ?? "label"].flat();
+  return (
+    <Select<string[]>
+      {...props}
+      mode="multiple"
+      showSearch
+      // Filtering here, not in `options`, keeps the picked tags' labels.
+      filterOption={(input, option) =>
+        !picked.has(String(option?.value)) &&
+        filterProps.some((prop) =>
+          String((option as Record<string, unknown> | undefined)?.[prop] ?? "")
+            .toLowerCase()
+            .includes(input.toLowerCase()),
+        )
+      }
+      searchValue={search}
+      onSearch={setSearch}
+      open={search.trim().length > 0}
+      onChange={(values, options) => {
+        // A pick clears the typed text, which closes the list again.
+        setSearch("");
+        props.onChange?.(values, options);
+      }}
+      onBlur={(event) => {
+        setSearch("");
+        props.onBlur?.(event);
+      }}
+    />
+  );
+}
 
 export default function ReportsPage() {
   const { t, language } = useLanguage();
@@ -302,99 +345,35 @@ export default function ReportsPage() {
           </Form.Item>
 
           <div className="report-filter-grid">
-            {reportType === "stock" ? (
-              <>
-                <Form.Item
-                  label={t("Date range")}
-                  style={{ marginBottom: 0 }}
-                  extra={t("Only stock received inside these dates is included.")}
-                >
-                  <RangePicker
-                    value={reportRange}
-                    allowClear={false}
-                    format="MM/DD/YYYY"
-                    onChange={(value) => value?.[0] && value[1] && setReportRange([value[0], value[1]])}
-                  />
-                </Form.Item>
-                <Form.Item label={t("Products")} extra={t("Optional · each product includes all of its sizes.")} style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    maxTagCount="responsive"
-                    placeholder={t("All products")}
-                    loading={loadingProducts}
-                    value={productGroupKeys}
-                    onChange={setProductGroupKeys}
-                    options={productGroups}
-                  />
-                </Form.Item>
-                <Form.Item label={t("Suppliers")} extra={t("Optional · choose one or more suppliers.")} style={{ marginBottom: 0, flex: 1, minWidth: 260 }}>
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    maxTagCount="responsive"
-                    placeholder={t("All suppliers")}
-                    loading={loadingSuppliers}
-                    value={supplierIds}
-                    onChange={(values) => {
-                      setSupplierIds(values);
-                      setShipmentIds([]);
-                    }}
-                    options={supplierOptions}
-                  />
-                </Form.Item>
-              </>
-            ) : (
-              <>
-                <Form.Item
-                  label={t("Date range")}
-                  style={{ marginBottom: 0 }}
-                  extra={t("Only stock received inside these dates is included.")}
-                >
-                  <RangePicker
-                    value={reportRange}
-                    allowClear={false}
-                    format="MM/DD/YYYY"
-                    onChange={(value) => value?.[0] && value[1] && setReportRange([value[0], value[1]])}
-                  />
-                </Form.Item>
-                <Form.Item label={t("Suppliers")} extra={t("Optional · choose one or more suppliers.")} style={{ marginBottom: 0, minWidth: 280, flex: 1 }}>
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    maxTagCount="responsive"
-                    placeholder={t("All suppliers")}
-                    loading={loadingSuppliers}
-                    value={supplierIds}
-                    onChange={(values) => {
-                      setSupplierIds(values);
-                      setShipmentIds([]);
-                    }}
-                    options={supplierOptions}
-                  />
-                </Form.Item>
-                <Form.Item label={t("Products")} extra={t("Optional · each product includes all of its sizes.")} style={{ marginBottom: 0, minWidth: 260, flex: 1 }}>
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    maxTagCount="responsive"
-                    placeholder={t("All products")}
-                    loading={loadingProducts}
-                    value={productGroupKeys}
-                    onChange={setProductGroupKeys}
-                    options={productGroups}
-                  />
-                </Form.Item>
-              </>
-            )}
+            <Form.Item
+              label={t("Date range")}
+              style={{ marginBottom: 0 }}
+              extra={t("Only stock received inside these dates is included.")}
+            >
+              <RangePicker
+                value={reportRange}
+                allowClear={false}
+                format="MM/DD/YYYY"
+                onChange={(value) => value?.[0] && value[1] && setReportRange([value[0], value[1]])}
+              />
+            </Form.Item>
+            <Form.Item label={t("Suppliers")} extra={t("Optional · choose one or more suppliers.")} style={{ marginBottom: 0 }}>
+              <Select
+                mode="multiple"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                maxTagCount="responsive"
+                placeholder={t("All suppliers")}
+                loading={loadingSuppliers}
+                value={supplierIds}
+                onChange={(values) => {
+                  setSupplierIds(values);
+                  setShipmentIds([]);
+                }}
+                options={supplierOptions}
+              />
+            </Form.Item>
 
             <Form.Item label={t("Inbound route")} extra={t("Choose where the received stock came from.")} style={{ marginBottom: 0, minWidth: 220 }}>
               <Select
@@ -425,6 +404,28 @@ export default function ReportsPage() {
                 value={shipmentIds}
                 onChange={setShipmentIds}
                 options={shipmentOptions}
+              />
+            </Form.Item>
+
+            <Form.Item className="report-filter-full" label={t("Products")} extra={t("Optional · each product includes all of its sizes.")} style={{ marginBottom: 0 }}>
+              <TypeToSearchSelect
+                allowClear
+                optionFilterProp="label"
+                maxTagCount="responsive"
+                maxTagPlaceholder={(omitted) => (
+                  // The collapsed "+ N ..." tag lists the hidden products on hover.
+                  <Tooltip
+                    styles={{ root: { pointerEvents: "none" } }}
+                    title={omitted.map((option) => option.label).map((label, index) => <div key={index}>{label}</div>)}
+                  >
+                    <span>+ {omitted.length} ...</span>
+                  </Tooltip>
+                )}
+                placeholder={t("All products")}
+                loading={loadingProducts}
+                value={productGroupKeys}
+                onChange={setProductGroupKeys}
+                options={productGroups}
               />
             </Form.Item>
 

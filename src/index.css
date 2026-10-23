@@ -521,6 +521,11 @@ code {
   line-height: 1.35;
 }
 
+/* A filter that takes a whole row, e.g. Products with many picks. */
+.report-filter-grid > .report-filter-full {
+  grid-column: 1 / -1;
+}
+
 .report-actions {
   grid-column: 1 / -1;
   justify-self: end;
