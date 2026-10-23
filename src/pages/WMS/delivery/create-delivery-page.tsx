@@ -16,7 +16,7 @@ import {
 } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
@@ -24,13 +24,18 @@ import {
   useCreateDelivery,
   useProductCategories,
   useSuppliers,
+  useUpdateDelivery,
 } from "../../../queries/useHooks";
-import type { ProductCategory } from "../../../queries/types";
+import type { LocalDeliveryRow, ProductCategory } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import {
   DraftItemTable,
   type DraftItem,
 } from "../container/create-shipment-table";
+import {
+  confirmNegativeInventory,
+  isNegativeInventoryError,
+} from "../container/negative-inventory";
 import { useLanguage } from "../../../common/context/language-context";
 
 type ItemValues = {
@@ -90,10 +95,17 @@ function ItemFields({
 /**
  * One local supplier, one date, a list of counted lines. No containers and no
  * declared quantities — what is entered here is what arrived.
+ *
+ * At /deliveries/:deliveryId/edit the same form edits a delivery passed in
+ * through router state; saving moves only the difference in sacks.
  */
 export default function CreateDeliveryPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { deliveryId } = useParams();
+  const editing = (location.state as { delivery?: LocalDeliveryRow } | null)?.delivery;
+  const isEditing = Boolean(deliveryId && editing);
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
 
@@ -103,11 +115,22 @@ export default function CreateDeliveryPage() {
   const { data: products = [] } =
     useProductCategories();
   const create = useCreateDelivery();
+  const update = useUpdateDelivery();
 
-  const [supplierId, setSupplierId] = useState<string | undefined>();
-  const [dateReceived, setDateReceived] = useState<Dayjs>(() => dayjs());
-  const [reference, setReference] = useState("");
-  const [items, setItems] = useState<DraftItem[]>([]);
+  const [supplierId, setSupplierId] = useState<string | undefined>(editing?.supplier.id);
+  const [dateReceived, setDateReceived] = useState<Dayjs>(() =>
+    editing ? dayjs(editing.date_received) : dayjs(),
+  );
+  const [reference, setReference] = useState(editing?.reference ?? "");
+  const [items, setItems] = useState<DraftItem[]>(() =>
+    (editing?.items ?? []).map((item) => ({
+      key: item.id,
+      product_category_id: item.product_category.id,
+      qty_sacks: item.qty_sacks,
+      price_per_sack: item.price_per_sack,
+    })),
+  );
+  const [dirty, setDirty] = useState(false);
 
   const productsById = useMemo(
     () => new Map(products.map((p) => [p.id, p])),
@@ -126,7 +149,8 @@ export default function CreateDeliveryPage() {
     { sacks: 0, value: 0 },
   );
 
-  const addItem = (v: ItemValues) =>
+  const addItem = (v: ItemValues) => {
+    setDirty(true);
     setItems((prev) => [
       ...prev,
       {
@@ -136,8 +160,10 @@ export default function CreateDeliveryPage() {
         price_per_sack: v.price_per_sack ?? null,
       },
     ]);
+  };
 
-  const editItem = (key: string, v: ItemValues) =>
+  const editItem = (key: string, v: ItemValues) => {
+    setDirty(true);
     setItems((prev) =>
       prev.map((i) =>
         i.key === key
@@ -150,9 +176,12 @@ export default function CreateDeliveryPage() {
           : i,
       ),
     );
+  };
 
-  const removeItem = (key: string) =>
+  const removeItem = (key: string) => {
+    setDirty(true);
     setItems((prev) => prev.filter((i) => i.key !== key));
+  };
 
   const renderActions = (item: DraftItem) => (
     <Flex gap={4} justify="end">
@@ -187,35 +216,59 @@ export default function CreateDeliveryPage() {
 
   const canSubmit = Boolean(supplierId) && items.length > 0;
 
-  const submit = async () => {
+  // Opened at the edit URL without a delivery (e.g. after a refresh): there is
+  // nothing to edit, and submitting would log a new delivery instead.
+  if (deliveryId && !editing) return <Navigate to="/deliveries" replace />;
+
+  const submit = async (allowNegativeInventory = false) => {
     if (!supplierId) return;
+    const input = {
+      supplierId,
+      dateReceived: dateReceived.format("YYYY-MM-DD"),
+      reference: reference.trim() || null,
+      // the client-side key is not part of the payload
+      items: items.map((item) => ({
+        product_category_id: item.product_category_id,
+        qty_sacks: item.qty_sacks,
+        price_per_sack: item.price_per_sack,
+      })),
+    };
     try {
-      await create.mutateAsync({
-        supplierId,
-        dateReceived: dateReceived.format("YYYY-MM-DD"),
-        reference: reference.trim() || null,
-        // the client-side key is not part of the payload
-        items: items.map((item) => ({
-          product_category_id: item.product_category_id,
-          qty_sacks: item.qty_sacks,
-          price_per_sack: item.price_per_sack,
-        })),
-      });
-      msg.success(t("Delivery logged — stock updated"));
+      if (isEditing && deliveryId) {
+        await update.mutateAsync({ id: deliveryId, input: { ...input, allowNegativeInventory } });
+        msg.success(t("Delivery updated — stock adjusted"));
+      } else {
+        await create.mutateAsync(input);
+        msg.success(t("Delivery logged — stock updated"));
+      }
       navigate("/deliveries");
     } catch (e) {
-      showError(e, "Could not log delivery");
+      if (isNegativeInventoryError(e)) {
+        confirmNegativeInventory({
+          error: e,
+          t,
+          intro: t("Saving these corrections will result in negative stock:"),
+          okText: t("Save anyway"),
+          labelOf: (productId) => {
+            const product = productsById.get(productId);
+            return product ? fmtProduct(product) : productId;
+          },
+          onOk: () => submit(true),
+        });
+        return;
+      }
+      showError(e, isEditing ? "Could not update delivery" : "Could not log delivery");
     }
   };
 
   const cancel = () => {
-    if (!items.length && !supplierId) {
+    if (isEditing ? !dirty : !items.length && !supplierId) {
       navigate("/deliveries");
       return;
     }
     Modal.confirm({
-      title: t("Discard this delivery?"),
-      content: t("Nothing is saved and no stock moves."),
+      title: t(isEditing ? "Discard your changes?" : "Discard this delivery?"),
+      content: t(isEditing ? "The delivery and its stock stay as they were." : "Nothing is saved and no stock moves."),
       okText: t("Discard"),
       okButtonProps: { danger: true },
       cancelText: t("Keep editing"),
@@ -229,10 +282,14 @@ export default function CreateDeliveryPage() {
       {errorHolder}
 
       <Typography.Title level={4} style={{ margin: 0 }}>
-        {t("Log local delivery")}
+        {t(isEditing ? "Edit local delivery" : "Log local delivery")}
       </Typography.Title>
       <Typography.Text type="secondary">
-        {t("Counted as it came off the truck. Submitting moves stock immediately.")}
+        {t(
+          isEditing
+            ? "Saving moves only the difference: added sacks go into stock, removed sacks come out."
+            : "Counted as it came off the truck. Submitting moves stock immediately.",
+        )}
       </Typography.Text>
 
       <Card size="small">
@@ -244,7 +301,10 @@ export default function CreateDeliveryPage() {
                 style={{ minWidth: 240 }}
                 loading={loadingSuppliers}
                 value={supplierId}
-                onChange={setSupplierId}
+                onChange={(v) => {
+                  setDirty(true);
+                  setSupplierId(v);
+                }}
                 options={suppliers?.map((s) => ({
                   label: s.name,
                   value: s.id,
@@ -260,7 +320,11 @@ export default function CreateDeliveryPage() {
                 value={dateReceived}
                 allowClear={false}
                 format="MMMM DD, YYYY"
-                onChange={(d) => d && setDateReceived(d)}
+                onChange={(d) => {
+                  if (!d) return;
+                  setDirty(true);
+                  setDateReceived(d);
+                }}
               />
             </Form.Item>
           </Form>
@@ -270,7 +334,10 @@ export default function CreateDeliveryPage() {
                 placeholder={t("Delivery receipt no. (optional)")}
                 style={{ minWidth: 220 }}
                 value={reference}
-                onChange={(e) => setReference(e.target.value)}
+                onChange={(e) => {
+                  setDirty(true);
+                  setReference(e.target.value);
+                }}
                 maxLength={500}
               />
             </Form.Item>
@@ -316,11 +383,11 @@ export default function CreateDeliveryPage() {
           <Button onClick={cancel}>{t("Cancel")}</Button>
           <Button
             type="primary"
-            onClick={submit}
+            onClick={() => submit()}
             disabled={!canSubmit}
-            loading={create.isPending}
+            loading={create.isPending || update.isPending}
           >
-            {t("Log delivery")}
+            {t(isEditing ? "Save changes" : "Log delivery")}
           </Button>
         </Flex>
       </Flex>

@@ -43,6 +43,10 @@ const createBody = z.object({
     .min(1),
 });
 
+const updateBody = createBody.extend({
+  allowNegativeInventory: z.boolean().optional().default(false),
+});
+
 const voidBody = z.object({ reason: z.string().trim().min(3).max(2_000) });
 
 function pageResult<T>(rows: T[], total: number, page: number, pageSize: number) {
@@ -72,10 +76,46 @@ function assertDistinct(values: string[], message: string): void {
   }
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** The supplier must be an active local one, and every product active. */
+async function assertDeliveryReferences(tx: Tx, input: z.infer<typeof createBody>) {
+  const [supplier] = await tx
+    .select({ kind: suppliers.kind })
+    .from(suppliers)
+    .where(and(eq(suppliers.id, input.supplierId), eq(suppliers.isActive, true)))
+    .limit(1);
+  if (!supplier) {
+    throw new ApiError(400, "UNKNOWN_SUPPLIER", "Supplier does not exist or is inactive");
+  }
+  if (supplier.kind !== "LOCAL") {
+    throw new ApiError(
+      400,
+      "SUPPLIER_NOT_LOCAL",
+      "Only local suppliers deliver this way; international suppliers go through a shipment",
+    );
+  }
+
+  const productIds = input.items.map((item) => item.product_category_id);
+  const products = await tx
+    .select({ id: productCategories.id })
+    .from(productCategories)
+    .where(
+      and(
+        inArray(productCategories.id, productIds),
+        eq(productCategories.isActive, true),
+      ),
+    );
+  if (products.length !== productIds.length) {
+    throw new ApiError(400, "UNKNOWN_PRODUCT", "One or more products do not exist or are inactive");
+  }
+}
+
 /**
  * Local suppliers deliver by truck, unannounced. There is no packing list and
  * no declared-versus-counted step: the load is counted as it comes off, logged
- * once, and moves stock immediately. Corrections are voids, not edits.
+ * once, and moves stock immediately. A wrong count is corrected by editing the
+ * delivery (only the difference moves stock) or by voiding it outright.
  */
 export async function deliveryRoutes(app: FastifyInstance): Promise<void> {
   const warehouseOnly = { preHandler: requireRole("warehouse_admin") };
@@ -178,35 +218,7 @@ export async function deliveryRoutes(app: FastifyInstance): Promise<void> {
     );
 
     const deliveryId = await db.transaction(async (tx) => {
-      const [supplier] = await tx
-        .select({ kind: suppliers.kind })
-        .from(suppliers)
-        .where(and(eq(suppliers.id, input.supplierId), eq(suppliers.isActive, true)))
-        .limit(1);
-      if (!supplier) {
-        throw new ApiError(400, "UNKNOWN_SUPPLIER", "Supplier does not exist or is inactive");
-      }
-      if (supplier.kind !== "LOCAL") {
-        throw new ApiError(
-          400,
-          "SUPPLIER_NOT_LOCAL",
-          "Only local suppliers deliver this way; international suppliers go through a shipment",
-        );
-      }
-
-      const productIds = input.items.map((item) => item.product_category_id);
-      const products = await tx
-        .select({ id: productCategories.id })
-        .from(productCategories)
-        .where(
-          and(
-            inArray(productCategories.id, productIds),
-            eq(productCategories.isActive, true),
-          ),
-        );
-      if (products.length !== productIds.length) {
-        throw new ApiError(400, "UNKNOWN_PRODUCT", "One or more products do not exist or are inactive");
-      }
+      await assertDeliveryReferences(tx, input);
 
       const [created] = await tx
         .insert(localDeliveries)
@@ -267,6 +279,143 @@ export async function deliveryRoutes(app: FastifyInstance): Promise<void> {
     });
 
     return reply.code(201).send({ id: deliveryId });
+  });
+
+  // Editing rewrites the lines and posts only the net change per product, so
+  // the ledger shows the correction instead of a full reversal and re-entry.
+  // Like a shipment edit, a change that would take stock below zero needs
+  // allowNegativeInventory (the sacks may already have been sold).
+  app.patch("/deliveries/:id", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const input = updateBody.parse(request.body);
+    assertDistinct(
+      input.items.map((item) => item.product_category_id),
+      "A product can appear only once in a delivery",
+    );
+    const userId = request.currentUser!.id;
+
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({
+          id: localDeliveries.id,
+          supplierId: localDeliveries.supplierId,
+          dateReceived: localDeliveries.dateReceived,
+          reference: localDeliveries.reference,
+          notes: localDeliveries.notes,
+          voidedAt: localDeliveries.voidedAt,
+        })
+        .from(localDeliveries)
+        .where(eq(localDeliveries.id, id))
+        .for("update");
+      if (!existing) throw new ApiError(404, "DELIVERY_NOT_FOUND", "Delivery was not found");
+      if (existing.voidedAt) {
+        throw new ApiError(409, "DELIVERY_VOIDED", "A voided delivery cannot be edited");
+      }
+
+      await assertDeliveryReferences(tx, input);
+
+      const oldItems = await tx
+        .select({
+          productCategoryId: localDeliveryItems.productCategoryId,
+          qtySacks: localDeliveryItems.qtySacks,
+          pricePerSack: localDeliveryItems.pricePerSack,
+        })
+        .from(localDeliveryItems)
+        .where(eq(localDeliveryItems.localDeliveryId, id));
+
+      // New sacks minus old sacks, per product.
+      const delta = new Map<string, number>();
+      for (const item of oldItems) {
+        delta.set(item.productCategoryId, (delta.get(item.productCategoryId) ?? 0) - item.qtySacks);
+      }
+      for (const item of input.items) {
+        delta.set(item.product_category_id, (delta.get(item.product_category_id) ?? 0) + item.qty_sacks);
+      }
+      // Sorted so concurrent writers take balance locks in the same order.
+      const changed = [...delta.entries()]
+        .filter(([, change]) => change !== 0)
+        .sort(([a], [b]) => a.localeCompare(b));
+
+      if (changed.length) {
+        const balances = await tx
+          .select({ id: stockBalances.productCategoryId, remaining: stockBalances.remainingQty })
+          .from(stockBalances)
+          .where(inArray(stockBalances.productCategoryId, changed.map(([productId]) => productId)))
+          .orderBy(asc(stockBalances.productCategoryId))
+          .for("update");
+        const current = new Map(balances.map((balance) => [balance.id, balance.remaining]));
+        const negative = changed
+          .filter(([, change]) => change < 0)
+          .map(([productId, change]) => ({ productId, balance: (current.get(productId) ?? 0) + change }))
+          .filter((item) => item.balance < 0);
+        if (negative.length && !input.allowNegativeInventory) {
+          throw new ApiError(
+            409,
+            "NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED",
+            "This change will make inventory negative",
+            negative,
+          );
+        }
+      }
+
+      await tx
+        .update(localDeliveries)
+        .set({
+          supplierId: input.supplierId,
+          dateReceived: input.dateReceived,
+          reference: input.reference,
+          // The form does not edit notes, so they are kept unless sent.
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(localDeliveries.id, id));
+
+      await tx.delete(localDeliveryItems).where(eq(localDeliveryItems.localDeliveryId, id));
+      await tx.insert(localDeliveryItems).values(
+        input.items.map((item) => ({
+          localDeliveryId: id,
+          productCategoryId: item.product_category_id,
+          qtySacks: item.qty_sacks,
+          pricePerSack: item.price_per_sack,
+        })),
+      );
+
+      const batchId = randomUUID();
+      for (const [productId, change] of changed) {
+        const [balance] = await tx
+          .insert(stockBalances)
+          .values({ productCategoryId: productId, remainingQty: change })
+          .onConflictDoUpdate({
+            target: stockBalances.productCategoryId,
+            set: {
+              remainingQty: sql`${stockBalances.remainingQty} + ${change}`,
+              updatedAt: new Date(),
+            },
+          })
+          .returning({ remainingQty: stockBalances.remainingQty });
+        if (!balance) throw new ApiError(500, "STOCK_UPDATE_FAILED", "Stock balance was not updated");
+
+        await tx.insert(stockMovements).values({
+          batchId,
+          productCategoryId: productId,
+          movementType: change > 0 ? "INBOUND_LOCAL" : "LOCAL_REVERSAL",
+          quantityDelta: change,
+          balanceAfter: balance.remainingQty,
+          localDeliveryId: id,
+          note: "Delivery edited",
+          createdBy: userId,
+        });
+      }
+
+      // The audit log records what changed, not just the submitted form.
+      (request as typeof request & { body: unknown }).body = {
+        before: { delivery: existing, items: oldItems },
+        after: input,
+        stockChanges: changed.map(([productId, change]) => ({ productId, change })),
+      };
+    });
+
+    return { id };
   });
 
   // Voiding reverses the stock it added. If those sacks have since been sold

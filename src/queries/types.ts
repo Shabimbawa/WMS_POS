@@ -408,7 +408,7 @@ export interface LocalDeliveryItemRow {
 
 /**
  * GET /deliveries. A local supplier's truck load: one date, no lifecycle and
- * no declared-versus-counted step. Corrections are voids, not edits.
+ * no declared-versus-counted step. Corrections are edits or voids.
  */
 export interface LocalDeliveryRow {
   id: string;
@@ -439,6 +439,15 @@ export interface CreateLocalDeliveryInput {
   reference: string | null;
   notes?: string | null;
   items: CreateLocalDeliveryItem[];
+}
+
+/** PATCH /deliveries/:id. Only the change in sacks moves stock. */
+export interface UpdateLocalDeliveryInput {
+  id: string;
+  input: CreateLocalDeliveryInput & {
+    /** Needed when the change would take a product's stock below zero. */
+    allowNegativeInventory?: boolean;
+  };
 }
 
 export interface VoidDeliveryInput {

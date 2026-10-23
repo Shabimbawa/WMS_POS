@@ -46,6 +46,7 @@ import {
   updateProduct,
   updateShippingCompany,
   updateSupplier,
+  updateDelivery,
   voidDelivery,
 } from "./warehouse.ts";
 import {
@@ -390,7 +391,7 @@ export function useDeleteShipment() {
   return useMutation({ mutationFn: deleteShipment, onSuccess: () => shipmentInvalidation(qc) });
 }
 
-/** Logging or voiding a delivery moves stock, so every stock view is stale. */
+/** Logging, editing or voiding a delivery moves stock, so every stock view is stale. */
 function deliveryInvalidation(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: qk.deliveries });
   qc.invalidateQueries({ queryKey: qk.stock });
@@ -401,6 +402,14 @@ export function useCreateDelivery() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: createDelivery,
+    onSuccess: () => deliveryInvalidation(qc),
+  });
+}
+
+export function useUpdateDelivery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateDelivery,
     onSuccess: () => deliveryInvalidation(qc),
   });
 }

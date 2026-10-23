@@ -1,5 +1,6 @@
-import { Flex, Form, Input, Tag, Tooltip, message } from "antd";
-import { StopOutlined } from "@ant-design/icons";
+import { Button, Flex, Form, Input, Tag, Tooltip, message } from "antd";
+import { EditOutlined, StopOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
@@ -23,11 +24,13 @@ const totalValue = (r: LocalDeliveryRow) =>
 type VoidValues = { reason: string };
 
 /**
- * Voiding reverses the stock the delivery added, so it is refused once those
- * sacks have been sold. There is no edit: the record stays, marked voided.
+ * Editing moves only the difference in sacks. Voiding reverses everything the
+ * delivery added, so it is refused once those sacks have been sold; the record
+ * stays, marked voided, and can no longer be edited.
  */
 function DeliveryActions({ delivery }: { delivery: LocalDeliveryRow }) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
   const voidIt = useVoidDelivery();
@@ -54,6 +57,14 @@ function DeliveryActions({ delivery }: { delivery: LocalDeliveryRow }) {
     <Flex gap={4} justify="end">
       {msgHolder}
       {errorHolder}
+      <Tooltip title={t("Edit delivery")}>
+        <Button
+          type="text"
+          icon={<EditOutlined />}
+          aria-label={t("Edit delivery")}
+          onClick={() => navigate(`/deliveries/${delivery.id}/edit`, { state: { delivery } })}
+        />
+      </Tooltip>
       <Tooltip title={t("Void delivery")}>
         <span>
           <CommonModalForm<VoidValues>

@@ -50,6 +50,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/suppliers" element={<SupplierPage />} />
                 <Route path="/shipping-companies" element={<ShippingCompanyPage />} />
                 <Route path="/deliveries/new" element={<CreateDeliveryPage />} />
+                <Route path="/deliveries/:deliveryId/edit" element={<CreateDeliveryPage />} />
                 <Route path="/stock" element={<StockPage />} />
                 <Route path="/inventory" element={<StockLogPage />} />
                 <Route path="/reports" element={<ReportsPage />} />

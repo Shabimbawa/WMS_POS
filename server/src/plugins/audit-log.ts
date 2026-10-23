@@ -39,6 +39,7 @@ function routeInfo(method: string, route: string): { action: string; module: str
     [/\/containers\/:id\/cancel$/, "Cancelled container", "Containers"],
     [/\/containers\/:id\/unload$/, "Unloaded container", "Containers"],
     [/\/deliveries\/:id\/void$/, "Voided local delivery", "Local deliveries"],
+    [/\/deliveries\/:id$/, "Updated local delivery", "Local deliveries"],
     [/\/deliveries$/, "Recorded local delivery", "Local deliveries"],
     [/\/stock\/adjustments$/, "Adjusted stock", "Inventory"],
     [/\/discrepancies\/:id\/resolve$/, "Resolved discrepancy", "Discrepancies"],

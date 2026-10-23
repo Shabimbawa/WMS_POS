@@ -38,6 +38,7 @@ import type {
   UpdateProductInput,
   UpdateShippingCompanyInput,
   UpdateSupplierInput,
+  UpdateLocalDeliveryInput,
   VoidDeliveryInput,
   UnloadContainerInput,
   UpdateContainerStatusInput,
@@ -137,6 +138,16 @@ export async function createDelivery(
 ): Promise<string> {
   const result = await apiRequest<{ id: string }>("/deliveries", {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+  return result.id;
+}
+
+/** Rewrites the delivery and moves only the difference in sacks. The API
+ *  refuses with NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED unless allowNegativeInventory. */
+export async function updateDelivery({ id, input }: UpdateLocalDeliveryInput): Promise<string> {
+  const result = await apiRequest<{ id: string }>(`/deliveries/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(input),
   });
   return result.id;
