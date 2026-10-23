@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button, Card, DatePicker, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Typography, message } from "antd";
+import { Alert, Button, Card, DatePicker, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Typography, message } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -64,8 +64,22 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
     updateContainer(containerKey, { container_no: containerNo.trim() || null, ...(match ? { shipping_company_id: match.id } : {}) });
   };
 
+  // Container numbers repeated within this shipment, compared without spaces
+  // or dashes so "ABCU 123" and "ABCU-123" count as the same box.
+  const normalizeNo = (value: string | null) => (value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const firstIndexByNo = new Map<string, number>();
+  const duplicateOf = new Map<string, number>(); // container key -> 1-based index of the first one
+  containers.forEach((c, index) => {
+    const no = normalizeNo(c.container_no);
+    if (!no) return;
+    const first = firstIndexByNo.get(no);
+    if (first === undefined) firstIndexByNo.set(no, index);
+    else duplicateOf.set(c.key, first + 1);
+  });
+  const hasDuplicates = duplicateOf.size > 0;
+
   const allSacks = containers.reduce((total, c) => total + c.items.reduce((subtotal, item) => subtotal + (item.qty_sacks || 0), 0), 0);
-  const isComplete = Boolean(supplierId) && containers.length > 0 && containers.every((c) => Boolean(c.container_no?.trim()) && Boolean(c.shipping_company_id) && c.items.length > 0 && c.items.every((item) => Boolean(item.product_category_id) && item.qty_sacks > 0));
+  const isComplete = Boolean(supplierId) && containers.length > 0 && containers.every((c) => Boolean(c.container_no?.trim()) && Boolean(c.shipping_company_id) && c.items.length > 0 && c.items.every((item) => Boolean(item.product_category_id) && item.qty_sacks > 0)) && !hasDuplicates;
 
   const submit = async (allowNegativeInventory = false) => {
     const header = await form.validateFields();
@@ -123,7 +137,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
       {containers.map((container, index) => {
         return <Card key={container.key} size="small" className="shipment-entry-card" title={<Flex gap={8} align="center"><span className="shipment-entry-index">{index + 1}</span><span>{t("Container")}</span></Flex>} extra={<Popconfirm title={t("Remove this container?")} description={t("Its product rows are removed with it.")} okText={t("Remove")} okButtonProps={{ danger: true }} onConfirm={() => setContainers((current) => current.filter((item) => item.key !== container.key))}><Button type="text" danger icon={<DeleteOutlined />}>{t("Remove")}</Button></Popconfirm>}>
           <div className="shipment-container-fields">
-            <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} /></label>
+            <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() || duplicateOf.has(container.key) ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} />{duplicateOf.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Same number as container {index}", { index: duplicateOf.get(container.key)! })}</Typography.Text>}</label>
             <label><span>{t("Shipping company")}</span><Select value={container.shipping_company_id || undefined} showSearch optionFilterProp="label" placeholder={t("Select shipping company")} loading={loadingShipping} options={shippingOptions} onChange={(value) => updateContainer(container.key, { shipping_company_id: value })} /></label>
             <label className="shipment-container-notes"><span>{t("Notes (optional)")}</span><Input.TextArea rows={2} maxLength={2000} showCount value={container.notes ?? ""} placeholder={t("Add notes about this container")} onChange={(event) => updateContainer(container.key, { notes: event.target.value })} /></label>
           </div>
@@ -143,8 +157,10 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
       <Button type="dashed" className="shipment-add-container" icon={<PlusOutlined />} onClick={addContainer}>{t("Add container")}</Button>
     </Flex>
 
+    {hasDuplicates && <Alert type="error" showIcon message={t("The same container number is entered more than once")} description={t("Each container in a shipment needs its own number. Check the containers marked in red before submitting.")} />}
+
     <Flex justify="space-between" align="center" gap={12} wrap className="shipment-register-footer">
-      <Typography.Text type="secondary">{!containers.length ? t("Add at least one container to continue.") : !isComplete ? t("Complete all required container and product fields.") : t("Ready to submit.")}</Typography.Text>
+      <Typography.Text type="secondary">{!containers.length ? t("Add at least one container to continue.") : hasDuplicates ? t("Fix the repeated container numbers to continue.") : !isComplete ? t("Complete all required container and product fields.") : t("Ready to submit.")}</Typography.Text>
       <Flex gap={8}><Button onClick={cancel}>{t("Cancel")}</Button><Button type="primary" disabled={!isComplete} loading={createShipment.isPending || updateShipment.isPending} onClick={() => submit()}>{t(isEditing ? "Save changes" : "Submit shipment")}</Button></Flex>
     </Flex>
   </div>;
