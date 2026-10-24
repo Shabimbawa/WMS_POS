@@ -81,6 +81,16 @@ const haulingBody = z.discriminatedUnion("assignment", [
     hauler: z.string().trim().min(1).max(500),
   }),
 ]);
+const containerDatesBody = z
+  .object({
+    dateArrivedAtPort: isoDate.optional(),
+    dateDelivered: isoDate.optional(),
+    dateUnloaded: isoDate.optional(),
+  })
+  .refine(
+    (body) => body.dateArrivedAtPort || body.dateDelivered || body.dateUnloaded,
+    "Send at least one date",
+  );
 const cancelBody = z.object({ reason: z.string().trim().min(1).max(1_000) });
 
 const discrepancyInput = z.object({
@@ -959,6 +969,102 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       );
     }
     return updated;
+  });
+
+  // Corrects dates already recorded by a transition. It never sets or clears
+  // one, so the status/date pairing stays valid. Unload movements follow the
+  // unload date so the stock log agrees with the reports.
+  app.patch("/containers/:id/dates", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const input = containerDatesBody.parse(request.body);
+
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`select id from ${containers} where ${containers.id} = ${id} for update`);
+      const [existing] = await tx
+        .select({
+          status: containers.status,
+          dateArrivedAtPort: containers.dateArrivedAtPort,
+          pullOutBefore: containers.pullOutBefore,
+          dateDelivered: containers.dateDelivered,
+          dateUnloaded: containers.dateUnloaded,
+          archivedAt: shipments.archivedAt,
+          gracePeriodDays: shippingCompanies.gracePeriodDays,
+        })
+        .from(containers)
+        .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+        .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
+        .where(eq(containers.id, id))
+        .limit(1);
+      if (!existing) throw new ApiError(404, "CONTAINER_NOT_FOUND", "Container was not found");
+      if (existing.archivedAt) throw new ApiError(409, "SHIPMENT_ARCHIVED", "Restore the shipment before editing it");
+      if (existing.status === "CANCELLED") {
+        throw new ApiError(409, "CONTAINER_DATES_LOCKED", "A cancelled container's dates cannot be edited");
+      }
+      if (
+        (input.dateArrivedAtPort && !existing.dateArrivedAtPort)
+        || (input.dateDelivered && !existing.dateDelivered)
+        || (input.dateUnloaded && !existing.dateUnloaded)
+      ) {
+        throw new ApiError(400, "CONTAINER_DATE_NOT_SET", "Only dates already recorded can be edited");
+      }
+
+      const next = {
+        dateArrivedAtPort: input.dateArrivedAtPort ?? existing.dateArrivedAtPort,
+        dateDelivered: input.dateDelivered ?? existing.dateDelivered,
+        dateUnloaded: input.dateUnloaded ?? existing.dateUnloaded,
+        pullOutBefore: existing.pullOutBefore,
+      };
+      if (next.dateArrivedAtPort && next.dateDelivered && next.dateDelivered < next.dateArrivedAtPort) {
+        throw new ApiError(400, "INVALID_DELIVERY_DATE", "Delivery date cannot be before the port arrival date");
+      }
+      if (next.dateDelivered && next.dateUnloaded && next.dateUnloaded < next.dateDelivered) {
+        throw new ApiError(400, "INVALID_UNLOAD_DATE", "Unload date cannot be before delivery date");
+      }
+      if (next.dateArrivedAtPort !== existing.dateArrivedAtPort) {
+        if (!existing.gracePeriodDays) {
+          throw new ApiError(
+            409,
+            "SHIPPING_COMPANY_GRACE_PERIOD_REQUIRED",
+            "Set this shipping company's grace period before changing the port arrival date",
+          );
+        }
+        next.pullOutBefore = addCalendarDays(next.dateArrivedAtPort!, existing.gracePeriodDays);
+      }
+
+      await tx
+        .update(containers)
+        .set({ ...next, updatedAt: new Date() })
+        .where(eq(containers.id, id));
+
+      if (next.dateUnloaded !== existing.dateUnloaded) {
+        await tx
+          .update(stockMovements)
+          .set({ occurredAt: new Date(`${next.dateUnloaded}T12:00:00Z`) })
+          .where(and(
+            eq(stockMovements.containerId, id),
+            eq(stockMovements.movementType, "INBOUND_UNLOAD"),
+          ));
+      }
+
+      // The audit log records what changed, not just the submitted form.
+      (request as typeof request & { body: unknown }).body = {
+        before: {
+          dateArrivedAtPort: existing.dateArrivedAtPort,
+          dateDelivered: existing.dateDelivered,
+          dateUnloaded: existing.dateUnloaded,
+          pullOutBefore: existing.pullOutBefore,
+        },
+        after: next,
+      };
+
+      return {
+        id,
+        date_arrived_at_port: next.dateArrivedAtPort,
+        pull_out_before: next.pullOutBefore,
+        date_delivered: next.dateDelivered,
+        date_unloaded: next.dateUnloaded,
+      };
+    });
   });
 
   app.post("/containers/:id/deliver", warehouseOnly, async (request) => {

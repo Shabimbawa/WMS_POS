@@ -386,6 +386,14 @@ export type UpdateContainerHaulingInput = {
   | { assignment: "THIRD_PARTY"; hauler: string }
 );
 
+/** Corrects dates a container already has; omitted dates stay as they are. */
+export type UpdateContainerDatesInput = {
+  containerId: string;
+  dateArrivedAtPort?: string;
+  dateDelivered?: string;
+  dateUnloaded?: string;
+};
+
 export interface PortPullOutRow {
   id: string;
   container_no: string | null;

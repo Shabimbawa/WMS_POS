@@ -42,6 +42,7 @@ import type {
   VoidDeliveryInput,
   UnloadContainerInput,
   UpdateContainerStatusInput,
+  UpdateContainerDatesInput,
   UpdateContainerHaulingInput,
   VarianceParams,
 } from "./types";
@@ -282,6 +283,16 @@ export async function updateContainerHauling({
   ...input
 }: UpdateContainerHaulingInput) {
   return apiRequest(`/containers/${containerId}/hauling`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateContainerDates({
+  containerId,
+  ...input
+}: UpdateContainerDatesInput) {
+  return apiRequest(`/containers/${containerId}/dates`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });

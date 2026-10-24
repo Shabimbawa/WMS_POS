@@ -42,6 +42,7 @@ import {
   getSuppliers,
   unloadContainer,
   updateContainerStatus,
+  updateContainerDates,
   updateContainerHauling,
   updateProduct,
   updateShippingCompany,
@@ -475,6 +476,19 @@ export function useUpdateContainerHauling() {
     mutationFn: updateContainerHauling,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
+    },
+  });
+}
+
+export function useUpdateContainerDates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateContainerDates,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.notebooks });
+      // Variance lists the unload date; the stock log and reports date by it.
+      qc.invalidateQueries({ queryKey: qk.discrepancies });
+      qc.invalidateQueries({ queryKey: qk.stock });
     },
   });
 }

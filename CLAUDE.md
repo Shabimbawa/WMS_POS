@@ -58,6 +58,7 @@ Three layers. Pages never call `fetch` directly.
   - UNDECLARED needs `actual_qty` and creates a new line.
   - OTHER needs a `note` and writes nothing.
 - Always filter variance to `status = 'UNLOADED'`, or pending containers read as total losses. `GET /discrepancies/variance` pages by shipment and nests its unloaded containers, each with its product lines.
+- Container dates (at port, delivered, unloaded) are corrected through `PATCH /containers/:id/dates`, only for dates already set and never on cancelled containers or archived shipments. A new at-port date recomputes `pull_out_before`; a new unload date re-dates that container's `INBOUND_UNLOAD` movements.
 - Notes live on `container.notes` (optional). `shipment` has no notes column.
 - Editing a shipment (`PATCH /shipments/:id`) is refused while it's archived. Once any container has progressed, a save rebuilds every container: discrepancies are cleared and unloaded containers are recounted at declared sacks (under review with the client). `DELETE /shipments/:id` hard-deletes and reverses stock. Neither deletes ledger rows: they post `SHIPMENT_REVERSAL` movements, and a deleted container's movements lose `container_id` and get its name in `note`. Both ask for confirmation through `NEGATIVE_INVENTORY_CONFIRMATION_REQUIRED` (see `container/negative-inventory.tsx`).
 - `product_category.is_available` is the only availability signal. `selling_price` lives on `product_category`, not `stock_status`.
