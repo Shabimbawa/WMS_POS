@@ -352,7 +352,11 @@ export const containerOverviewColumns = <T extends ShipmentContainer>(t: Transla
     size: 310,
     cell: (cell) => { const row = cell.row.original; return <div className="shipment-timeline"><span><small>{t("At port")}</small>{row.date_arrived_at_port ? fmtTableDate(row.date_arrived_at_port) : "—"}</span><span><small>{t("Delivered")}</small>{row.date_delivered ? fmtTableDate(row.date_delivered) : "—"}</span><span><small>{t("Unloaded")}</small>{row.date_unloaded ? fmtTableDate(row.date_unloaded) : "—"}</span></div>; },
   },
-  { id: "actions", header: "", accessorFn: (row) => row.id, size: 230, meta: { fixed: "right" }, cell: (cell) => <ContainerActions container={cell.row.original} /> },
+  { id: "actions", header: "", accessorFn: (row) => row.id, size: 230, meta: { fixed: "right" }, cell: (cell) => {
+    // Status-list rows carry their shipment; shipment-nested rows don't need it.
+    const row = cell.row.original as T & { shipment?: { archived_at: string | null } };
+    return <ContainerActions container={row} archived={!!row.shipment?.archived_at} />;
+  } },
 ];
 
 /** Which shipment a container belongs to, for the status list. */
@@ -388,7 +392,7 @@ export function ContainerStatusTable({ data, status, total }: { data: ContainerL
   );
 }
 
-function ContainerDetails({ container, index, t }: { container: ShipmentContainer; index: number; t: Translate }) {
+function ContainerDetails({ container, index, archived, t }: { container: ShipmentContainer; index: number; archived: boolean; t: Translate }) {
   const hauling = container.is_company_truck === null ? t("Not assigned") : container.is_company_truck ? t("Own truck") : container.hauler || t("Third-party hauler");
   const sacks = container.container_item.reduce((sum, item) => sum + (item.actual_qty_sacks ?? item.qty_sacks), 0);
   const dates = [[t("At port"), container.date_arrived_at_port], [t("Delivered"), container.date_delivered], [t("Unloaded"), container.date_unloaded]] as const;
@@ -402,7 +406,7 @@ function ContainerDetails({ container, index, t }: { container: ShipmentContaine
           <Tag color={STATUS_COLOR[container.status]} style={{ margin: 0 }}>{t(STATUS_LABEL[container.status])}</Tag>
         </Flex>
       </div>
-      <ContainerActions container={container} />
+      <ContainerActions container={container} archived={archived} />
     </header>
     <div className="shipment-container-detail-grid">
       <div className="shipment-detail-block"><small>{t("Shipping line")}</small><strong>{container.shipping_company ? [container.shipping_company.name, container.shipping_company.code].filter(Boolean).join(" · ") : t("No shipping line")}</strong></div>
@@ -430,7 +434,7 @@ export function ContainerTable({ data, containerSearch = "" }: { data: ShipmentR
   const normalizedSearch = containerSearch.trim().toUpperCase();
   return (
     <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{t("Shipment overview")}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{t("Select a row to view and update its containers")}</Typography.Text></div>} extra={<Flex gap={20} className="shipment-table-totals"><span><strong>{data.length}</strong> {t("shipments")}</span><span><strong>{containerCount}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks")}</span><span><strong>{complete}</strong> {t("complete")}</span></Flex>}>
-      <DataTable data={data} columns={columns} expandAll={Boolean(normalizedSearch)} renderExpanded={(shipment) => { const visibleContainers = normalizedSearch ? shipment.container.filter((container) => container.container_no?.toUpperCase().includes(normalizedSearch)) : shipment.container; return visibleContainers.length ? <div className="shipment-expanded"><div className="shipment-expanded-heading"><Typography.Text strong>{normalizedSearch ? t("Matching container details") : t("Container details")}</Typography.Text><Typography.Text type="secondary">{normalizedSearch ? t("Showing containers matching your search") : t("Shipment information is grouped by container")}</Typography.Text></div>{visibleContainers.map((container) => <ContainerDetails key={container.id} container={container} index={shipment.container.indexOf(container)} t={t} />)}</div> : null; }} />
+      <DataTable data={data} columns={columns} expandAll={Boolean(normalizedSearch)} renderExpanded={(shipment) => { const visibleContainers = normalizedSearch ? shipment.container.filter((container) => container.container_no?.toUpperCase().includes(normalizedSearch)) : shipment.container; return visibleContainers.length ? <div className="shipment-expanded"><div className="shipment-expanded-heading"><Typography.Text strong>{normalizedSearch ? t("Matching container details") : t("Container details")}</Typography.Text><Typography.Text type="secondary">{normalizedSearch ? t("Showing containers matching your search") : t("Shipment information is grouped by container")}</Typography.Text></div>{visibleContainers.map((container) => <ContainerDetails key={container.id} container={container} index={shipment.container.indexOf(container)} archived={!!shipment.archived_at} t={t} />)}</div> : null; }} />
     </Card>
   );
 }
