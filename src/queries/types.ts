@@ -394,6 +394,14 @@ export type UpdateContainerDatesInput = {
   dateUnloaded?: string;
 };
 
+/** Undoes a mistaken status. UNLOADED only moves back to DELIVERED. */
+export type MoveContainerBackInput = {
+  containerId: string;
+  status: "DOCUMENTED" | "ARRIVED_AT_PORT" | "DELIVERED";
+  reason: string;
+  allowNegativeInventory?: boolean;
+};
+
 export interface PortPullOutRow {
   id: string;
   container_no: string | null;

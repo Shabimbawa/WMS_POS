@@ -91,6 +91,11 @@ const containerDatesBody = z
     (body) => body.dateArrivedAtPort || body.dateDelivered || body.dateUnloaded,
     "Send at least one date",
   );
+const moveBackBody = z.object({
+  status: z.enum(["DOCUMENTED", "ARRIVED_AT_PORT", "DELIVERED"]),
+  reason: z.string().trim().min(1).max(2_000),
+  allowNegativeInventory: z.boolean().default(false),
+});
 const cancelBody = z.object({ reason: z.string().trim().min(1).max(1_000) });
 
 const discrepancyInput = z.object({
@@ -1037,12 +1042,18 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         .where(eq(containers.id, id));
 
       if (next.dateUnloaded !== existing.dateUnloaded) {
+        // Only the latest unload. Earlier ones were already reversed by a
+        // recount or an undone unload and keep their own dates.
         await tx
           .update(stockMovements)
           .set({ occurredAt: new Date(`${next.dateUnloaded}T12:00:00Z`) })
           .where(and(
             eq(stockMovements.containerId, id),
             eq(stockMovements.movementType, "INBOUND_UNLOAD"),
+            sql`${stockMovements.createdAt} = (
+              select max(m.created_at) from ${stockMovements} m
+              where m.container_id = ${id} and m.movement_type = 'INBOUND_UNLOAD'
+            )`,
           ));
       }
 
@@ -1064,6 +1075,103 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         date_delivered: next.dateDelivered,
         date_unloaded: next.dateUnloaded,
       };
+    });
+  });
+
+  // Undoes a status set by mistake. Unloaded only steps back to Delivered,
+  // taking its sacks back out of stock; earlier steps only clear dates.
+  app.post("/containers/:id/move-back", warehouseOnly, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const input = moveBackBody.parse(request.body);
+    const userId = request.currentUser!.id;
+
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`select id from ${containers} where ${containers.id} = ${id} for update`);
+      const [existing] = await tx
+        .select({
+          status: containers.status,
+          dateArrivedAtPort: containers.dateArrivedAtPort,
+          pullOutBefore: containers.pullOutBefore,
+          dateDelivered: containers.dateDelivered,
+          dateUnloaded: containers.dateUnloaded,
+          itemsMatch: containers.itemsMatch,
+          archivedAt: shipments.archivedAt,
+        })
+        .from(containers)
+        .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+        .where(eq(containers.id, id))
+        .limit(1);
+      if (!existing) throw new ApiError(404, "CONTAINER_NOT_FOUND", "Container was not found");
+      if (existing.archivedAt) throw new ApiError(409, "SHIPMENT_ARCHIVED", "Restore the shipment before editing it");
+
+      const allowed =
+        existing.status === "UNLOADED" ? input.status === "DELIVERED"
+        : existing.status === "DELIVERED"
+          ? input.status === "DOCUMENTED" || (input.status === "ARRIVED_AT_PORT" && !!existing.dateArrivedAtPort)
+        : existing.status === "ARRIVED_AT_PORT" ? input.status === "DOCUMENTED"
+        : false;
+      if (!allowed) {
+        throw new ApiError(409, "INVALID_CONTAINER_TRANSITION", "The container cannot move back to that status");
+      }
+
+      const before = {
+        status: existing.status,
+        dateArrivedAtPort: existing.dateArrivedAtPort,
+        pullOutBefore: existing.pullOutBefore,
+        dateDelivered: existing.dateDelivered,
+        dateUnloaded: existing.dateUnloaded,
+      };
+      let removedDiscrepancies: (typeof containerDiscrepancies.$inferSelect)[] = [];
+
+      if (existing.status === "UNLOADED") {
+        const nets = await containerStockNet(tx, [id]);
+        const delta = new Map<string, number>();
+        nets.forEach((row) => delta.set(row.productCategoryId, (delta.get(row.productCategoryId) ?? 0) - row.net));
+        await assertStockCovers(tx, delta, input.allowNegativeInventory);
+        const labels = await containerLabels(tx, [id]);
+        await reverseContainerStock(tx, nets, {
+          userId,
+          unlinked: new Set(),
+          noteFor: () => `Unload undone: ${labels.get(id)}. ${input.reason}`,
+        });
+
+        // Lines added as undeclared at unload go with it; declared lines
+        // lose their count and wait for the next unload.
+        removedDiscrepancies = await tx
+          .delete(containerDiscrepancies)
+          .where(eq(containerDiscrepancies.containerId, id))
+          .returning();
+        const undeclaredItemIds = removedDiscrepancies.flatMap((issue) =>
+          issue.reason === "UNDECLARED" && issue.containerItemId ? [issue.containerItemId] : []);
+        if (undeclaredItemIds.length) {
+          await tx.delete(containerItems).where(inArray(containerItems.id, undeclaredItemIds));
+        }
+        await tx
+          .update(containerItems)
+          .set({ actualQtySacks: null })
+          .where(eq(containerItems.containerId, id));
+      }
+
+      const next = input.status === "DELIVERED"
+        ? { dateUnloaded: null, itemsMatch: null }
+        : input.status === "ARRIVED_AT_PORT"
+          ? { dateDelivered: null }
+          : { dateArrivedAtPort: null, pullOutBefore: null, dateDelivered: null };
+      await tx
+        .update(containers)
+        .set({ status: input.status, ...next, updatedAt: new Date() })
+        .where(eq(containers.id, id));
+
+      // The audit log records what was undone and why.
+      (request as typeof request & { body: unknown }).body = {
+        reason: input.reason,
+        before,
+        after: { status: input.status, ...next },
+        ...(removedDiscrepancies.length ? { removedDiscrepancies } : {}),
+        ...(existing.status === "UNLOADED" ? { stockReversed: true } : {}),
+      };
+
+      return { id, status: input.status };
     });
   });
 

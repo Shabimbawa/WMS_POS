@@ -42,6 +42,7 @@ import type {
   VoidDeliveryInput,
   UnloadContainerInput,
   UpdateContainerStatusInput,
+  MoveContainerBackInput,
   UpdateContainerDatesInput,
   UpdateContainerHaulingInput,
   VarianceParams,
@@ -294,6 +295,16 @@ export async function updateContainerDates({
 }: UpdateContainerDatesInput) {
   return apiRequest(`/containers/${containerId}/dates`, {
     method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function moveContainerBack({
+  containerId,
+  ...input
+}: MoveContainerBackInput) {
+  return apiRequest(`/containers/${containerId}/move-back`, {
+    method: "POST",
     body: JSON.stringify(input),
   });
 }
