@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Alert,
   Button,
@@ -29,11 +28,9 @@ import {
   useUpdateContainerStatus,
 } from "../../../queries/useHooks";
 import type {
-  ContainerStatus,
   HaulingAssignment,
   MoveContainerBackInput,
   ShipmentRow,
-  UpdateContainerStatusInput,
 } from "../../../queries/types";
 import { STATUS_LABEL, fmtProduct } from "../type-format/format";
 import { confirmNegativeInventory, isNegativeInventoryError } from "./negative-inventory";
@@ -41,12 +38,8 @@ import { useLanguage } from "../../../common/context/language-context";
 
 type ShipmentContainer = ShipmentRow["container"][number];
 
-type StatusValues = {
-  status: UpdateContainerStatusInput["status"];
-  date_delivered?: Dayjs;
-  date_arrived_at_port?: Dayjs;
-  grace_period_ready?: boolean;
-  cancellation_reason?: string;
+type CancelValues = {
+  cancellation_reason: string;
 };
 
 type DateValues = {
@@ -64,15 +57,6 @@ type HaulingValues = {
   assignment: HaulingAssignment;
   hauler?: string;
 };
-
-// UNLOADED is deliberately absent — it only happens through the unload RPC.
-const STATUS_OPTIONS = {
-  DOCUMENTED: ["ARRIVED_AT_PORT", "DELIVERED", "CANCELLED"],
-  ARRIVED_AT_PORT: ["DELIVERED", "CANCELLED"],
-  DELIVERED: ["CANCELLED"],
-  CANCELLED: [],
-  UNLOADED: [],
-} satisfies Record<ContainerStatus, Array<UpdateContainerStatusInput["status"]>>;
 
 /** Earlier statuses a mistaken one can be undone to, one step at a time. */
 function moveBackOptions(container: ShipmentContainer): Array<MoveContainerBackInput["status"]> {
@@ -131,103 +115,6 @@ function MoveBackFields({
       >
         <Input.TextArea rows={3} maxLength={2000} placeholder={t("e.g. Marked by mistake")} />
       </Form.Item>
-    </>
-  );
-}
-
-function StatusFields({
-  form,
-  currentStatus,
-  gracePeriodDays,
-  shippingCompanyName,
-}: {
-  form: FormInstance<StatusValues>;
-  currentStatus: ContainerStatus;
-  gracePeriodDays: number | null;
-  shippingCompanyName: string | null;
-}) {
-  const { t } = useLanguage();
-  const status = Form.useWatch("status", form);
-  const arrivedAtPort = Form.useWatch("date_arrived_at_port", form);
-  const pullOutBefore = arrivedAtPort && gracePeriodDays
-    ? arrivedAtPort.add(gracePeriodDays, "day")
-    : null;
-  return (
-    <>
-      <Form.Item
-        name="status"
-        label={t("Status")}
-        rules={[{ required: true, message: t("Pick a status") }]}
-      >
-        <Select
-          options={STATUS_OPTIONS[currentStatus].map((s) => ({
-            label: t(STATUS_LABEL[s]),
-            value: s,
-          }))}
-        />
-      </Form.Item>
-      {status === "ARRIVED_AT_PORT" && (
-        <>
-          <Form.Item
-            name="date_arrived_at_port"
-            label={t("Date arrived at port")}
-            rules={[{ required: true, message: t("Pick the port arrival date") }]}
-          >
-            <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item
-            name="grace_period_ready"
-            hidden
-            rules={[{
-              validator: () => gracePeriodDays
-                ? Promise.resolve()
-                : Promise.reject(new Error(t("Configure the shipping company's grace period first"))),
-            }]}
-          >
-            <Input type="hidden" />
-          </Form.Item>
-          {gracePeriodDays && pullOutBefore ? (
-            <Alert
-              type="info"
-              showIcon
-              message={t("Pull out on or before {date}", {
-                date: pullOutBefore.format("MMMM DD, YYYY"),
-              })}
-              description={t("Calculated automatically from {company}'s {days}-day grace period.", {
-                company: shippingCompanyName ?? t("the shipping company"),
-                days: gracePeriodDays,
-              })}
-              style={{ marginBottom: 24 }}
-            />
-          ) : (
-            <Alert
-              type="warning"
-              showIcon
-              message={t("Grace period not configured")}
-              description={t("Set a grace period for this shipping company before updating the status.")}
-              style={{ marginBottom: 24 }}
-            />
-          )}
-        </>
-      )}
-      {status === "DELIVERED" && (
-        <Form.Item
-          name="date_delivered"
-          label={t("Date delivered")}
-          rules={[{ required: true, message: t("Pick the delivery date") }]}
-        >
-          <DatePicker format="MMMM DD, YYYY" style={{ width: "100%" }} />
-        </Form.Item>
-      )}
-      {status === "CANCELLED" && (
-        <Form.Item
-          name="cancellation_reason"
-          label={t("Cancellation reason")}
-          rules={[{ required: true, whitespace: true, message: t("Enter a reason") }]}
-        >
-          <Input.TextArea rows={3} />
-        </Form.Item>
-      )}
     </>
   );
 }
@@ -357,7 +244,11 @@ function HaulingFields({ form }: { form: FormInstance<HaulingValues> }) {
   );
 }
 
-/** Update-status, date-correction and unload controls for one container row. */
+/**
+ * Manage menu: the one-click next step (dated today) on top, then hauling,
+ * corrections and cancelling. Mistakes are fixed with Edit dates or
+ * Move back rather than by picking dates up front.
+ */
 export function ContainerActions({
   container,
   archived = false,
@@ -379,7 +270,7 @@ export function ContainerActions({
   const deliveredOn = container.date_delivered
     ? dayjs(container.date_delivered)
     : null;
-  const [unloadDate, setUnloadDate] = useState<Dayjs>(() => dayjs());
+  const today = dayjs().format("YYYY-MM-DD");
 
   const canEditDates = !archived && !!(
     container.date_arrived_at_port || container.date_delivered || container.date_unloaded
@@ -390,7 +281,9 @@ export function ContainerActions({
   if (container.status === "UNLOADED" && !canEditDates && !backOptions.length) return null;
 
   const isOpen = container.status !== "UNLOADED";
-  const canUnload = container.status === "DELIVERED";
+  const gracePeriodDays = container.shipping_company?.grace_period_days ?? null;
+  // Only possible when a delivered date was corrected into the future.
+  const deliveredLater = !!deliveredOn && dayjs().isBefore(deliveredOn, "day");
 
   const saveDates = async (v: DateValues) => {
     // Send only what changed, so an untouched date is never re-validated.
@@ -443,18 +336,44 @@ export function ContainerActions({
     }
   };
 
-  const saveStatus = async (v: StatusValues) => {
+  const markAtPort = async () => {
     try {
       await updateStatus.mutateAsync({
         containerId: container.id,
-        status: v.status,
-        dateDelivered: v.date_delivered?.format("YYYY-MM-DD"),
-        dateArrivedAtPort: v.date_arrived_at_port?.format("YYYY-MM-DD"),
-        cancellationReason: v.cancellation_reason?.trim(),
+        status: "ARRIVED_AT_PORT",
+        dateArrivedAtPort: today,
       });
-      msg.success(`${t("Marked")} ${t(STATUS_LABEL[v.status as ContainerStatus])}`);
+      msg.success(t("Marked at port · pull out by {date}", {
+        date: dayjs().add(gracePeriodDays ?? 0, "day").format("MMMM DD, YYYY"),
+      }));
     } catch (e) {
       showError(e, "Could not update status");
+    }
+  };
+
+  const markDelivered = async () => {
+    try {
+      await updateStatus.mutateAsync({
+        containerId: container.id,
+        status: "DELIVERED",
+        dateDelivered: today,
+      });
+      msg.success(t("Marked delivered"));
+    } catch (e) {
+      showError(e, "Could not update status");
+    }
+  };
+
+  const saveCancel = async (v: CancelValues) => {
+    try {
+      await updateStatus.mutateAsync({
+        containerId: container.id,
+        status: "CANCELLED",
+        cancellationReason: v.cancellation_reason.trim(),
+      });
+      msg.success(t("Container cancelled"));
+    } catch (e) {
+      showError(e, "Could not cancel container");
       throw e; // keeps the modal open
     }
   };
@@ -485,7 +404,7 @@ export function ContainerActions({
     try {
       await unload.mutateAsync({
         containerId: container.id,
-        dateUnloaded: unloadDate.format("YYYY-MM-DD"),
+        dateUnloaded: today,
         discrepancies: [],
       });
       msg.success(t("Container unloaded — all items matched"));
@@ -494,8 +413,41 @@ export function ContainerActions({
     }
   };
 
+  const nextStep = archived ? null
+    : container.status === "DOCUMENTED" ? (
+      <Tooltip title={gracePeriodDays ? undefined : t("Set a grace period for this shipping company first")}>
+        <Button type="primary" disabled={!gracePeriodDays} loading={updateStatus.isPending} onClick={markAtPort}>
+          {t("Mark at port")}
+        </Button>
+      </Tooltip>
+    ) : container.status === "ARRIVED_AT_PORT" ? (
+      <Button type="primary" loading={updateStatus.isPending} onClick={markDelivered}>
+        {t("Mark delivered")}
+      </Button>
+    ) : container.status === "DELIVERED" ? (
+      <Tooltip title={deliveredLater ? t("The delivered date is after today. Correct it with Edit dates first.") : undefined}>
+        <Popconfirm
+          disabled={deliveredLater}
+          title={t("Any discrepancies?")}
+          description={t("The container is recorded as unloaded today.")}
+          okText={t("Yes, resolve")}
+          cancelText={t("No, all matched")}
+          // onConfirm/onCancel only fire from their buttons, never from
+          // clicking outside, so dismissing never unloads by accident.
+          onConfirm={() => navigate(`/containers/${container.id}/unload`)}
+          onCancel={unloadMatched}
+          cancelButtonProps={{ loading: unload.isPending }}
+        >
+          <Button type="primary" disabled={deliveredLater} loading={unload.isPending}>
+            {t("Unload")}
+          </Button>
+        </Popconfirm>
+      </Tooltip>
+    ) : null;
+
   const actions = (
     <Flex vertical gap={8} className="container-manage-actions">
+      {nextStep}
       {(container.status === "DOCUMENTED" || container.status === "ARRIVED_AT_PORT") && (
         <CommonModalForm<HaulingValues>
           title={`${t("Hauling")} · ${container.container_no ?? t("No box")}`}
@@ -515,31 +467,6 @@ export function ContainerActions({
         >
           {(form) => <HaulingFields form={form} />}
         </CommonModalForm>
-      )}
-
-      {isOpen && (
-      <CommonModalForm<StatusValues>
-        title={`${t("Update status")} · ${container.container_no ?? t("No box")}`}
-        triggerLabel={t("Update status")}
-        triggerButtonType="default"
-        okText={t("Update")}
-        width={420}
-        initialValues={{
-          status: STATUS_OPTIONS[container.status][0],
-          date_delivered: deliveredOn ?? dayjs(),
-          date_arrived_at_port: dayjs(),
-        }}
-        onSave={saveStatus}
-      >
-        {(form) => (
-          <StatusFields
-            form={form}
-            currentStatus={container.status}
-            gracePeriodDays={container.shipping_company?.grace_period_days ?? null}
-            shippingCompanyName={container.shipping_company?.name ?? null}
-          />
-        )}
-      </CommonModalForm>
       )}
 
       {canEditDates && (
@@ -575,46 +502,22 @@ export function ContainerActions({
       )}
 
       {isOpen && (
-      <Tooltip title={canUnload ? undefined : t("Mark as delivered first")}>
-        <Popconfirm
-          disabled={!canUnload}
-          title={t("Any discrepancies?")}
-          description={
-            <Flex vertical gap={6} style={{ marginTop: 4 }}>
-              <Typography.Text type="secondary">{t("Date unloaded")}</Typography.Text>
-              <DatePicker
-                value={unloadDate}
-                allowClear={false}
-                format="MMMM DD, YYYY"
-                onChange={(d) => d && setUnloadDate(d)}
-                disabledDate={(d) =>
-                  !!deliveredOn && d.isBefore(deliveredOn, "day")
-                }
-                // Render the calendar inside the popconfirm, otherwise
-                // clicking a day counts as an outside click and closes it.
-                getPopupContainer={(trigger) =>
-                  trigger.parentElement ?? document.body
-                }
-              />
-            </Flex>
-          }
-          okText={t("Yes, resolve")}
-          cancelText={t("No, all matched")}
-          // onConfirm/onCancel only fire from their buttons, never from
-          // clicking outside, so dismissing never unloads by accident.
-          onConfirm={() =>
-            navigate(
-              `/containers/${container.id}/unload?date=${unloadDate.format("YYYY-MM-DD")}`,
-            )
-          }
-          onCancel={unloadMatched}
-          cancelButtonProps={{ loading: unload.isPending }}
+        <CommonModalForm<CancelValues>
+          title={`${t("Cancel container")} · ${container.container_no ?? t("No box")}`}
+          triggerLabel={t("Cancel container")}
+          triggerButtonType="default"
+          okText={t("Cancel container")}
+          width={420}
+          onSave={saveCancel}
         >
-          <Button type="primary" disabled={!canUnload} loading={unload.isPending}>
-            {t("Unload")}
-          </Button>
-        </Popconfirm>
-      </Tooltip>
+          <Form.Item
+            name="cancellation_reason"
+            label={t("Cancellation reason")}
+            rules={[{ required: true, whitespace: true, message: t("Enter a reason") }]}
+          >
+            <Input.TextArea rows={3} maxLength={2000} />
+          </Form.Item>
+        </CommonModalForm>
       )}
     </Flex>
   );

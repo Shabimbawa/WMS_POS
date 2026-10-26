@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Card,
-  DatePicker,
   Flex,
   Form,
   Input,
@@ -18,8 +17,8 @@ import {
 } from "antd";
 import type { FormInstance } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import dayjs from "dayjs";
+import { useNavigate, useParams } from "react-router-dom";
 
 import CommonModalForm from "../../../common/items/modal/modal";
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
@@ -168,7 +167,6 @@ export default function ResolveDiscrepancyPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { containerId } = useParams();
-  const [searchParams] = useSearchParams();
   const [msg, msgHolder] = message.useMessage();
   const { showError, contextHolder: errorHolder } = ErrorNotificationPopup();
 
@@ -177,10 +175,8 @@ export default function ResolveDiscrepancyPage() {
     useProductCategories();
   const unload = useUnloadContainer();
 
-  const [dateUnloaded, setDateUnloaded] = useState<Dayjs>(() => {
-    const d = dayjs(searchParams.get("date"));
-    return d.isValid() ? d : dayjs();
-  });
+  // Unloading is always recorded as today; Edit dates corrects it later.
+  const dateUnloaded = dayjs();
   /** Keyed by product_category_id — one discrepancy per line. */
   const [drafts, setDrafts] = useState<Map<string, DiscrepancyInput>>(
     () => new Map(),
@@ -393,9 +389,6 @@ export default function ResolveDiscrepancyPage() {
     );
   }
 
-  const deliveredOn = container.date_delivered
-    ? dayjs(container.date_delivered)
-    : null;
   const { shipment } = container;
 
   return (
@@ -421,14 +414,9 @@ export default function ResolveDiscrepancyPage() {
 
         <Card size="small" title={t("Unload")}>
           <Flex align="center" gap={12} wrap>
-            <Typography.Text>{t("Date unloaded")}</Typography.Text>
-            <DatePicker
-              value={dateUnloaded}
-              allowClear={false}
-              format="MMMM DD, YYYY"
-              onChange={(d) => d && setDateUnloaded(d)}
-              disabledDate={(d) => !!deliveredOn && d.isBefore(deliveredOn, "day")}
-            />
+            <Typography.Text>
+              {t("Unloaded today")}: <strong>{dateUnloaded.format("MMMM DD, YYYY")}</strong>
+            </Typography.Text>
             <Typography.Text type="secondary">
               {t("Lines without an issue are recorded as matching the packing list.")}
             </Typography.Text>
