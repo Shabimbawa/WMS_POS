@@ -25,15 +25,18 @@ export const fmtInt = (v: number | null | undefined) =>
  * One label for a product everywhere: "G · Brand Variety 50kg", or just
  * "Brand Variety 50kg" for brands that have no notebook shorthand yet.
  */
-export const fmtProduct = ({
-  code,
+export const fmtProduct = ({ code, ...product }: Omit<ProductLabel, "id">) => {
+  const name = fmtProductName(product);
+  return code ? `${code} · ${name}` : name;
+};
+
+/** The product without its shorthand code: "Brand Variety 50kg". */
+export const fmtProductName = ({
   brand,
   variety,
   size_kg,
-}: Omit<ProductLabel, "id">) => {
-  const name = [brand, variety, `${size_kg}kg`].filter(Boolean).join(" ");
-  return code ? `${code} · ${name}` : name;
-};
+}: Pick<ProductLabel, "brand" | "variety" | "size_kg">) =>
+  [brand, variety, `${size_kg}kg`].filter(Boolean).join(" ");
 
 /** Postgres numerics arrive as strings over PostgREST. */
 export const toNum = (v: number | string | null | undefined) =>

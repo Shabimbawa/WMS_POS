@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Card, Flex, Tag, Typography } from "antd";
+import { Card, Flex, Tag, Tooltip, Typography } from "antd";
+import { CheckOutlined } from "@ant-design/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
@@ -10,11 +11,29 @@ import {
   STATUS_LABEL,
   fmtInt,
   fmtProduct,
+  fmtProductName,
 } from "../type-format/format";
 import { fmtTableDate } from "../../../common/utils/util";
 import { ContainerActions } from "./container-actions";
 import { ShipmentActions } from "./shipment-actions";
 import { useLanguage, type Translate } from "../../../common/context/language-context";
+
+type ContainerItem = ShipmentContainer["container_item"][number];
+
+/**
+ * One product on a container: brand name and sack count in large type, the
+ * shorthand code small. `compact` keeps table rows short.
+ */
+function LoadLine({ item, compact = false }: { item: ContainerItem; compact?: boolean }) {
+  const { t } = useLanguage();
+  return <div className={compact ? "shipment-product-line shipment-product-line-compact" : "shipment-product-item"}>
+    <span className="shipment-product-label">
+      {item.product_category.code && <small className="shipment-product-code">{item.product_category.code}</small>}
+      <span className="shipment-product-name">{fmtProductName(item.product_category)}</span>
+    </span>
+    <strong className="shipment-product-sacks">{fmtInt(item.actual_qty_sacks ?? item.qty_sacks)} <small>{t("sacks")}</small></strong>
+  </div>;
+}
 
 /** Rows here are packing lists, with containers nested underneath. */
 export const containerColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] => [
@@ -343,7 +362,7 @@ export const containerOverviewColumns = <T extends ShipmentContainer>(t: Transla
     header: "Declared load",
     accessorFn: (row) => row.container_item.length,
     size: 330,
-    cell: (cell) => { const items = cell.row.original.container_item; return items.length ? <OverflowList items={items} max={3} getKey={(item) => item.id} title={`${items.length} ${t("products")}`} renderItem={(item) => <LabelValue label={fmtProduct(item.product_category)} value={fmtInt(item.actual_qty_sacks ?? item.qty_sacks)} />} /> : dash; },
+    cell: (cell) => { const items = cell.row.original.container_item; return items.length ? <OverflowList items={items} max={3} getKey={(item) => item.id} title={`${items.length} ${t("products")}`} renderItem={(item) => <LoadLine item={item} compact />} /> : dash; },
   },
   {
     id: "timeline",
@@ -412,11 +431,14 @@ function ContainerDetails({ container, index, archived, t }: { container: Shipme
       <div className="shipment-detail-block"><small>{t("Shipping line")}</small><strong>{container.shipping_company ? [container.shipping_company.name, container.shipping_company.code].filter(Boolean).join(" · ") : t("No shipping line")}</strong></div>
       <div className="shipment-detail-block"><small>{t("Hauling")}</small><strong>{hauling}</strong></div>
       <div className="shipment-detail-block"><small>{t("Total load")}</small><strong>{fmtInt(sacks)} {t("sacks")}</strong></div>
-      <div className="shipment-detail-block shipment-detail-timeline">{dates.map(([label, date]) => <span key={label}><small>{label}</small><strong>{date ? fmtTableDate(date) : "—"}</strong></span>)}</div>
+      {/* A ✓ per completed step; the dates are in the status-chip lists and on hover. */}
+      <div className="shipment-detail-block shipment-detail-timeline">{dates.map(([label, date]) => <span key={label}><small>{label}</small>{date
+        ? <Tooltip title={fmtTableDate(date)}><CheckOutlined className="shipment-timeline-check" aria-label={`${label} ${fmtTableDate(date)}`} /></Tooltip>
+        : <strong>—</strong>}</span>)}</div>
     </div>
     <div className="shipment-load-details">
       <Typography.Text type="secondary" className="shipment-load-label">{t("Load")}</Typography.Text>
-      <div className="shipment-product-grid">{container.container_item.length ? container.container_item.map((item) => <div key={item.id} className="shipment-product-item"><span>{fmtProduct(item.product_category)}</span><strong>{fmtInt(item.actual_qty_sacks ?? item.qty_sacks)} {t("sacks")}</strong></div>) : dash}</div>
+      <div className="shipment-product-grid">{container.container_item.length ? container.container_item.map((item) => <LoadLine key={item.id} item={item} />) : dash}</div>
     </div>
     {container.notes && <div className="shipment-container-notes-text">
       <Typography.Text type="secondary">{t("Notes")}</Typography.Text>
