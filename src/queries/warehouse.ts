@@ -368,6 +368,13 @@ export async function getReceivingReport(params: ReceivingParams): Promise<Recei
   return apiRequest<ReceivingRow[]>(`/reports/receiving${queryString(params)}`);
 }
 
+/** IDs of the products with more than zero sacks received under these filters. */
+export async function getReportProductOptions(
+  params: Pick<ReceivingParams, "dateFrom" | "dateTo" | "source" | "supplierIds" | "shipmentIds">,
+): Promise<string[]> {
+  return apiRequest<string[]>(`/reports/product-options${queryString(params)}`);
+}
+
 export async function getReportShipmentOptions(
   params: Pick<ReceivingParams, "dateFrom" | "dateTo" | "source" | "supplierIds">,
 ): Promise<ReportShipmentOption[]> {

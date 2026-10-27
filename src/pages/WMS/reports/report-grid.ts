@@ -75,10 +75,10 @@ function column(key: string, granularity: Granularity): GridColumn {
 }
 
 /**
- * `keepEmpty` keeps brands with no sacks, for when the user picked those
- * products on purpose; otherwise only brands with figures are shown.
+ * One grid per brand, listing only the sizes that received sacks in the
+ * period. A brand with nothing received is left out entirely.
  */
-export function buildGrids(report: InboundReport, granularity: Granularity, keepEmpty: boolean): BrandGrid[] {
+export function buildGrids(report: InboundReport, granularity: Granularity): BrandGrid[] {
   const bucket = (date: string) => (granularity === "day" ? date : `${date.slice(0, 7)}-01`);
   const sacksByProduct = new Map<string, Map<string, number>>();
   for (const cell of report.cells) {
@@ -99,19 +99,22 @@ export function buildGrids(report: InboundReport, granularity: Granularity, keep
     for (const p of products) for (const key of sacksByProduct.get(p.id)?.keys() ?? []) keys.add(key);
     const columns = [...keys].sort().map((key) => column(key, granularity));
 
-    const rows = products.map((product) => {
-      const sacks = sacksByProduct.get(product.id);
-      const values = columns.map((c) => sacks?.get(c.key) ?? 0);
-      return {
-        product,
-        label: rowLabel(product),
-        values,
-        total: values.reduce((a, b) => a + b, 0),
-      };
-    });
+    const rows = products
+      .map((product) => {
+        const sacks = sacksByProduct.get(product.id);
+        const values = columns.map((c) => sacks?.get(c.key) ?? 0);
+        return {
+          product,
+          label: rowLabel(product),
+          values,
+          total: values.reduce((a, b) => a + b, 0),
+        };
+      })
+      .filter((row) => row.total > 0);
+    if (!rows.length) continue;
     const totals = columns.map((_, i) => rows.reduce((n, row) => n + row.values[i], 0));
     const grandTotal = totals.reduce((a, b) => a + b, 0);
-    if (grandTotal > 0 || keepEmpty) grids.push({ brand, columns, rows, totals, grandTotal });
+    grids.push({ brand, columns, rows, totals, grandTotal });
   }
   return grids;
 }

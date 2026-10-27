@@ -31,6 +31,7 @@ import {
   getProductCategories,
   getInboundReport,
   getReceivingReport,
+  getReportProductOptions,
   getReportShipmentOptions,
   getShippingCompanies,
   getShippingContainerNotebook,
@@ -142,6 +143,8 @@ export const qk = {
   receivingReport: (p: ReceivingParams) => ["stock", "report", "receiving", p] as const,
   reportShipmentOptions: (p: { dateFrom: string; dateTo: string; source?: ReportSource; supplierIds?: string }) =>
     ["stock", "report", "shipment-options", p] as const,
+  reportProductOptions: (p: { dateFrom: string; dateTo: string; source?: ReportSource; supplierIds?: string; shipmentIds?: string }) =>
+    ["stock", "report", "product-options", p] as const,
 
   cashiers: ["pos", "cashiers"] as const,
   cashierList: (includeInactive: boolean) =>
@@ -350,6 +353,18 @@ export function useReceivingReport(params: ReceivingParams | null) {
     queryKey: qk.receivingReport(params!),
     queryFn: () => getReceivingReport(params!),
     enabled: params !== null,
+  });
+}
+
+/** Products received under the report filters; the previous list stays up while it reloads. */
+export function useReportProductOptions(
+  params: { dateFrom: string; dateTo: string; source?: ReportSource; supplierIds?: string; shipmentIds?: string },
+) {
+  return useQuery({
+    queryKey: qk.reportProductOptions(params),
+    queryFn: () => getReportProductOptions(params),
+    staleTime: STALE_TIME,
+    placeholderData: keepPreviousData,
   });
 }
 

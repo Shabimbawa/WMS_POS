@@ -12,6 +12,7 @@ import {
   Skeleton,
   Space,
   Statistic,
+  Tag,
   Tooltip,
   Typography,
   type SelectProps,
@@ -24,10 +25,11 @@ import {
   useInboundReport,
   useProductCategories,
   useReceivingReport,
+  useReportProductOptions,
   useReportShipmentOptions,
   useSuppliers,
 } from "../../../queries/useHooks";
-import { fmtInt, fmtMoney } from "../type-format/format";
+import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import { printReport, type PrintableReport } from "./print-report";
 import {
   buildGrids,
@@ -77,7 +79,7 @@ const sourceLine = (source: SourceFilter, t: (text: string) => string) =>
 
 /** What the last Generate press asked for; the tables show exactly this. */
 type Applied =
-  | { type: "stock"; params: InboundReportParams; granularity: Granularity; keepEmpty: boolean; subtitle: string[] }
+  | { type: "stock"; params: InboundReportParams; granularity: Granularity; subtitle: string[] }
   | { type: "receiving"; params: ReceivingParams; subtitle: string[] };
 
 /**
@@ -126,8 +128,9 @@ export default function ReportsPage() {
   const [reportType, setReportType] = useState<ReportType>("stock");
   const [source, setSource] = useState<SourceFilter>("ALL");
   const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>(() => [today().startOf("month"), today()]);
-  // Selected brand + variety groups; each covers every size of that product.
-  const [productGroupKeys, setProductGroupKeys] = useState<string[]>([]);
+  // Picked filter entries: product IDs (one size each, as when registering a
+  // shipment) or "all:<brand variety>" for every size of a product.
+  const [productPicks, setProductPicks] = useState<string[]>([]);
   const [supplierIds, setSupplierIds] = useState<string[]>([]);
   const [shipmentIds, setShipmentIds] = useState<string[]>([]);
   const [applied, setApplied] = useState<Applied | null>(null);
@@ -147,33 +150,62 @@ export default function ReportsPage() {
   const { data: shipmentOptionsData, isLoading: loadingShipments } =
     useReportShipmentOptions(reportOptionParams);
 
-  // One option per brand + variety, e.g. "PAL · Palawan (5 / 25 / 50 kg)".
-  // Picking it selects every size of that product.
-  const productGroups = useMemo(() => {
-    const groups = new Map<string, { value: string; name: string; code: string | null; ids: string[]; sizes: number[] }>();
+  // Which products received sacks under the current filters. Until the first
+  // answer arrives every product counts as received, so the list isn't empty.
+  const { data: receivedIds } = useReportProductOptions({
+    ...reportOptionParams,
+    shipmentIds: shipmentIds.length ? shipmentIds.join(",") : undefined,
+  });
+  const received = useMemo(() => (receivedIds ? new Set(receivedIds) : null), [receivedIds]);
+
+  // Each brand + variety gets an "all sizes" entry followed by one entry per
+  // size, labelled as in shipment registration: "DC · Dona Conchita Orange 25kg".
+  // Only products with sacks in the period are offered; picked ones that no
+  // longer qualify stay listed so their tags keep a label, marked `empty`.
+  // Codes are searchable on the "all sizes" entry too.
+  const productOptions = useMemo(() => {
+    const picked = new Set(productPicks);
+    const hasSacks = (id: string) => !received || received.has(id);
+    const groups = new Map<string, { name: string; products: NonNullable<typeof products> }>();
     for (const product of products ?? []) {
-      const value = `${product.brand.trim().toLowerCase()}|${(product.variety ?? "").trim().toLowerCase()}`;
-      const group = groups.get(value) ?? { value, name: [product.brand, product.variety].filter(Boolean).join(" "), code: null, ids: [], sizes: [] };
-      group.ids.push(product.id);
-      group.sizes.push(Number(product.size_kg));
-      group.code ??= product.code;
-      groups.set(value, group);
+      const name = [product.brand, product.variety].filter(Boolean).join(" ");
+      const key = name.trim().toLowerCase();
+      const group = groups.get(key) ?? { name, products: [] };
+      group.products.push(product);
+      groups.set(key, group);
     }
-    return [...groups.values()]
-      .map((group) => ({
-        value: group.value,
-        ids: group.ids,
-        name: group.code ? `${group.code} · ${group.name}` : group.name,
-        label: `${group.code ? `${group.code} · ` : ""}${group.name} (${[...group.sizes].sort((a, b) => a - b).join(" / ")} kg)`,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [products]);
-  const productIds = useMemo(
-    () => productGroupKeys.flatMap((key) => productGroups.find((group) => group.value === key)?.ids ?? []),
-    [productGroupKeys, productGroups],
-  );
-  const productLine = productGroupKeys.length
-    ? productGroupKeys.map((key) => productGroups.find((group) => group.value === key)?.name ?? key).join(", ")
+    return [...groups.entries()]
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+      .flatMap(([key, group]) => {
+        const sizes = [...group.products].sort((a, b) => Number(b.size_kg) - Number(a.size_kg));
+        const withSacks = sizes.filter((product) => hasSacks(product.id));
+        const sizeOptions = sizes
+          .filter((product) => hasSacks(product.id) || picked.has(product.id))
+          .map((product) => ({
+            label: fmtProduct(product),
+            value: product.id,
+            ids: [product.id],
+            search: fmtProduct(product),
+            empty: !hasSacks(product.id),
+          }));
+        const groupValue = `all:${key}`;
+        // "All sizes" only helps when two or more sizes had sacks.
+        if (withSacks.length < 2 && !picked.has(groupValue)) return sizeOptions;
+        return [{
+          label: t("{product} · all sizes", { product: group.name }),
+          value: groupValue,
+          ids: sizes.map((product) => product.id),
+          search: [group.name, ...sizes.map((product) => product.code ?? "")].join(" "),
+          empty: withSacks.length === 0,
+        }, ...sizeOptions];
+      });
+  }, [products, productPicks, received, t]);
+  const productIds = useMemo(() => {
+    const byValue = new Map(productOptions.map((option) => [option.value, option.ids]));
+    return [...new Set(productPicks.flatMap((value) => byValue.get(value) ?? []))];
+  }, [productOptions, productPicks]);
+  const productLine = productPicks.length
+    ? productPicks.map((value) => productOptions.find((option) => option.value === value)?.label ?? value).join(", ")
     : null;
   const supplierOptions = useMemo(
     () =>
@@ -222,7 +254,6 @@ export default function ReportsPage() {
           source,
         },
         granularity: granularityFor(reportRange),
-        keepEmpty: productIds.length > 0,
         subtitle,
       });
     } else {
@@ -257,7 +288,7 @@ export default function ReportsPage() {
   const grids = useMemo(
     () =>
       applied?.type === "stock" && inbound.data
-        ? buildGrids(inbound.data, applied.granularity, applied.keepEmpty)
+        ? buildGrids(inbound.data, applied.granularity)
         : [],
     [applied, inbound.data],
   );
@@ -304,7 +335,7 @@ export default function ReportsPage() {
     setSource("ALL");
     setSupplierIds([]);
     setShipmentIds([]);
-    setProductGroupKeys([]);
+    setProductPicks([]);
     setReportRange([today().startOf("month"), today()]);
   };
 
@@ -407,10 +438,10 @@ export default function ReportsPage() {
               />
             </Form.Item>
 
-            <Form.Item className="report-filter-full" label={t("Products")} extra={t("Optional · each product includes all of its sizes.")} style={{ marginBottom: 0 }}>
+            <Form.Item className="report-filter-full" label={t("Products")} extra={t("Optional")} style={{ marginBottom: 0 }}>
               <TypeToSearchSelect
                 allowClear
-                optionFilterProp="label"
+                optionFilterProp={["label", "search"]}
                 maxTagCount="responsive"
                 maxTagPlaceholder={(omitted) => (
                   // The collapsed "+ N ..." tag lists the hidden products on hover.
@@ -423,9 +454,25 @@ export default function ReportsPage() {
                 )}
                 placeholder={t("All products")}
                 loading={loadingProducts}
-                value={productGroupKeys}
-                onChange={setProductGroupKeys}
-                options={productGroups}
+                notFoundContent={t("No products received in this period")}
+                tagRender={({ label, value, closable, onClose }) => {
+                  const empty = productOptions.find((option) => option.value === value)?.empty;
+                  return (
+                    <Tooltip title={empty ? t("Nothing received in this period") : undefined}>
+                      <Tag
+                        closable={closable}
+                        onClose={onClose}
+                        onMouseDown={(event) => event.preventDefault()}
+                        style={{ marginInlineEnd: 4, ...(empty ? { opacity: 0.5, textDecoration: "line-through" } : {}) }}
+                      >
+                        {label}
+                      </Tag>
+                    </Tooltip>
+                  );
+                }}
+                value={productPicks}
+                onChange={setProductPicks}
+                options={productOptions}
               />
             </Form.Item>
 

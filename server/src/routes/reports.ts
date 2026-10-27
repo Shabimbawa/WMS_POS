@@ -37,6 +37,12 @@ const reportFilters = {
 };
 const inboundQuery = z.object(reportFilters);
 const receivingQuery = z.object(reportFilters);
+const productOptionsQuery = z.object({
+  ...range,
+  source,
+  supplierIds: idList,
+  shipmentIds: idList,
+});
 const shipmentOptionsQuery = z.object({
   ...range,
   source,
@@ -71,6 +77,62 @@ const deliveredIn = (dateFrom: string, dateTo: string) =>
 
 type Cell = { productId: string; date: string; sacks: number };
 
+/**
+ * Sacks received per product per day, from unloaded containers and local
+ * deliveries, under the report filters. Shared by the stock summary and the
+ * product filter's options, so a listed product always has figures.
+ */
+async function receivedCells(query: z.infer<typeof inboundQuery>): Promise<Cell[]> {
+  const productFilter = (column: Parameters<typeof inArray>[0]) =>
+    query.productIds.length ? inArray(column, query.productIds) : undefined;
+
+  // The two sources are independent, so both queries run at once.
+  const [shipmentCells, localCells] = await Promise.all([query.source === "LOCAL" ? [] : db
+    .select({
+      productId: containerItems.productCategoryId,
+      date: sql<string>`${containers.dateUnloaded}`,
+      sacks: sql<number>`coalesce(sum(${containerItems.actualQtySacks}), 0)::int`,
+    })
+    .from(containerItems)
+    .innerJoin(containers, eq(containerItems.containerId, containers.id))
+    .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+    .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+    .where(and(
+      unloadedIn(query.dateFrom, query.dateTo),
+      productFilter(containerItems.productCategoryId),
+      query.source === "INTERNATIONAL" ? eq(suppliers.kind, "INTERNATIONAL") : undefined,
+      query.source === "NATIONAL" ? eq(suppliers.kind, "NATIONAL") : undefined,
+      query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+      query.shipmentIds.length ? inArray(shipments.id, query.shipmentIds) : undefined,
+    ))
+    .groupBy(containerItems.productCategoryId, containers.dateUnloaded),
+  query.source !== "ALL" && query.source !== "LOCAL" || query.shipmentIds.length ? [] : db
+    .select({
+      productId: localDeliveryItems.productCategoryId,
+      date: localDeliveries.dateReceived,
+      sacks: sql<number>`sum(${localDeliveryItems.qtySacks})::int`,
+    })
+    .from(localDeliveryItems)
+    .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
+    .innerJoin(suppliers, eq(localDeliveries.supplierId, suppliers.id))
+    .where(and(
+      deliveredIn(query.dateFrom, query.dateTo),
+      productFilter(localDeliveryItems.productCategoryId),
+      query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+    ))
+    .groupBy(localDeliveryItems.productCategoryId, localDeliveries.dateReceived)]);
+
+  // A product can arrive both ways on one day; merge them into one cell.
+  const merged = new Map<string, Cell>();
+  for (const cell of [...shipmentCells, ...localCells]) {
+    const key = `${cell.productId}|${cell.date}`;
+    const current = merged.get(key);
+    if (current) current.sacks += cell.sacks;
+    else merged.set(key, { ...cell });
+  }
+  return [...merged.values()].filter((cell) => cell.sacks !== 0);
+}
+
 export async function reportRoutes(app: FastifyInstance): Promise<void> {
   const warehouseOnly = { preHandler: requireRole("warehouse_admin") };
 
@@ -101,6 +163,20 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
+   * IDs of the products that received more than zero sacks under these
+   * filters, for the report's product picker.
+   */
+  app.get("/reports/product-options", warehouseOnly, async (request) => {
+    const query = productOptionsQuery.parse(request.query);
+    assertRange(query);
+    const totals = new Map<string, number>();
+    for (const cell of await receivedCells({ ...query, productIds: [] })) {
+      totals.set(cell.productId, (totals.get(cell.productId) ?? 0) + cell.sacks);
+    }
+    return [...totals].filter(([, sacks]) => sacks > 0).map(([productId]) => productId);
+  });
+
+  /**
    * Stock summary: inbound sacks per product per arrival day, for the
    * timeframe grids. `products` lists every active product (or the
    * filtered ones) so the client can show a brand's quiet sizes as zeros.
@@ -108,53 +184,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   app.get("/reports/inbound", warehouseOnly, async (request) => {
     const query = inboundQuery.parse(request.query);
     assertRange(query);
-    const productFilter = (column: Parameters<typeof inArray>[0]) =>
-      query.productIds.length ? inArray(column, query.productIds) : undefined;
-
-    const shipmentCells = query.source === "LOCAL" ? [] : await db
-      .select({
-        productId: containerItems.productCategoryId,
-        date: sql<string>`${containers.dateUnloaded}`,
-        sacks: sql<number>`coalesce(sum(${containerItems.actualQtySacks}), 0)::int`,
-      })
-      .from(containerItems)
-      .innerJoin(containers, eq(containerItems.containerId, containers.id))
-      .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
-      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
-      .where(and(
-        unloadedIn(query.dateFrom, query.dateTo),
-        productFilter(containerItems.productCategoryId),
-        query.source === "INTERNATIONAL" ? eq(suppliers.kind, "INTERNATIONAL") : undefined,
-        query.source === "NATIONAL" ? eq(suppliers.kind, "NATIONAL") : undefined,
-        query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
-        query.shipmentIds.length ? inArray(shipments.id, query.shipmentIds) : undefined,
-      ))
-      .groupBy(containerItems.productCategoryId, containers.dateUnloaded);
-    const localCells = query.source !== "ALL" && query.source !== "LOCAL" || query.shipmentIds.length ? [] : await db
-      .select({
-        productId: localDeliveryItems.productCategoryId,
-        date: localDeliveries.dateReceived,
-        sacks: sql<number>`sum(${localDeliveryItems.qtySacks})::int`,
-      })
-      .from(localDeliveryItems)
-      .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
-      .innerJoin(suppliers, eq(localDeliveries.supplierId, suppliers.id))
-      .where(and(
-        deliveredIn(query.dateFrom, query.dateTo),
-        productFilter(localDeliveryItems.productCategoryId),
-        query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
-      ))
-      .groupBy(localDeliveryItems.productCategoryId, localDeliveries.dateReceived);
-
-    // A product can arrive both ways on one day; merge them into one cell.
-    const merged = new Map<string, Cell>();
-    for (const cell of [...shipmentCells, ...localCells]) {
-      const key = `${cell.productId}|${cell.date}`;
-      const current = merged.get(key);
-      if (current) current.sacks += cell.sacks;
-      else merged.set(key, { ...cell });
-    }
-    const cells = [...merged.values()].filter((cell) => cell.sacks !== 0);
+    const cells = await receivedCells(query);
 
     // Retired products appear only when they still have figures in the period.
     const withFigures = [...new Set(cells.map((cell) => cell.productId))];
