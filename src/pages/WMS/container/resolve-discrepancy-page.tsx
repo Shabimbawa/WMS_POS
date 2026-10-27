@@ -177,7 +177,10 @@ export default function ResolveDiscrepancyPage() {
 
   // Unloading is always recorded as today; Edit dates corrects it later.
   const dateUnloaded = dayjs();
-  /** Keyed by product_category_id — one discrepancy per line. */
+  /**
+   * One discrepancy per line. Declared lines are keyed by container_item id
+   * (a product can sit on several lines); unlisted items by `undeclared:<product>`.
+   */
   const [drafts, setDrafts] = useState<Map<string, DiscrepancyInput>>(
     () => new Map(),
   );
@@ -197,57 +200,59 @@ export default function ResolveDiscrepancyPage() {
   const lines = useMemo<DiscrepancyLine[]>(() => {
     if (!container) return [];
     const declared = container.container_item.map((i) => ({
-      key: i.product_category.id,
+      key: i.id,
       product: i.product_category,
       declared: i.qty_sacks,
-      discrepancy: drafts.get(i.product_category.id),
+      discrepancy: drafts.get(i.id),
     }));
-    const unlisted = [...drafts.values()]
-      .filter((d) => d.reason === "UNDECLARED")
-      .flatMap((d) => {
+    const unlisted = [...drafts.entries()]
+      .filter(([, d]) => d.reason === "UNDECLARED")
+      .flatMap(([key, d]) => {
         const p = productsById.get(d.product_category_id);
-        return p
-          ? [{ key: p.id, product: p, declared: 0, discrepancy: d }]
-          : [];
+        return p ? [{ key, product: p, declared: 0, discrepancy: d }] : [];
       });
     return [...declared, ...unlisted];
   }, [container, drafts, productsById]);
 
   // ---- draft helpers ----
 
-  const setDraft = (d: DiscrepancyInput, replacesProductId?: string) =>
+  const unlistedKey = (productId: string) => `undeclared:${productId}`;
+
+  const setDraft = (key: string, d: DiscrepancyInput, replacesKey?: string) =>
     setDrafts((prev) => {
       const next = new Map(prev);
-      if (replacesProductId) next.delete(replacesProductId);
-      next.set(d.product_category_id, d);
+      if (replacesKey) next.delete(replacesKey);
+      next.set(key, d);
       return next;
     });
 
-  const removeDraft = (productId: string) =>
+  const removeDraft = (key: string) =>
     setDrafts((prev) => {
       const next = new Map(prev);
-      next.delete(productId);
+      next.delete(key);
       return next;
     });
 
-  const saveLineIssue = (productId: string, v: LineIssueValues) =>
-    setDraft({
-      product_category_id: productId,
+  const saveLineIssue = (line: DiscrepancyLine, v: LineIssueValues) =>
+    setDraft(line.key, {
+      container_item_id: line.key,
+      product_category_id: line.product.id,
       reason: v.reason,
       // OTHER writes nothing, so it carries no quantity.
       actual_qty: v.reason === "OTHER" ? undefined : v.actual_qty,
       note: v.note?.trim() || null,
     });
 
-  const saveUnlisted = (v: UnlistedValues, replacesProductId?: string) =>
+  const saveUnlisted = (v: UnlistedValues, replacesKey?: string) =>
     setDraft(
+      unlistedKey(v.product_category_id),
       {
         product_category_id: v.product_category_id,
         reason: "UNDECLARED",
         actual_qty: v.actual_qty,
         note: v.note?.trim() || null,
       },
-      replacesProductId,
+      replacesKey,
     );
 
   /** Products not on the container and not already added as unlisted. */
@@ -255,7 +260,7 @@ export default function ResolveDiscrepancyPage() {
     products.filter(
       (p) =>
         !declaredIds.has(p.id) &&
-        (p.id === exceptProductId || !drafts.has(p.id)),
+        (p.id === exceptProductId || !drafts.has(unlistedKey(p.id))),
     );
 
   // ---- row actions ----
@@ -276,7 +281,7 @@ export default function ResolveDiscrepancyPage() {
         }}
         onSave={(v) => saveUnlisted(v, line.key)}
       >
-        <UnlistedFields products={unlistedOptions(line.key)} />
+        <UnlistedFields products={unlistedOptions(d.product_category_id)} />
       </CommonModalForm>
     ) : (
       <CommonModalForm<LineIssueValues>
@@ -292,7 +297,7 @@ export default function ResolveDiscrepancyPage() {
               }
             : undefined
         }
-        onSave={(v) => saveLineIssue(line.key, v)}
+        onSave={(v) => saveLineIssue(line, v)}
       >
         {(form) => <LineIssueFields form={form} declared={line.declared} />}
       </CommonModalForm>
@@ -332,7 +337,7 @@ export default function ResolveDiscrepancyPage() {
         dateUnloaded: dateUnloaded.format("YYYY-MM-DD"),
         discrepancies: [...drafts.values()].map((d) =>
           d.reason === "OTHER"
-            ? { product_category_id: d.product_category_id, reason: d.reason, note: d.note }
+            ? { container_item_id: d.container_item_id, product_category_id: d.product_category_id, reason: d.reason, note: d.note }
             : d,
         ),
       });

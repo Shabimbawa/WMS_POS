@@ -98,7 +98,10 @@ const moveBackBody = z.object({
 });
 const cancelBody = z.object({ reason: z.string().trim().min(1).max(1_000) });
 
+// SHORT, OVER, DAMAGED and OTHER point at a declared line by its id, since a
+// product can sit on several lines. UNDECLARED names a product with no line.
 const discrepancyInput = z.object({
+  container_item_id: z.uuid().optional(),
   product_category_id: z.uuid(),
   reason: z.enum(["SHORT", "OVER", "DAMAGED", "UNDECLARED", "OTHER"]),
   actual_qty: z.number().int().nonnegative().optional(),
@@ -564,12 +567,6 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/shipments", warehouseOnly, async (request, reply) => {
     const input = shipmentBody.parse(request.body);
-    for (const container of input.containers) {
-      assertDistinct(
-        container.items.map((item) => item.product_category_id),
-        "A product can appear only once in a container",
-      );
-    }
 
     const shipmentId = await db.transaction(async (tx) => {
       const [supplier] = await tx
@@ -647,7 +644,6 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   app.patch("/shipments/:id", warehouseOnly, async (request) => {
     const { id } = idParams.parse(request.params);
     const input = shipmentBody.parse(request.body);
-    input.containers.forEach((container) => assertDistinct(container.items.map((item) => item.product_category_id), "A product can appear only once in a container"));
     const userId = request.currentUser!.id;
 
     await db.transaction(async (tx) => {
@@ -1202,9 +1198,18 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   app.post("/containers/:id/unload", warehouseOnly, async (request) => {
     const { id } = idParams.parse(request.params);
     const input = unloadBody.parse(request.body);
+    const lineIssues = input.discrepancies.filter((issue) => issue.reason !== "UNDECLARED");
+    const undeclaredIssues = input.discrepancies.filter((issue) => issue.reason === "UNDECLARED");
+    if (lineIssues.some((issue) => !issue.container_item_id)) {
+      throw new ApiError(400, "CONTAINER_ITEM_REQUIRED", "Pick the container line this issue belongs to");
+    }
     assertDistinct(
-      input.discrepancies.map((issue) => issue.product_category_id),
-      "Only one discrepancy is allowed per product",
+      lineIssues.map((issue) => issue.container_item_id!),
+      "Only one discrepancy is allowed per line",
+    );
+    assertDistinct(
+      undeclaredIssues.map((issue) => issue.product_category_id),
+      "An unlisted product can be added only once",
     );
 
     await db.transaction(async (tx) => {
@@ -1227,8 +1232,9 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         .from(containerItems)
         .where(eq(containerItems.containerId, id))
         .orderBy(asc(containerItems.productCategoryId));
-      const byProduct = new Map(declaredItems.map((item) => [item.productCategoryId, item]));
-      const issueProductIds = [...new Set(input.discrepancies.map((issue) => issue.product_category_id))];
+      const byLine = new Map(declaredItems.map((item) => [item.id, item]));
+      const declaredProductIds = new Set(declaredItems.map((item) => item.productCategoryId));
+      const issueProductIds = undeclaredIssues.map((issue) => issue.product_category_id);
       if (issueProductIds.length) {
         const validProducts = await tx
           .select({ id: productCategories.id })
@@ -1248,9 +1254,8 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         .where(eq(containerItems.containerId, id));
 
       for (const issue of input.discrepancies) {
-        const existing = byProduct.get(issue.product_category_id);
         if (issue.reason === "UNDECLARED") {
-          if (existing) throw new ApiError(400, "PRODUCT_ALREADY_DECLARED", "An undeclared issue must reference a product not already on the container");
+          if (declaredProductIds.has(issue.product_category_id)) throw new ApiError(400, "PRODUCT_ALREADY_DECLARED", "An undeclared issue must reference a product not already on the container");
           if (issue.actual_qty === undefined) throw new ApiError(400, "ACTUAL_QTY_REQUIRED", "Undeclared quantity is required");
           const [createdItem] = await tx
             .insert(containerItems)
@@ -1275,7 +1280,8 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           continue;
         }
 
-        if (!existing) throw new ApiError(400, "PRODUCT_NOT_DECLARED", "The discrepancy product is not declared on this container");
+        const existing = byLine.get(issue.container_item_id!);
+        if (!existing) throw new ApiError(400, "LINE_NOT_ON_CONTAINER", "The discrepancy line is not on this container");
         if (issue.reason === "OTHER") {
           if (!issue.note?.trim()) throw new ApiError(400, "NOTE_REQUIRED", "Other discrepancies require a note");
         } else {
@@ -1295,7 +1301,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
         await tx.insert(containerDiscrepancies).values({
           containerId: id,
           containerItemId: existing.id,
-          productCategoryId: issue.product_category_id,
+          productCategoryId: existing.productCategoryId,
           declaredQty: existing.qtySacks,
           actualQty: issue.actual_qty,
           reason: issue.reason,

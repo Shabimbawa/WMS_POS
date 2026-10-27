@@ -162,6 +162,13 @@
       "when": 1792550000001,
       "tag": "0022_shipment_reversal_source",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792560000000,
+      "tag": "0023_container_item_allow_duplicates",
+      "breakpoints": true
     }
   ]
 }

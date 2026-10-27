@@ -14,7 +14,8 @@ import { useLanguage } from "../../../common/context/language-context";
 
 /**
  * One row on the resolve page: a declared container line, or an unlisted
- * item the user added. Keyed by product — at most one discrepancy per line.
+ * item the user added. Declared lines are keyed by container_item id, so the
+ * same product on two lines gets two rows. At most one discrepancy per line.
  */
 export interface DiscrepancyLine {
   key: string;

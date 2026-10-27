@@ -43,11 +43,24 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
 
   const updateContainer = (key: string, fields: Partial<DraftContainer>) => setContainers((current) => current.map((container) => container.key === key ? { ...container, ...fields } : container));
   const updateItem = (containerKey: string, itemKey: string, fields: Partial<DraftItem>) => setContainers((current) => current.map((container) => container.key === containerKey ? { ...container, items: container.items.map((item) => item.key === itemKey ? { ...item, ...fields } : item) } : container));
-  const selectProducts = (container: DraftContainer, productIds: string[]) => {
-    const existing = new Map(container.items.map((item) => [item.product_category_id, item]));
-    updateContainer(container.key, {
-      items: productIds.map((productId) => existing.get(productId) ?? { key: newKey(), product_category_id: productId, qty_sacks: 1, price_per_sack: null }),
-    });
+  // The picker's tags are rows, not products: picking a product always adds a
+  // row, so picking it again adds a second line of it (e.g. at another price).
+  const addItem = (container: DraftContainer, productId: string) => updateContainer(container.key, {
+    items: [...container.items, { key: newKey(), product_category_id: productId, qty_sacks: 1, price_per_sack: null }],
+  });
+  const removeItem = (container: DraftContainer, itemKey: string) => updateContainer(container.key, { items: container.items.filter((row) => row.key !== itemKey) });
+  const productLabel = (productId: string) => productOptions.find((option) => option.value === productId)?.label ?? productId;
+  /** Label per row, numbered when the product is on the container more than once. */
+  const rowLabels = (container: DraftContainer) => {
+    const totals = new Map<string, number>();
+    container.items.forEach((item) => totals.set(item.product_category_id, (totals.get(item.product_category_id) ?? 0) + 1));
+    const seen = new Map<string, number>();
+    return new Map(container.items.map((item) => {
+      const n = (seen.get(item.product_category_id) ?? 0) + 1;
+      seen.set(item.product_category_id, n);
+      const label = productLabel(item.product_category_id);
+      return [item.key, totals.get(item.product_category_id)! > 1 ? `${label} #${n}` : label];
+    }));
   };
   const addContainer = () => setContainers((current) => [...current, blankContainer()]);
 
@@ -135,6 +148,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
 
     <Flex vertical gap={10}>
       {containers.map((container, index) => {
+        const labels = rowLabels(container);
         return <Card key={container.key} size="small" className="shipment-entry-card" title={<Flex gap={8} align="center"><span className="shipment-entry-index">{index + 1}</span><span>{t("Container")}</span></Flex>} extra={<Popconfirm title={t("Remove this container?")} description={t("Its product rows are removed with it.")} okText={t("Remove")} okButtonProps={{ danger: true }} onConfirm={() => setContainers((current) => current.filter((item) => item.key !== container.key))}><Button type="text" danger icon={<DeleteOutlined />}>{t("Remove")}</Button></Popconfirm>}>
           <div className="shipment-container-fields">
             <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() || duplicateOf.has(container.key) ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} />{duplicateOf.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Same number as container {index}", { index: duplicateOf.get(container.key)! })}</Typography.Text>}</label>
@@ -142,14 +156,30 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
             <label className="shipment-container-notes"><span>{t("Notes (optional)")}</span><Input.TextArea rows={2} maxLength={2000} showCount value={container.notes ?? ""} placeholder={t("Add notes about this container")} onChange={(event) => updateContainer(container.key, { notes: event.target.value })} /></label>
           </div>
           <div className="shipment-item-editor">
-            <label className="shipment-product-picker"><span>{t("Products")}</span><Select mode="multiple" value={container.items.map((item) => item.product_category_id)} showSearch optionFilterProp="label" placeholder={t("Select one or more products")} loading={loadingProducts} options={productOptions} onChange={(values) => selectProducts(container, values)} maxTagCount="responsive" /></label>
+            <label className="shipment-product-picker"><span>{t("Products")}</span><Select
+              mode="multiple"
+              labelInValue
+              value={container.items.map((item) => ({ value: item.key, label: labels.get(item.key) }))}
+              showSearch
+              optionFilterProp="label"
+              placeholder={t("Select one or more products")}
+              loading={loadingProducts}
+              options={productOptions}
+              optionRender={(option) => {
+                const count = container.items.filter((item) => item.product_category_id === option.value).length;
+                return <Flex justify="space-between" gap={8}><span>{option.label}</span>{count > 0 && <Typography.Text type="secondary">×{count}</Typography.Text>}</Flex>;
+              }}
+              onSelect={(picked) => addItem(container, picked.value)}
+              onDeselect={(removed) => removeItem(container, removed.value)}
+              maxTagCount="responsive"
+            /></label>
             {!!container.items.length && <div className="shipment-item-header"><span>{t("Product")}</span><span>{t("Sacks")}</span><span>{t("Price / sack")}</span><span>{t("Subtotal")}</span><span /></div>}
             {container.items.map((item) => <div className="shipment-item-row" key={item.key}>
-              <Typography.Text strong>{productOptions.find((option) => option.value === item.product_category_id)?.label ?? item.product_category_id}</Typography.Text>
+              <Typography.Text strong>{labels.get(item.key)}</Typography.Text>
               <InputNumber min={1} precision={0} value={item.qty_sacks} onChange={(value) => updateItem(container.key, item.key, { qty_sacks: value ?? 1 })} />
               <InputNumber min={0} precision={2} prefix="₱" placeholder={t("Optional")} value={item.price_per_sack} onChange={(value) => updateItem(container.key, item.key, { price_per_sack: value })} />
               <Typography.Text>{item.price_per_sack === null ? "—" : fmtMoney(item.qty_sacks * item.price_per_sack)}</Typography.Text>
-              <Button type="text" danger aria-label={t("Remove product")} icon={<DeleteOutlined />} onClick={() => updateContainer(container.key, { items: container.items.filter((row) => row.key !== item.key) })} />
+              <Button type="text" danger aria-label={t("Remove product")} icon={<DeleteOutlined />} onClick={() => removeItem(container, item.key)} />
             </div>)}
           </div>
         </Card>;

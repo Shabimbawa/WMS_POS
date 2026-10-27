@@ -488,6 +488,8 @@ export type DiscrepancyReason =
  *  - OTHER: note required, no actual_qty, writes nothing
  */
 export interface DiscrepancyInput {
+  /** The declared line this issue is about. Every reason except UNDECLARED needs it. */
+  container_item_id?: string;
   product_category_id: string;
   reason: DiscrepancyReason;
   actual_qty?: number;

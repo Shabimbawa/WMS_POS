@@ -52,6 +52,7 @@ Three layers. Pages never call `fetch` directly.
 
 **Domain rules that affect UI code:**
 - `container_item.qty_sacks` is declared and `actual_qty_sacks` is counted (NULL until unload). Stock follows the counted value.
+- A container may list the same product on several lines (e.g. at two prices). Unload discrepancies therefore target a line by `container_item_id`; only UNDECLARED names a product, and only one not already on the container. Stock balances, stock-summary reports and reversals add the lines per product; receiving detail and the variance view show each line.
 - UNLOADED is only reached through `unload_container`. It is enabled only from DELIVERED.
 - Discrepancy reasons:
   - SHORT, OVER and DAMAGED need `actual_qty`.

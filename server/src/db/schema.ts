@@ -315,10 +315,8 @@ export const containerItems = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("container_item_product_uq").on(
-      table.containerId,
-      table.productCategoryId,
-    ),
+    // A product may appear on several lines of one container (e.g. two prices).
+    index("container_item_container_idx").on(table.containerId),
     check("container_item_qty_nonnegative", sql`${table.qtySacks} >= 0`),
     check(
       "container_item_actual_qty_nonnegative",
