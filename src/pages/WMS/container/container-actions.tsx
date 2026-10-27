@@ -351,8 +351,15 @@ export function ContainerActions({
     }
   };
 
+  // Frontend-only default for now: an unassigned container is saved as own
+  // truck once the user accepts the prompt. The backend still allows null.
+  const haulingUnset = container.is_company_truck === null;
+
   const markDelivered = async () => {
     try {
+      if (haulingUnset) {
+        await updateHauling.mutateAsync({ containerId: container.id, assignment: "OWN_TRUCK" });
+      }
       await updateStatus.mutateAsync({
         containerId: container.id,
         status: "DELIVERED",
@@ -421,9 +428,23 @@ export function ContainerActions({
         </Button>
       </Tooltip>
     ) : container.status === "ARRIVED_AT_PORT" ? (
-      <Button type="primary" loading={updateStatus.isPending} onClick={markDelivered}>
-        {t("Mark delivered")}
-      </Button>
+      <Popconfirm
+        disabled={!haulingUnset}
+        title={t("Hauling was not set")}
+        description={t("It will be set to own truck.")}
+        okText={t("Set own truck and deliver")}
+        cancelText={t("Cancel")}
+        onConfirm={markDelivered}
+      >
+        <Button
+          type="primary"
+          loading={updateStatus.isPending || updateHauling.isPending}
+          // With hauling unset the click only opens the prompt above.
+          onClick={haulingUnset ? undefined : markDelivered}
+        >
+          {t("Mark delivered")}
+        </Button>
+      </Popconfirm>
     ) : container.status === "DELIVERED" ? (
       <Tooltip title={deliveredLater ? t("The delivered date is after today. Correct it with Edit dates first.") : undefined}>
         <Popconfirm
