@@ -9,7 +9,7 @@ import { fmtInt, fmtProduct } from "../type-format/format";
 import { DateParser } from "../../../common/utils/util";
 import { useLanguage } from "../../../common/context/language-context";
 
-const COMPANY_NAME = "Wensor Trading";
+const COMPANY_NAME = "Statement of Account";
 
 const phpAmount = new Intl.NumberFormat("en-PH", {
   minimumFractionDigits: 2,
@@ -81,7 +81,7 @@ export function ShipmentPrintButton({ shipment }: { shipment: ShipmentRow }) {
             <div className="print-doc">
               <header className="print-letterhead">
                 <div className="print-party"><span className="print-party-label">{t("Supplier")}:</span><strong>{shipment.supplier.name}</strong><span><b>{t("Code")}:</b> {shipment.supplier.code || dash}</span><span><b>{t("Origin")}:</b> {shipment.supplier.origin || dash}</span><span><b>{t("Type")}:</b> {t(shipment.supplier.kind === "INTERNATIONAL" ? "International" : "National")}</span></div>
-                <div className="print-brand"><h1 className="print-company">{COMPANY_NAME}</h1><div className="print-doc-title">{t("Packing List")}</div></div>
+                <div className="print-brand"><h1 className="print-company">{COMPANY_NAME}</h1><div className="print-doc-title"></div></div>
                 <div className="print-reference"><span><b>{t("Document no.")}</b> {shipment.id.slice(0, 8).toUpperCase()}</span><span><b>{t("Date")}</b> {DateParser(shipment.date_list_received)}</span></div>
               </header>
 
