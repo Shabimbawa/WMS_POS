@@ -411,6 +411,30 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .orderBy(asc(containers.pullOutBefore), asc(containers.dateArrivedAtPort));
   });
 
+  // Container numbers still in use on active shipments of one kind, for the
+  // register form's duplicate check. Unloaded and cancelled containers are
+  // left out, since shipping lines reuse the same box on later trips.
+  app.get("/containers/open-numbers", warehouseOnly, async (request) => {
+    const query = portPullOutQuery.parse(request.query);
+    return db
+      .select({
+        id: containers.id,
+        container_no: containers.containerNo,
+        shipment_id: containers.shipmentId,
+        supplier: suppliers.name,
+        date_list_received: shipments.dateListReceived,
+      })
+      .from(containers)
+      .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+      .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+      .where(and(
+        isNotNull(containers.containerNo),
+        inArray(containers.status, ["DOCUMENTED", "ARRIVED_AT_PORT", "DELIVERED"]),
+        eq(suppliers.kind, query.kind),
+        isNull(shipments.archivedAt),
+      ));
+  });
+
   app.get("/shipments", warehouseOnly, async (request) => {
     const query = shipmentQuery.parse(request.query);
     if (query.dateFrom > query.dateTo) {

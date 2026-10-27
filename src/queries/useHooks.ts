@@ -36,6 +36,7 @@ import {
   getShippingCompanies,
   getShippingContainerNotebook,
   getPortPullOuts,
+  getOpenContainerNumbers,
   getStockLog,
   getStockStatus,
   restoreShipment,
@@ -115,6 +116,7 @@ export const qk = {
   shippingNotebook: (p: ShippingContainerNotebookParams) =>
     ["notebook", "shipping", p] as const,
   portPullOuts: (kind: "INTERNATIONAL" | "NATIONAL") => ["notebook", "port-pull-outs", kind] as const,
+  openContainerNumbers: (kind: "INTERNATIONAL" | "NATIONAL") => ["notebook", "open-container-numbers", kind] as const,
   containerList: (p: ContainerListParams) => ["notebook", "containers", p] as const,
   // Under "notebook" so anything that invalidates shipments refreshes it too.
   container: (id: string) => ["notebook", "container", id] as const,
@@ -215,6 +217,16 @@ export function usePortPullOuts(kind: "INTERNATIONAL" | "NATIONAL", enabled = tr
     queryFn: () => getPortPullOuts(kind),
     enabled,
     staleTime: STALE_TIME,
+  });
+}
+
+/** Container numbers on active shipments, for the register form's duplicate check. */
+export function useOpenContainerNumbers(kind: "INTERNATIONAL" | "NATIONAL") {
+  return useQuery({
+    queryKey: qk.openContainerNumbers(kind),
+    queryFn: () => getOpenContainerNumbers(kind),
+    // Always check against the latest list when the form opens.
+    staleTime: 0,
   });
 }
 

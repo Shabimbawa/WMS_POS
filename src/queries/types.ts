@@ -413,6 +413,15 @@ export interface PortPullOutRow {
   shipping_company_code: string | null;
 }
 
+/** A container number still in use on an active shipment. */
+export interface OpenContainerNumber {
+  id: string;
+  container_no: string;
+  shipment_id: string;
+  supplier: string;
+  date_list_received: string;
+}
+
 // ---- local deliveries -------------------------------------------
 
 export interface LocalDeliveryItemRow {

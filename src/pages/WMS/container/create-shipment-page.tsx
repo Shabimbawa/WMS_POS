@@ -6,14 +6,16 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ErrorNotificationPopup } from "../../../common/items/notification/errror-notif";
 import { confirmNegativeInventory, isNegativeInventoryError } from "./negative-inventory";
-import { useCreateShipment, useProductCategories, useShippingCompanies, useSuppliers, useUpdateShipment } from "../../../queries/useHooks";
-import type { ShipmentRow } from "../../../queries/types";
+import { useCreateShipment, useOpenContainerNumbers, useProductCategories, useShippingCompanies, useSuppliers, useUpdateShipment } from "../../../queries/useHooks";
+import type { OpenContainerNumber, ShipmentRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import type { DraftContainer, DraftItem } from "./create-shipment-table";
 import { useLanguage } from "../../../common/context/language-context";
 
 type HeaderValues = { supplier_id: string; date_list_received: Dayjs };
 const newKey = () => crypto.randomUUID();
+/** Compared without spaces or dashes, so "ABCU 123" and "ABCU-123" are the same box. */
+const normalizeNo = (value: string | null) => (value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const blankContainer = (): DraftContainer => ({ key: newKey(), container_no: null, shipping_company_id: "", notes: null, items: [] });
 
 export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: "INTERNATIONAL" | "NATIONAL" }) {
@@ -29,6 +31,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind });
   const { data: products = [], isPending: loadingProducts } = useProductCategories();
   const { data: shippingCompanies = [], isPending: loadingShipping } = useShippingCompanies();
+  const { data: openNumbers = [] } = useOpenContainerNumbers(kind);
   const createShipment = useCreateShipment();
   const updateShipment = useUpdateShipment();
   const [form] = Form.useForm<HeaderValues>();
@@ -77,9 +80,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
     updateContainer(containerKey, { container_no: containerNo.trim() || null, ...(match ? { shipping_company_id: match.id } : {}) });
   };
 
-  // Container numbers repeated within this shipment, compared without spaces
-  // or dashes so "ABCU 123" and "ABCU-123" count as the same box.
-  const normalizeNo = (value: string | null) => (value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // Container numbers repeated within this shipment.
   const firstIndexByNo = new Map<string, number>();
   const duplicateOf = new Map<string, number>(); // container key -> 1-based index of the first one
   containers.forEach((c, index) => {
@@ -89,7 +90,17 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
     if (first === undefined) firstIndexByNo.set(no, index);
     else duplicateOf.set(c.key, first + 1);
   });
-  const hasDuplicates = duplicateOf.size > 0;
+  // The same numbers on other active shipments of this kind. The shipment
+  // being edited is skipped, since its own containers are checked above.
+  const otherShipmentNos = useMemo(() => new Map(openNumbers
+    .filter((open) => open.shipment_id !== shipmentId)
+    .map((open) => [normalizeNo(open.container_no), open] as const)), [openNumbers, shipmentId]);
+  const onOtherShipment = new Map<string, OpenContainerNumber>(); // container key -> where it's open
+  containers.forEach((c) => {
+    const open = otherShipmentNos.get(normalizeNo(c.container_no));
+    if (open && !duplicateOf.has(c.key)) onOtherShipment.set(c.key, open);
+  });
+  const hasDuplicates = duplicateOf.size > 0 || onOtherShipment.size > 0;
 
   const allSacks = containers.reduce((total, c) => total + c.items.reduce((subtotal, item) => subtotal + (item.qty_sacks || 0), 0), 0);
   const isComplete = Boolean(supplierId) && containers.length > 0 && containers.every((c) => Boolean(c.container_no?.trim()) && Boolean(c.shipping_company_id) && c.items.length > 0 && c.items.every((item) => Boolean(item.product_category_id) && item.qty_sacks > 0)) && !hasDuplicates;
@@ -151,7 +162,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
         const labels = rowLabels(container);
         return <Card key={container.key} size="small" className="shipment-entry-card" title={<Flex gap={8} align="center"><span className="shipment-entry-index">{index + 1}</span><span>{t("Container")}</span></Flex>} extra={<Popconfirm title={t("Remove this container?")} description={t("Its product rows are removed with it.")} okText={t("Remove")} okButtonProps={{ danger: true }} onConfirm={() => setContainers((current) => current.filter((item) => item.key !== container.key))}><Button type="text" danger icon={<DeleteOutlined />}>{t("Remove")}</Button></Popconfirm>}>
           <div className="shipment-container-fields">
-            <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() || duplicateOf.has(container.key) ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} />{duplicateOf.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Same number as container {index}", { index: duplicateOf.get(container.key)! })}</Typography.Text>}</label>
+            <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() || duplicateOf.has(container.key) || onOtherShipment.has(container.key) ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} />{duplicateOf.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Same number as container {index}", { index: duplicateOf.get(container.key)! })}</Typography.Text>}{onOtherShipment.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Already on an active shipment: {supplier}, list received {date}", { supplier: onOtherShipment.get(container.key)!.supplier, date: dayjs(onOtherShipment.get(container.key)!.date_list_received).format("MMMM DD, YYYY") })}</Typography.Text>}</label>
             <label><span>{t("Shipping company")}</span><Select value={container.shipping_company_id || undefined} showSearch optionFilterProp="label" placeholder={t("Select shipping company")} loading={loadingShipping} options={shippingOptions} onChange={(value) => updateContainer(container.key, { shipping_company_id: value })} /></label>
             <label className="shipment-container-notes"><span>{t("Notes (optional)")}</span><Input.TextArea rows={2} maxLength={2000} showCount value={container.notes ?? ""} placeholder={t("Add notes about this container")} onChange={(event) => updateContainer(container.key, { notes: event.target.value })} /></label>
           </div>
@@ -187,7 +198,8 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
       <Button type="dashed" className="shipment-add-container" icon={<PlusOutlined />} onClick={addContainer}>{t("Add container")}</Button>
     </Flex>
 
-    {hasDuplicates && <Alert type="error" showIcon message={t("The same container number is entered more than once")} description={t("Each container in a shipment needs its own number. Check the containers marked in red before submitting.")} />}
+    {duplicateOf.size > 0 && <Alert type="error" showIcon message={t("The same container number is entered more than once")} description={t("Each container in a shipment needs its own number. Check the containers marked in red before submitting.")} />}
+    {onOtherShipment.size > 0 && <Alert type="error" showIcon message={t("A container number is already on another active shipment")} description={t("A container can only be on one shipment until it is unloaded or cancelled. Check the containers marked in red before submitting.")} />}
 
     <Flex justify="space-between" align="center" gap={12} wrap className="shipment-register-footer">
       <Typography.Text type="secondary">{!containers.length ? t("Add at least one container to continue.") : hasDuplicates ? t("Fix the repeated container numbers to continue.") : !isComplete ? t("Complete all required container and product fields.") : t("Ready to submit.")}</Typography.Text>

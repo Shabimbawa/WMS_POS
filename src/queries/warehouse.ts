@@ -46,6 +46,7 @@ import type {
   UpdateContainerDatesInput,
   UpdateContainerHaulingInput,
   VarianceParams,
+  OpenContainerNumber,
 } from "./types";
 
 export async function getSuppliers(
@@ -193,6 +194,10 @@ export async function getShippingContainerNotebook(
 
 export async function getPortPullOuts(kind: "INTERNATIONAL" | "NATIONAL"): Promise<PortPullOutRow[]> {
   return apiRequest<PortPullOutRow[]>(`/port-pull-outs${queryString({ kind })}`);
+}
+
+export async function getOpenContainerNumbers(kind: "INTERNATIONAL" | "NATIONAL"): Promise<OpenContainerNumber[]> {
+  return apiRequest<OpenContainerNumber[]>(`/containers/open-numbers${queryString({ kind })}`);
 }
 
 export async function getStockStatus(
