@@ -348,7 +348,7 @@ export const containerOverviewColumns = <T extends ShipmentContainer>(t: Transla
     header: "Container / shipping line",
     accessorFn: (row) => row.container_no,
     size: 230,
-    cell: (cell) => { const row = cell.row.original; return <div className="shipment-primary-cell"><Typography.Text strong code>{row.container_no || t("No box")}</Typography.Text><Typography.Text type="secondary">{row.shipping_company ? [row.shipping_company.name, row.shipping_company.code].filter(Boolean).join(" · ") : t("No shipping line")}</Typography.Text>{row.notes && <Typography.Text type="secondary" ellipsis={{ tooltip: row.notes }} style={{ maxWidth: 210, fontSize: 12 }}>{row.notes}</Typography.Text>}</div>; },
+    cell: (cell) => { const row = cell.row.original; return <div className="shipment-primary-cell"><Typography.Text strong code>{row.container_no || t("No box")}</Typography.Text><Typography.Text type="secondary">{row.shipping_company?.name ?? t("No shipping line")}</Typography.Text>{row.notes && <Typography.Text type="secondary" ellipsis={{ tooltip: row.notes }} style={{ maxWidth: 210, fontSize: 12 }}>{row.notes}</Typography.Text>}</div>; },
   },
   {
     id: "status",
@@ -414,6 +414,9 @@ export function ContainerStatusTable({ data, status, total }: { data: ContainerL
 function ContainerDetails({ container, index, archived, t }: { container: ShipmentContainer; index: number; archived: boolean; t: Translate }) {
   const hauling = container.is_company_truck === null ? t("Not assigned") : container.is_company_truck ? t("Own truck") : container.hauler || t("Third-party hauler");
   const sacks = container.container_item.reduce((sum, item) => sum + (item.actual_qty_sacks ?? item.qty_sacks), 0);
+  // A container delivered without being marked at port still went through
+  // the port, so At port is ticked; its date just wasn't recorded.
+  const passedPort = !container.date_arrived_at_port && Boolean(container.date_delivered);
   const dates = [[t("At port"), container.date_arrived_at_port], [t("Delivered"), container.date_delivered], [t("Unloaded"), container.date_unloaded]] as const;
 
   return <section className="shipment-container-detail">
@@ -428,13 +431,16 @@ function ContainerDetails({ container, index, archived, t }: { container: Shipme
       <ContainerActions container={container} archived={archived} />
     </header>
     <div className="shipment-container-detail-grid">
-      <div className="shipment-detail-block"><small>{t("Shipping line")}</small><strong>{container.shipping_company ? [container.shipping_company.name, container.shipping_company.code].filter(Boolean).join(" · ") : t("No shipping line")}</strong></div>
+      <div className="shipment-detail-block"><small>{t("Shipping line")}</small><strong>{container.shipping_company?.name ?? t("No shipping line")}</strong></div>
       <div className="shipment-detail-block"><small>{t("Hauling")}</small><strong>{hauling}</strong></div>
       <div className="shipment-detail-block"><small>{t("Total load")}</small><strong>{fmtInt(sacks)} {t("sacks")}</strong></div>
       {/* A ✓ per completed step; the dates are in the status-chip lists and on hover. */}
-      <div className="shipment-detail-block shipment-detail-timeline">{dates.map(([label, date]) => <span key={label}><small>{label}</small>{date
-        ? <Tooltip title={fmtTableDate(date)}><CheckOutlined className="shipment-timeline-check" aria-label={`${label} ${fmtTableDate(date)}`} /></Tooltip>
-        : <strong>—</strong>}</span>)}</div>
+      <div className="shipment-detail-block shipment-detail-timeline">{dates.map(([label, date], index) => {
+        const tip = date ? fmtTableDate(date) : index === 0 && passedPort ? t("Arrived at port (date not recorded)") : null;
+        return <span key={label}><small>{label}</small>{tip
+          ? <Tooltip title={tip}><CheckOutlined className="shipment-timeline-check" aria-label={`${label} ${tip}`} /></Tooltip>
+          : <strong>—</strong>}</span>;
+      })}</div>
     </div>
     <div className="shipment-load-details">
       <Typography.Text type="secondary" className="shipment-load-label">{t("Load")}</Typography.Text>
