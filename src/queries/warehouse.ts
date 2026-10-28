@@ -41,6 +41,7 @@ import type {
   UpdateLocalDeliveryInput,
   VoidDeliveryInput,
   UnloadContainerInput,
+  ContainerFinishResult,
   UpdateContainerStatusInput,
   MoveContainerBackInput,
   UpdateContainerDatesInput,
@@ -278,7 +279,7 @@ export async function updateContainerStatus({
       body: JSON.stringify({ date: dateDelivered }),
     });
   }
-  return apiRequest(`/containers/${containerId}/cancel`, {
+  return apiRequest<ContainerFinishResult>(`/containers/${containerId}/cancel`, {
     method: "POST",
     body: JSON.stringify({ reason: cancellationReason }),
   });
@@ -314,8 +315,8 @@ export async function moveContainerBack({
   });
 }
 
-export async function unloadContainer(input: UnloadContainerInput): Promise<void> {
-  await apiRequest(`/containers/${input.containerId}/unload`, {
+export async function unloadContainer(input: UnloadContainerInput): Promise<ContainerFinishResult> {
+  return apiRequest<ContainerFinishResult>(`/containers/${input.containerId}/unload`, {
     method: "POST",
     body: JSON.stringify({
       dateUnloaded: input.dateUnloaded,

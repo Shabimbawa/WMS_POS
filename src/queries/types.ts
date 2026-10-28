@@ -511,6 +511,23 @@ export interface UnloadContainerInput {
   discrepancies: DiscrepancyInput[];
 }
 
+/**
+ * Set on unload and cancel responses when finishing that container left
+ * every container on its shipment unloaded or cancelled, so the API
+ * archived the shipment in the same save.
+ */
+export interface AutoArchivedShipment {
+  id: string;
+  reference: string | null;
+  kind: "INTERNATIONAL" | "NATIONAL";
+}
+
+export interface ContainerFinishResult {
+  id: string;
+  status: ContainerStatus;
+  auto_archived_shipment: AutoArchivedShipment | null;
+}
+
 /** One container with everything the resolve page shows. */
 export interface ContainerDetail {
   id: string;

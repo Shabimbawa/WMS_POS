@@ -5,6 +5,7 @@ import { Sidebar } from '../sidebar/sidebar'
 import { Topbar } from '../topbar/topbar'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
 import { getLandingPath, rolesForPath } from '../sidebar/nav-items'
+import { AutoArchiveNotice } from '../../../pages/WMS/container/auto-archive-notice'
 
 const { Header, Sider, Content } = Layout
 
@@ -46,6 +47,8 @@ export function AppLayout() {
 
   return (
     <Layout style={{ height: '100vh' }}>
+      {/* Pop-up for shipments archived when their last container finished. */}
+      <AutoArchiveNotice />
       <Header style={{ padding: 0, backgroundColor: 'var(--color-chrome)' }}>
         <Topbar />
       </Header>

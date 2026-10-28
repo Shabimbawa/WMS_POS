@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   and,
   asc,
@@ -17,6 +17,7 @@ import {
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
+  auditLogs,
   containerDiscrepancies,
   containerStatus,
   containerItems,
@@ -385,6 +386,86 @@ async function loadContainers(where: SQL) {
       })),
     },
   }));
+}
+
+/** What the unload and cancel responses report when they archived the shipment. */
+type AutoArchived = {
+  id: string;
+  reference: string | null;
+  kind: "INTERNATIONAL" | "NATIONAL";
+};
+
+/**
+ * Archives the container's shipment once every container on it is unloaded
+ * or cancelled — the same rule as POST /shipments/:id/archive — and writes
+ * an audit entry saying it was automatic. Call it inside the transaction
+ * that just finished the container, after its status update.
+ *
+ * The shipment row is locked first. Two last containers finishing at once
+ * then run one after the other, and the second sees the first's committed
+ * status, so exactly one of them archives the shipment.
+ */
+async function autoArchiveIfComplete(
+  tx: Tx,
+  containerId: string,
+  request: FastifyRequest,
+  trigger: "unload" | "cancel",
+): Promise<AutoArchived | null> {
+  const [owner] = await tx
+    .select({ shipmentId: containers.shipmentId })
+    .from(containers)
+    .where(eq(containers.id, containerId));
+  if (!owner) return null;
+  await tx.execute(sql`select id from ${shipments} where ${shipments.id} = ${owner.shipmentId} for update`);
+
+  const [shipment] = await tx
+    .select({
+      id: shipments.id,
+      reference: shipments.reference,
+      archivedAt: shipments.archivedAt,
+      kind: suppliers.kind,
+    })
+    .from(shipments)
+    .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+    .where(eq(shipments.id, owner.shipmentId));
+  if (!shipment || shipment.archivedAt || shipment.kind === "LOCAL") return null;
+
+  const statuses = await tx
+    .select({ status: containers.status })
+    .from(containers)
+    .where(eq(containers.shipmentId, shipment.id));
+  const complete = statuses.length > 0
+    && statuses.every(({ status }) => status === "UNLOADED" || status === "CANCELLED");
+  if (!complete) return null;
+
+  await tx
+    .update(shipments)
+    .set({ archivedAt: new Date(), archivedBy: request.currentUser!.id })
+    .where(eq(shipments.id, shipment.id));
+  // The request's own audit row records the unload or cancel; this one
+  // records the archive it caused, attributed to the same person.
+  await tx.insert(auditLogs).values({
+    actorUserId: request.currentUser?.id ?? null,
+    actorEmail: request.currentUser?.email ?? null,
+    actorRole: request.currentUser?.role ?? null,
+    action: "Archived shipment (automatic)",
+    module: "Shipments",
+    method: request.method,
+    route: request.routeOptions.url ?? request.url,
+    recordId: shipment.id,
+    details: {
+      automatic: true,
+      trigger,
+      containerId,
+      reference: shipment.reference,
+      reason: "Every container is unloaded or cancelled",
+    },
+    statusCode: 200,
+    success: true,
+    ipAddress: request.ip,
+    userAgent: request.headers["user-agent"] ?? null,
+  });
+  return { id: shipment.id, reference: shipment.reference, kind: shipment.kind };
 }
 
 export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
@@ -1210,13 +1291,16 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
   app.post("/containers/:id/cancel", warehouseOnly, async (request) => {
     const { id } = idParams.parse(request.params);
     const { reason } = cancelBody.parse(request.body);
-    const updated = await db
-      .update(containers)
-      .set({ status: "CANCELLED", cancellationReason: reason, updatedAt: new Date() })
-      .where(and(eq(containers.id, id), inArray(containers.status, ["DOCUMENTED", "ARRIVED_AT_PORT", "DELIVERED"])))
-      .returning({ id: containers.id, status: containers.status });
-    if (!updated[0]) throw new ApiError(409, "INVALID_CONTAINER_TRANSITION", "Container cannot be cancelled from its current status");
-    return updated[0];
+    return db.transaction(async (tx) => {
+      const updated = await tx
+        .update(containers)
+        .set({ status: "CANCELLED", cancellationReason: reason, updatedAt: new Date() })
+        .where(and(eq(containers.id, id), inArray(containers.status, ["DOCUMENTED", "ARRIVED_AT_PORT", "DELIVERED"])))
+        .returning({ id: containers.id, status: containers.status });
+      if (!updated[0]) throw new ApiError(409, "INVALID_CONTAINER_TRANSITION", "Container cannot be cancelled from its current status");
+      const autoArchived = await autoArchiveIfComplete(tx, id, request, "cancel");
+      return { ...updated[0], auto_archived_shipment: autoArchived };
+    });
   });
 
   app.post("/containers/:id/unload", warehouseOnly, async (request) => {
@@ -1236,7 +1320,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       "An unlisted product can be added only once",
     );
 
-    await db.transaction(async (tx) => {
+    const autoArchived = await db.transaction(async (tx) => {
       await tx.execute(sql`select id from ${containers} where ${containers.id} = ${id} for update`);
       const [container] = await tx
         .select({ status: containers.status, delivered: containers.dateDelivered })
@@ -1379,8 +1463,9 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
           updatedAt: new Date(),
         })
         .where(eq(containers.id, id));
+      return autoArchiveIfComplete(tx, id, request, "unload");
     });
 
-    return { id, status: "UNLOADED" as const };
+    return { id, status: "UNLOADED" as const, auto_archived_shipment: autoArchived };
   });
 }

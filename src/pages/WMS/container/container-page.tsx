@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Badge,
@@ -16,7 +16,7 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   useContainers,
@@ -59,6 +59,24 @@ export default function ContainerPage({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [view, setView] = useState<"active" | "port" | "archived">("active");
   const [page, setPage] = useState(1);
+  // ?view=archived opens a tab directly, e.g. from the auto-archive pop-up's
+  // View button. Consumed once, so the tabs work normally afterwards.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedView = searchParams.get("view");
+  // Applied while rendering (React's "adjust state when a prop changes"
+  // pattern); handledView makes each request apply once.
+  const [handledView, setHandledView] = useState<string | null>(null);
+  if (requestedView !== handledView) {
+    setHandledView(requestedView);
+    if (requestedView === "active" || requestedView === "port" || requestedView === "archived") {
+      setView(requestedView);
+      setPage(1);
+    }
+  }
+  useEffect(() => {
+    if (requestedView === null) return;
+    setSearchParams((params) => { params.delete("view"); return params; }, { replace: true });
+  }, [requestedView, setSearchParams]);
   const [pageSize, setPageSize] = useState(25);
   const [statusFilter, setStatusFilter] = useState<ContainerStatus | undefined>();
   const [containerSearch, setContainerSearch] = useState("");

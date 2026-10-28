@@ -93,6 +93,9 @@ import type {
   OrderSlipTrashParams,
 } from "./posTypes.ts";
 
+import type { AutoArchivedShipment } from "./types.ts";
+import { announceAutoArchive } from "../common/utils/auto-archive-events.ts";
+
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 
 // ---- query keys -------------------------------------------------
@@ -488,12 +491,20 @@ export function useUpdateProduct() {
   });
 }
 
+/** Cancel and unload can archive the shipment; announce it when they do. */
+function announceIfAutoArchived(result: unknown) {
+  const shipment = (result as { auto_archived_shipment?: AutoArchivedShipment | null } | undefined)
+    ?.auto_archived_shipment;
+  if (shipment) announceAutoArchive(shipment);
+}
+
 export function useUpdateContainerStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: updateContainerStatus,
-    onSuccess: () => {
+    onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
+      announceIfAutoArchived(result);
     },
   });
 }
@@ -554,11 +565,12 @@ export function useUnloadContainer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: unloadContainer,
-    onSuccess: () => {
+    onSuccess: (result) => {
       // The transaction writes counts and discrepancies; every view is stale.
       qc.invalidateQueries({ queryKey: qk.notebooks });
       qc.invalidateQueries({ queryKey: qk.stock });
       qc.invalidateQueries({ queryKey: qk.discrepancies });
+      announceIfAutoArchived(result);
     },
   });
 }
