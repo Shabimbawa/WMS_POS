@@ -475,6 +475,7 @@ const zh: Record<string, string> = {
   'Pick the delivery date': '请选择送达日期',
   'Pick the unload date': '请选择卸货日期',
   '{product} · all sizes': '{product} · 所有规格',
+  'Add a product — type to search': '添加产品 — 输入以搜索',
   'Arrived at port (date not recorded)': '已到港（未记录日期）',
   'No products received in this period': '此期间没有收到任何产品',
   'Mark at port': '标记到港',

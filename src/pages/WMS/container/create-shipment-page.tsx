@@ -167,22 +167,21 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
             <label className="shipment-container-notes"><span>{t("Notes (optional)")}</span><Input.TextArea rows={2} maxLength={2000} showCount value={container.notes ?? ""} placeholder={t("Add notes about this container")} onChange={(event) => updateContainer(container.key, { notes: event.target.value })} /></label>
           </div>
           <div className="shipment-item-editor">
-            <label className="shipment-product-picker"><span>{t("Products")}</span><Select
-              mode="multiple"
-              labelInValue
-              value={container.items.map((item) => ({ value: item.key, label: labels.get(item.key) }))}
+            <label className="shipment-product-picker"><span>{t("Products")}</span><Select<string | null>
+              // An "add" box, not a multi-select: each pick adds a row below,
+              // then the list closes and the box clears for the next product.
+              // Rows are removed with their own delete button.
+              value={null}
               showSearch
               optionFilterProp="label"
-              placeholder={t("Select one or more products")}
+              placeholder={t("Add a product — type to search")}
               loading={loadingProducts}
               options={productOptions}
               optionRender={(option) => {
                 const count = container.items.filter((item) => item.product_category_id === option.value).length;
                 return <Flex justify="space-between" gap={8}><span>{option.label}</span>{count > 0 && <Typography.Text type="secondary">×{count}</Typography.Text>}</Flex>;
               }}
-              onSelect={(picked) => addItem(container, picked.value)}
-              onDeselect={(removed) => removeItem(container, removed.value)}
-              maxTagCount="responsive"
+              onSelect={(picked) => picked && addItem(container, picked)}
             /></label>
             {!!container.items.length && <div className="shipment-item-header"><span>{t("Product")}</span><span>{t("Sacks")}</span><span>{t("Price / sack")}</span><span>{t("Subtotal")}</span><span /></div>}
             {container.items.map((item) => <div className="shipment-item-row" key={item.key}>
