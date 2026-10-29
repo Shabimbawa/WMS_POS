@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 
 import { ConfigProvider, Table } from 'antd'
-import { useEffect, useState, type Key, type ReactNode } from 'react'
+import { useState, type Key, type ReactNode } from 'react'
 import { useLanguage } from '../../context/language-context'
 
 declare module '@tanstack/react-table' {
@@ -39,8 +39,12 @@ interface DataTableProps<TData> {
    * Return null for rows with nothing to show and they get no expand toggle.
    */
   renderExpanded?: (row: TData) => ReactNode
-  /** Opens all expandable rows, useful when a search result should reveal details immediately. */
-  expandAll?: boolean
+  /**
+   * Controls which rows are open (row IDs, the row index unless getRowId says
+   * otherwise), e.g. so the page can close them all. Uncontrolled when omitted.
+   */
+  expandedRowKeys?: Key[]
+  onExpandedRowKeysChange?: (keys: Key[]) => void
 }
 
 export function DataTable<TData>({
@@ -50,7 +54,8 @@ export function DataTable<TData>({
   meta,
   columnVisibility,
   renderExpanded,
-  expandAll = false,
+  expandedRowKeys: controlledKeys,
+  onExpandedRowKeysChange,
 }: DataTableProps<TData>) {
   const { t } = useLanguage()
   const table = useReactTable({
@@ -93,12 +98,15 @@ export function DataTable<TData>({
 
   const rowsById = new Map(table.getRowModel().rows.map((r) => [r.id, r]))
 
-  const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
-
-  useEffect(() => {
-    if (!expandAll || !renderExpanded) return;
-    setExpandedRowKeys(table.getRowModel().rows.filter((row) => renderExpanded(row.original) !== null).map((row) => row.id));
-  }, [data, expandAll, renderExpanded, table]);
+  const [ownKeys, setOwnKeys] = useState<Key[]>([])
+  const expandedRowKeys = controlledKeys ?? ownKeys
+  const toggleRow = (key: Key, open = !expandedRowKeys.includes(key)) => {
+    const next = open
+      ? expandedRowKeys.includes(key) ? expandedRowKeys : [...expandedRowKeys, key]
+      : expandedRowKeys.filter((k) => k !== key)
+    if (onExpandedRowKeysChange) onExpandedRowKeysChange(next)
+    else setOwnKeys(next)
+  }
 
   const rowExpandable = (record: { key: string }) => {
     const row = rowsById.get(record.key)
@@ -107,15 +115,8 @@ export function DataTable<TData>({
 
   const expandable = renderExpanded && {
     expandedRowKeys,
-    onExpand: (expanded: boolean, record: { key: string }) => {
-      setExpandedRowKeys((prev) =>
-        expanded
-          ? prev.includes(record.key)
-            ? prev
-            : [...prev, record.key]
-          : prev.filter((k) => k !== record.key),
-      )
-    },
+    onExpand: (expanded: boolean, record: { key: string }) =>
+      toggleRow(record.key, expanded),
     expandedRowRender: (record: { key: string }) => {
       const row = rowsById.get(record.key)
       return row ? renderExpanded(row.original) : null
@@ -160,12 +161,7 @@ export function DataTable<TData>({
                   const selection = window.getSelection()
                   if (selection && selection.toString()) return
                   if (!rowExpandable(record)) return
-                  const key = record.key
-                  setExpandedRowKeys((prev) =>
-                    prev.includes(key)
-                      ? prev.filter((k) => k !== key)
-                      : [...prev, key],
-                  )
+                  toggleRow(record.key)
                 },
               })
             : undefined

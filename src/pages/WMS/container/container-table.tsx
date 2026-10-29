@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import { Card, Flex, Tag, Tooltip, Typography } from "antd";
-import { CheckOutlined } from "@ant-design/icons";
+import { useMemo, useState, type Key } from "react";
+import { Button, Card, Flex, Tag, Tooltip, Typography } from "antd";
+import { CheckOutlined, ShrinkOutlined } from "@ant-design/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "../../../common/items/table/table";
@@ -460,9 +460,18 @@ export function ContainerTable({ data, containerSearch = "" }: { data: ShipmentR
   const sacks = data.reduce((sum, shipment) => sum + shipment.container.reduce((subtotal, container) => subtotal + container.container_item.reduce((quantity, item) => quantity + item.qty_sacks, 0), 0), 0);
   const complete = data.reduce((sum, shipment) => sum + shipment.container.filter((container) => container.status === "UNLOADED" || container.status === "CANCELLED").length, 0);
   const normalizedSearch = containerSearch.trim().toUpperCase();
+  const matches = (container: ShipmentRow["container"][number]) => container.container_no?.toUpperCase().includes(normalizedSearch);
+  const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
+  // A container search opens every shipment with a match. Applied while
+  // rendering (React's "adjust state when a prop changes" pattern).
+  const [seen, setSeen] = useState({ data, search: normalizedSearch });
+  if (seen.data !== data || seen.search !== normalizedSearch) {
+    setSeen({ data, search: normalizedSearch });
+    if (normalizedSearch) setExpandedKeys(data.flatMap((shipment, index) => shipment.container.some(matches) ? [String(index)] : []));
+  }
   return (
-    <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{t("Shipment overview")}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{t("Select a row to view and update its containers")}</Typography.Text></div>} extra={<Flex gap={20} className="shipment-table-totals"><span><strong>{data.length}</strong> {t("shipments")}</span><span><strong>{containerCount}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks")}</span><span><strong>{complete}</strong> {t("complete")}</span></Flex>}>
-      <DataTable data={data} columns={columns} expandAll={Boolean(normalizedSearch)} renderExpanded={(shipment) => { const visibleContainers = normalizedSearch ? shipment.container.filter((container) => container.container_no?.toUpperCase().includes(normalizedSearch)) : shipment.container; return visibleContainers.length ? <div className="shipment-expanded"><div className="shipment-expanded-heading"><Typography.Text strong>{normalizedSearch ? t("Matching container details") : t("Container details")}</Typography.Text><Typography.Text type="secondary">{normalizedSearch ? t("Showing containers matching your search") : t("Shipment information is grouped by container")}</Typography.Text></div>{visibleContainers.map((container) => <ContainerDetails key={container.id} container={container} index={shipment.container.indexOf(container)} archived={!!shipment.archived_at} t={t} />)}</div> : null; }} />
+    <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{t("Shipment overview")}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{t("Select a row to view and update its containers")}</Typography.Text></div>} extra={<Flex gap={16} align="center"><Flex gap={20} className="shipment-table-totals"><span><strong>{data.length}</strong> {t("shipments")}</span><span><strong>{containerCount}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks")}</span><span><strong>{complete}</strong> {t("complete")}</span></Flex>{expandedKeys.length > 0 && <Button type="text" size="small" className="shipment-close-all" icon={<ShrinkOutlined />} onClick={() => setExpandedKeys([])}>{t("Close all")} <span className="shipment-close-all-count">{expandedKeys.length}</span></Button>}</Flex>}>
+      <DataTable data={data} columns={columns} expandedRowKeys={expandedKeys} onExpandedRowKeysChange={setExpandedKeys} renderExpanded={(shipment) => { const visibleContainers = normalizedSearch ? shipment.container.filter(matches) : shipment.container; return visibleContainers.length ? <div className="shipment-expanded"><div className="shipment-expanded-heading"><Typography.Text strong>{normalizedSearch ? t("Matching container details") : t("Container details")}</Typography.Text><Typography.Text type="secondary">{normalizedSearch ? t("Showing containers matching your search") : t("Shipment information is grouped by container")}</Typography.Text></div>{visibleContainers.map((container) => <ContainerDetails key={container.id} container={container} index={shipment.container.indexOf(container)} archived={!!shipment.archived_at} t={t} />)}</div> : null; }} />
     </Card>
   );
 }

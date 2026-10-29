@@ -417,6 +417,7 @@ const zh: Record<string, string> = {
   'Everything entered on this page will be lost.': '此页面输入的所有内容都将丢失。',
   'Stock status': '库存状态',
   'Refresh': '刷新',
+  'Close all': '全部收起',
   'Product added': '产品已添加',
   'Product updated': '产品已更新',
   'On-hand sacks per product. Quantities are written by the stock ledger, never edited here.': '显示各产品的现有袋数。数量由库存流水记录，不可在此直接修改。',
