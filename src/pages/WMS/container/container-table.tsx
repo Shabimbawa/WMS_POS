@@ -428,7 +428,7 @@ function ContainerDetails({ container, index, archived, t }: { container: Shipme
           <Tag color={STATUS_COLOR[container.status]} style={{ margin: 0 }}>{t(STATUS_LABEL[container.status])}</Tag>
         </Flex>
       </div>
-      <ContainerActions container={container} archived={archived} />
+      <ContainerActions container={container} archived={archived} inline />
     </header>
     <div className="shipment-container-detail-grid">
       <div className="shipment-detail-block"><small>{t("Shipping line")}</small><strong>{container.shipping_company?.name ?? t("No shipping line")}</strong></div>

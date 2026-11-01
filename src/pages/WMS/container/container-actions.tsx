@@ -245,17 +245,20 @@ function HaulingFields({ form }: { form: FormInstance<HaulingValues> }) {
 }
 
 /**
- * Manage menu: the one-click next step (dated today) on top, then hauling,
- * corrections and cancelling. Mistakes are fixed with Edit dates or
+ * Container actions: the one-click next step (dated today) first, then
+ * hauling, corrections and cancelling. Mistakes are fixed with Edit dates or
  * Move back rather than by picking dates up front.
  */
 export function ContainerActions({
   container,
   archived = false,
+  inline = false,
 }: {
   container: ShipmentContainer;
   /** Archived shipments are read-only until restored. */
   archived?: boolean;
+  /** Show the buttons in a row instead of behind a Manage dropdown. */
+  inline?: boolean;
 }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -467,7 +470,13 @@ export function ContainerActions({
     ) : null;
 
   const actions = (
-    <Flex vertical gap={8} className="container-manage-actions">
+    <Flex
+      vertical={!inline}
+      wrap={inline}
+      gap={8}
+      justify={inline ? "flex-end" : undefined}
+      className={inline ? undefined : "container-manage-actions"}
+    >
       {nextStep}
       {(container.status === "DOCUMENTED" || container.status === "ARRIVED_AT_PORT") && (
         <CommonModalForm<HaulingValues>
@@ -547,9 +556,11 @@ export function ContainerActions({
     <>
       {msgHolder}
       {errorHolder}
-      <Popover content={actions} title={t("Container actions")} trigger="click" placement="bottomRight">
-        <Button>{t("Manage")} <DownOutlined /></Button>
-      </Popover>
+      {inline ? actions : (
+        <Popover content={actions} title={t("Container actions")} trigger="click" placement="bottomRight">
+          <Button>{t("Manage")} <DownOutlined /></Button>
+        </Popover>
+      )}
     </>
   );
 }
