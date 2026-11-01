@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, DatePicker, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Typography, message } from "antd";
+import type { GetRef, RefSelectProps } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -46,11 +47,36 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
 
   const updateContainer = (key: string, fields: Partial<DraftContainer>) => setContainers((current) => current.map((container) => container.key === key ? { ...container, ...fields } : container));
   const updateItem = (containerKey: string, itemKey: string, fields: Partial<DraftItem>) => setContainers((current) => current.map((container) => container.key === containerKey ? { ...container, items: container.items.map((item) => item.key === itemKey ? { ...item, ...fields } : item) } : container));
+  // Keyboard flow for product rows: picking a product focuses its Sacks box,
+  // Tab goes on to Price, and Tab from the last row's Price returns to the
+  // product picker for the next product.
+  const pickerRefs = useRef(new Map<string, RefSelectProps>());
+  const qtyRefs = useRef(new Map<string, GetRef<typeof InputNumber>>());
+  const focusQtyOf = useRef<string | null>(null);
+  useEffect(() => {
+    const itemKey = focusQtyOf.current;
+    if (!itemKey) return;
+    focusQtyOf.current = null;
+    // Next frame, once the picker has finished closing its list.
+    requestAnimationFrame(() => qtyRefs.current.get(itemKey)?.focus({ cursor: "all" }));
+  });
+  const tabFromPrice = (event: React.KeyboardEvent, container: DraftContainer, rowIndex: number) => {
+    if (event.key !== "Tab" || event.shiftKey) return;
+    event.preventDefault();
+    const next = container.items[rowIndex + 1];
+    if (next) qtyRefs.current.get(next.key)?.focus({ cursor: "all" });
+    else pickerRefs.current.get(container.key)?.focus();
+  };
+
   // The picker's tags are rows, not products: picking a product always adds a
   // row, so picking it again adds a second line of it (e.g. at another price).
-  const addItem = (container: DraftContainer, productId: string) => updateContainer(container.key, {
-    items: [...container.items, { key: newKey(), product_category_id: productId, qty_sacks: 1, price_per_sack: null }],
-  });
+  const addItem = (container: DraftContainer, productId: string) => {
+    const key = newKey();
+    focusQtyOf.current = key;
+    updateContainer(container.key, {
+      items: [...container.items, { key, product_category_id: productId, qty_sacks: 1, price_per_sack: null }],
+    });
+  };
   const removeItem = (container: DraftContainer, itemKey: string) => updateContainer(container.key, { items: container.items.filter((row) => row.key !== itemKey) });
   const productLabel = (productId: string) => productOptions.find((option) => option.value === productId)?.label ?? productId;
   /** Label per row, numbered when the product is on the container more than once. */
@@ -171,6 +197,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
               // An "add" box, not a multi-select: each pick adds a row below,
               // then the list closes and the box clears for the next product.
               // Rows are removed with their own delete button.
+              ref={(select) => { if (select) pickerRefs.current.set(container.key, select); else pickerRefs.current.delete(container.key); }}
               value={null}
               showSearch
               optionFilterProp="label"
@@ -184,10 +211,10 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
               onSelect={(picked) => picked && addItem(container, picked)}
             /></label>
             {!!container.items.length && <div className="shipment-item-header"><span>{t("Product")}</span><span>{t("Sacks")}</span><span>{t("Price / sack")}</span><span>{t("Subtotal")}</span><span /></div>}
-            {container.items.map((item) => <div className="shipment-item-row" key={item.key}>
+            {container.items.map((item, rowIndex) => <div className="shipment-item-row" key={item.key}>
               <Typography.Text strong>{labels.get(item.key)}</Typography.Text>
-              <InputNumber min={1} precision={0} value={item.qty_sacks} onChange={(value) => updateItem(container.key, item.key, { qty_sacks: value ?? 1 })} />
-              <InputNumber min={0} precision={2} prefix="₱" placeholder={t("Optional")} value={item.price_per_sack} onChange={(value) => updateItem(container.key, item.key, { price_per_sack: value })} />
+              <InputNumber ref={(input) => { if (input) qtyRefs.current.set(item.key, input); else qtyRefs.current.delete(item.key); }} min={1} precision={0} value={item.qty_sacks} onChange={(value) => updateItem(container.key, item.key, { qty_sacks: value ?? 1 })} />
+              <InputNumber min={0} precision={2} prefix="₱" placeholder={t("Optional")} value={item.price_per_sack} onChange={(value) => updateItem(container.key, item.key, { price_per_sack: value })} onKeyDown={(event) => tabFromPrice(event, container, rowIndex)} />
               <Typography.Text>{item.price_per_sack === null ? "—" : fmtMoney(item.qty_sacks * item.price_per_sack)}</Typography.Text>
               <Button type="text" danger aria-label={t("Remove product")} icon={<DeleteOutlined />} onClick={() => removeItem(container, item.key)} />
             </div>)}
