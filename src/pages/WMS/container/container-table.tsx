@@ -396,8 +396,11 @@ const containerShipmentColumn = (t: Translate): ColumnDef<ContainerListRow, any>
   },
 });
 
-/** Every container in one status, one row each, whatever shipment it is on. */
-export function ContainerStatusTable({ data, status, total }: { data: ContainerListRow[]; status: ContainerStatus; total: number }) {
+/**
+ * Containers one row each, whatever shipment they are on: every container in
+ * one status, or (without a status) the container no. search results.
+ */
+export function ContainerStatusTable({ data, status, total }: { data: ContainerListRow[]; status?: ContainerStatus; total: number }) {
   const { t } = useLanguage();
   const columns = useMemo(() => {
     const [container, ...rest] = containerOverviewColumns<ContainerListRow>(t);
@@ -405,7 +408,7 @@ export function ContainerStatusTable({ data, status, total }: { data: ContainerL
   }, [t]);
   const sacks = data.reduce((sum, container) => sum + container.container_item.reduce((quantity, item) => quantity + (item.actual_qty_sacks ?? item.qty_sacks), 0), 0);
   return (
-    <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{t("{status} containers", { status: t(STATUS_LABEL[status]) })}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{t("Every container in this status, across shipments")}</Typography.Text></div>} extra={<Flex gap={20} className="shipment-table-totals"><span><strong>{fmtInt(total)}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks on this page")}</span></Flex>}>
+    <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{status ? t("{status} containers", { status: t(STATUS_LABEL[status]) }) : t("Matching containers")}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{status ? t("Every container in this status, across shipments") : t("Containers matching the search, across shipments")}</Typography.Text></div>} extra={<Flex gap={20} className="shipment-table-totals"><span><strong>{fmtInt(total)}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks on this page")}</span></Flex>}>
       <DataTable data={data} columns={columns} />
     </Card>
   );

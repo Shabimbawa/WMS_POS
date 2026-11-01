@@ -275,7 +275,8 @@ export interface ShippingContainerNotebookParams
 
 /** The notebook filters, narrowed to containers in one status. */
 export interface ContainerListParams extends ShippingContainerNotebookParams {
-  status: ContainerStatus;
+  /** Omitted: every status (used by the container no. search). */
+  status?: ContainerStatus;
 }
 
 export interface StockStatusParams extends Pagination {

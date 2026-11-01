@@ -218,7 +218,7 @@ All routes are below `/api/v1`.
 | `POST /shipments` | warehouse | Atomic shipment creation |
 | `PATCH /shipments/:id` | warehouse | Edit an active shipment |
 | `DELETE /shipments/:id` | warehouse | Hard delete with stock reversal |
-| `GET /containers` | warehouse | Containers in one status, across shipments |
+| `GET /containers` | warehouse | Containers across shipments, optionally in one status |
 | `GET /containers/:id` | warehouse | Unload/detail view |
 | `POST /containers/:id/arrive-at-port` | warehouse | Guarded transition |
 | `POST /containers/:id/deliver` | warehouse | Guarded transition |

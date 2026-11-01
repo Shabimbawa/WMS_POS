@@ -98,6 +98,9 @@ export default function ContainerPage({
     [supplierId, shippingCompanyId, deferredContainerSearch, kind, page, pageSize, range, sortDir, view],
   );
 
+  // A status chip or a container no. search switches the notebook to a flat
+  // list of containers.
+  const flatList = Boolean(statusFilter || params.containerNo);
   const {
     data,
     isPending,
@@ -106,13 +109,12 @@ export default function ContainerPage({
     isPlaceholderData,
     isFetching,
     refetch,
-  } = useShippingContainerNotebook(params, view !== "port" && !statusFilter);
-  // A status chip switches the notebook to a flat list of containers.
+  } = useShippingContainerNotebook(params, view !== "port" && !flatList);
   const containerList = useContainers(
-    { ...params, status: statusFilter ?? "DOCUMENTED" },
-    view !== "port" && Boolean(statusFilter),
+    { ...params, status: statusFilter },
+    view !== "port" && flatList,
   );
-  const active = statusFilter ? containerList : { data, isPending, isError, error, isPlaceholderData, isFetching };
+  const active = flatList ? containerList : { data, isPending, isError, error, isPlaceholderData, isFetching };
 
   const reset = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
@@ -128,7 +130,7 @@ export default function ContainerPage({
             : t("National Shipments")}
         </Typography.Title>
         <Flex gap={8} align="center" className="shipment-page-actions">
-          <Button onClick={() => (statusFilter ? containerList.refetch() : refetch())} loading={active.isFetching}>
+          <Button onClick={() => (flatList ? containerList.refetch() : refetch())} loading={active.isFetching}>
             {t("Refresh")}
           </Button>
           <Button
@@ -239,7 +241,7 @@ export default function ContainerPage({
         <Alert
           type="error"
           showIcon
-          message={t(statusFilter ? "Could not load containers" : "Could not load packing lists")}
+          message={t(flatList ? "Could not load containers" : "Could not load packing lists")}
           description={t((active.error as Error)?.message)}
         />
       ) : active.isPending || (active.isFetching && active.isPlaceholderData) ? (
@@ -250,6 +252,8 @@ export default function ContainerPage({
         <Empty
           description={statusFilter
             ? t("No {status} containers in this date range", { status: t(STATUS_LABEL[statusFilter]).toLowerCase() })
+            : flatList
+            ? t("No containers match this search in this date range")
             : t(
               view === "archived"
                 ? "No archived shipments in this date range"
@@ -258,7 +262,7 @@ export default function ContainerPage({
         />
       ) : (
         <div>
-          {statusFilter && containerList.data
+          {flatList && containerList.data
             ? <ContainerStatusTable data={containerList.data.rows} status={statusFilter} total={containerList.data.total} />
             : data && <ContainerTable containerSearch={deferredContainerSearch} data={data.rows} />}
           <Flex justify="end" style={{ marginTop: 12 }}>

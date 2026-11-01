@@ -289,7 +289,7 @@ function addCalendarDays(isoDateValue: string, days: number): string {
 }
 
 const containerListQuery = shipmentQuery.extend({
-  status: z.enum(containerStatus.enumValues),
+  status: z.enum(containerStatus.enumValues).optional(),
 });
 
 /** Filters on the shipment and its supplier, shared by the shipment and container lists. */
@@ -563,8 +563,8 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     );
   });
 
-  // Every container in one status, whatever shipment it belongs to. The
-  // shipment filters still apply; containerNo matches the container itself.
+  // Containers across shipments, optionally in one status. The shipment
+  // filters still apply; containerNo matches the container itself.
   app.get("/containers", warehouseOnly, async (request) => {
     const query = containerListQuery.parse(request.query);
     if (query.dateFrom > query.dateTo) {
@@ -572,7 +572,7 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const where = and(
-      eq(containers.status, query.status),
+      ...(query.status ? [eq(containers.status, query.status)] : []),
       ...shipmentFilters(query),
       ...(query.shippingCompanyId ? [eq(containers.shippingCompanyId, query.shippingCompanyId)] : []),
       ...(query.containerNo ? [sql`lower(${containers.containerNo}) like ${`%${query.containerNo.toLowerCase()}%`}`] : []),
