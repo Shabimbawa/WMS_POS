@@ -74,6 +74,7 @@ import type {
   AuditLogParams,
   ContainerListParams,
   LocalDeliveryParams,
+  MoveContainerBackInput,
   OpenQuestionParams,
   ProductCategoryParams,
   InboundReportParams,
@@ -541,6 +542,63 @@ export function useMoveContainerBack() {
       // An undone unload drops its discrepancies and takes its stock back out.
       qc.invalidateQueries({ queryKey: qk.discrepancies });
       qc.invalidateQueries({ queryKey: qk.stock });
+    },
+  });
+}
+
+/** One container step applied to several containers from the status list. */
+export type BulkContainerStep =
+  | { action: "ARRIVE_AT_PORT"; date: string }
+  /** Containers in setOwnTruckIds get own-truck hauling first. */
+  | { action: "DELIVER"; date: string; setOwnTruckIds: string[] }
+  /** Unloads as all matched: declared quantities, no discrepancies. */
+  | { action: "UNLOAD"; date: string }
+  | { action: "MOVE_BACK"; status: MoveContainerBackInput["status"]; reason: string };
+
+export type BulkContainerResult = {
+  done: number;
+  failed: Array<{ containerId: string; error: unknown }>;
+};
+
+/**
+ * Runs a step on each container in turn, through the same endpoints as the
+ * single-container actions, so each one is checked and audited on its own.
+ * A failure doesn't stop the rest; the result lists what failed.
+ */
+export function useBulkContainerUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ containerIds, step }: { containerIds: string[]; step: BulkContainerStep }): Promise<BulkContainerResult> => {
+      const failed: BulkContainerResult["failed"] = [];
+      for (const containerId of containerIds) {
+        try {
+          if (step.action === "ARRIVE_AT_PORT") {
+            await updateContainerStatus({ containerId, status: "ARRIVED_AT_PORT", dateArrivedAtPort: step.date });
+          } else if (step.action === "DELIVER") {
+            if (step.setOwnTruckIds.includes(containerId)) {
+              await updateContainerHauling({ containerId, assignment: "OWN_TRUCK" });
+            }
+            await updateContainerStatus({ containerId, status: "DELIVERED", dateDelivered: step.date });
+          } else if (step.action === "UNLOAD") {
+            // An unload can archive its shipment; each gets its own pop-up
+            // so each can be restored.
+            announceIfAutoArchived(await unloadContainer({ containerId, dateUnloaded: step.date, discrepancies: [] }));
+          } else {
+            await moveContainerBack({ containerId, status: step.status, reason: step.reason });
+          }
+        } catch (error) {
+          failed.push({ containerId, error });
+        }
+      }
+      return { done: containerIds.length - failed.length, failed };
+    },
+    onSettled: (_result, _error, { step }) => {
+      qc.invalidateQueries({ queryKey: qk.notebooks });
+      if (step.action === "UNLOAD") {
+        // Unloading adds stock and is what the variance view lists.
+        qc.invalidateQueries({ queryKey: qk.stock });
+        qc.invalidateQueries({ queryKey: qk.discrepancies });
+      }
     },
   });
 }

@@ -15,8 +15,12 @@ import {
 } from "../type-format/format";
 import { fmtTableDate } from "../../../common/utils/util";
 import { ContainerActions } from "./container-actions";
+import { ContainerBulkActions } from "./container-bulk-actions";
 import { ShipmentActions } from "./shipment-actions";
 import { useLanguage, type Translate } from "../../../common/context/language-context";
+
+/** Statuses whose steps can be applied to many containers at once. */
+const BULK_STATUSES: ContainerStatus[] = ["DOCUMENTED", "ARRIVED_AT_PORT", "DELIVERED"];
 
 type ContainerItem = ShipmentContainer["container_item"][number];
 
@@ -407,9 +411,46 @@ export function ContainerStatusTable({ data, status, total }: { data: ContainerL
     return [container, containerShipmentColumn(t), ...rest];
   }, [t]);
   const sacks = data.reduce((sum, container) => sum + container.container_item.reduce((quantity, item) => quantity + (item.actual_qty_sacks ?? item.qty_sacks), 0), 0);
+
+  // Mass actions. Rows start ticked, except on Delivered: unloading adds
+  // stock, so each container is ticked once it's been checked. Only rows
+  // changed from that default are remembered, so rows that arrive later
+  // (another page, a refresh) start at the default too.
+  // Archived shipments are read-only, so their rows can't be ticked.
+  const bulk = !!status && BULK_STATUSES.includes(status);
+  const tickedByDefault = status !== "DELIVERED";
+  const [changed, setChanged] = useState<ReadonlySet<string>>(new Set());
+  const selectable = (row: ContainerListRow) => !row.shipment.archived_at;
+  const selected = data.filter((row) => selectable(row) && tickedByDefault !== changed.has(row.id));
+  const onSelect = (keys: Key[]) => {
+    const ticked = new Set(keys.map(String));
+    setChanged((previous) => {
+      const next = new Set(previous);
+      data.forEach((row) => (ticked.has(row.id) === tickedByDefault ? next.delete(row.id) : next.add(row.id)));
+      return next;
+    });
+  };
+
   return (
-    <Card size="small" className="shipment-notebook-card" title={<div><Typography.Text strong>{status ? t("{status} containers", { status: t(STATUS_LABEL[status]) }) : t("Matching containers")}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{status ? t("Every container in this status, across shipments") : t("Containers matching the search, across shipments")}</Typography.Text></div>} extra={<Flex gap={20} className="shipment-table-totals"><span><strong>{fmtInt(total)}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks on this page")}</span></Flex>}>
-      <DataTable data={data} columns={columns} />
+    <Card
+      size="small"
+      className="shipment-notebook-card"
+      title={<div><Typography.Text strong>{status ? t("{status} containers", { status: t(STATUS_LABEL[status]) }) : t("Matching containers")}</Typography.Text><Typography.Text type="secondary" className="port-table-subtitle">{status ? t("Every container in this status, across shipments") : t("Containers matching the search, across shipments")}</Typography.Text></div>}
+      extra={<Flex gap={20} align="center" wrap justify="end">
+        {bulk && <ContainerBulkActions status={status} containers={selected} />}
+        <Flex gap={20} className="shipment-table-totals"><span><strong>{fmtInt(total)}</strong> {t("containers")}</span><span><strong>{fmtInt(sacks)}</strong> {t("sacks on this page")}</span></Flex>
+      </Flex>}
+    >
+      <DataTable
+        data={data}
+        columns={columns}
+        tableOptions={{ getRowId: (row) => row.id }}
+        {...(bulk && {
+          selectedRowKeys: selected.map((row) => row.id),
+          onSelectedRowKeysChange: onSelect,
+          isRowSelectable: selectable,
+        })}
+      />
     </Card>
   );
 }

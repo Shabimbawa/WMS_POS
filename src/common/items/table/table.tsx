@@ -45,6 +45,14 @@ interface DataTableProps<TData> {
    */
   expandedRowKeys?: Key[]
   onExpandedRowKeysChange?: (keys: Key[]) => void
+  /**
+   * Adds a tick box to each row (and a select-all one in the header) when
+   * onSelectedRowKeysChange is given. Keys are row IDs, as for expandedRowKeys.
+   */
+  selectedRowKeys?: Key[]
+  onSelectedRowKeysChange?: (keys: Key[]) => void
+  /** Rows that return false get a disabled tick box. */
+  isRowSelectable?: (row: TData) => boolean
 }
 
 export function DataTable<TData>({
@@ -56,6 +64,9 @@ export function DataTable<TData>({
   renderExpanded,
   expandedRowKeys: controlledKeys,
   onExpandedRowKeysChange,
+  selectedRowKeys,
+  onSelectedRowKeysChange,
+  isRowSelectable,
 }: DataTableProps<TData>) {
   const { t } = useLanguage()
   const table = useReactTable({
@@ -124,6 +135,16 @@ export function DataTable<TData>({
     rowExpandable,
   }
 
+  const rowSelection = onSelectedRowKeysChange && {
+    selectedRowKeys: selectedRowKeys ?? [],
+    onChange: (keys: Key[]) => onSelectedRowKeysChange(keys),
+    fixed: 'left' as const,
+    getCheckboxProps: (record: { key: string }) => {
+      const row = rowsById.get(record.key)
+      return { disabled: !!row && !!isRowSelectable && !isRowSelectable(row.original) }
+    },
+  }
+
   return (
     <ConfigProvider
       theme={{
@@ -139,6 +160,7 @@ export function DataTable<TData>({
         columns={antdColumns}
         dataSource={antdData}
         expandable={expandable || undefined}
+        rowSelection={rowSelection || undefined}
         pagination={false}
         bordered={false}
         scroll={{ x: 'max-content' }}

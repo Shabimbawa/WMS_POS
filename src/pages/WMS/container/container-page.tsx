@@ -263,7 +263,8 @@ export default function ContainerPage({
       ) : (
         <div>
           {flatList && containerList.data
-            ? <ContainerStatusTable data={containerList.data.rows} status={statusFilter} total={containerList.data.total} />
+            // Keyed by status so ticks reset when the status changes.
+            ? <ContainerStatusTable key={statusFilter ?? "search"} data={containerList.data.rows} status={statusFilter} total={containerList.data.total} />
             : data && <ContainerTable containerSearch={deferredContainerSearch} data={data.rows} />}
           <Flex justify="end" style={{ marginTop: 12 }}>
             <Pagination

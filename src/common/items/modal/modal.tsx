@@ -16,6 +16,7 @@ type CommonModalFormProps<TValues extends Record<string, unknown> = Record<strin
   cancelText?: string;
   triggerButtonType?: ButtonProps['type'];
   triggerButtonStyle?: ButtonProps['style'];
+  triggerDisabled?: boolean;
 };
 
 export default function CommonModalForm<TValues extends Record<string, unknown> = Record<string, unknown>>({
@@ -30,6 +31,7 @@ export default function CommonModalForm<TValues extends Record<string, unknown> 
   cancelText = 'Cancel',
   triggerButtonType = 'primary',
   triggerButtonStyle,
+  triggerDisabled = false,
 }: CommonModalFormProps<TValues>) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
@@ -62,7 +64,7 @@ export default function CommonModalForm<TValues extends Record<string, unknown> 
 
   return (
     <>
-      <Button type={triggerButtonType} style={triggerButtonStyle} onClick={showModal}>
+      <Button type={triggerButtonType} style={triggerButtonStyle} disabled={triggerDisabled} onClick={showModal}>
         {triggerLabel}
       </Button>
       <Modal
