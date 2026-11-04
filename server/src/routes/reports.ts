@@ -9,6 +9,7 @@ import {
   localDeliveryItems,
   productCategories,
   shipments,
+  shippingCompanies,
   suppliers,
 } from "../db/schema.js";
 import { ApiError } from "../lib/api-error.js";
@@ -76,18 +77,35 @@ const deliveredIn = (dateFrom: string, dateTo: string) =>
   );
 
 type Cell = { productId: string; date: string; sacks: number };
+type InboundQuery = z.infer<typeof inboundQuery>;
+
+// The report filters, shared by the per-product totals and the per-container
+// breakdown so the two always cover the same stock.
+const wantsShipments = (query: InboundQuery) => query.source !== "LOCAL";
+const wantsLocal = (query: InboundQuery) =>
+  (query.source === "ALL" || query.source === "LOCAL") && !query.shipmentIds.length;
+const shipmentFilter = (query: InboundQuery) => and(
+  unloadedIn(query.dateFrom, query.dateTo),
+  query.productIds.length ? inArray(containerItems.productCategoryId, query.productIds) : undefined,
+  query.source === "INTERNATIONAL" ? eq(suppliers.kind, "INTERNATIONAL") : undefined,
+  query.source === "NATIONAL" ? eq(suppliers.kind, "NATIONAL") : undefined,
+  query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+  query.shipmentIds.length ? inArray(shipments.id, query.shipmentIds) : undefined,
+);
+const localFilter = (query: InboundQuery) => and(
+  deliveredIn(query.dateFrom, query.dateTo),
+  query.productIds.length ? inArray(localDeliveryItems.productCategoryId, query.productIds) : undefined,
+  query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
+);
 
 /**
  * Sacks received per product per day, from unloaded containers and local
  * deliveries, under the report filters. Shared by the stock summary and the
  * product filter's options, so a listed product always has figures.
  */
-async function receivedCells(query: z.infer<typeof inboundQuery>): Promise<Cell[]> {
-  const productFilter = (column: Parameters<typeof inArray>[0]) =>
-    query.productIds.length ? inArray(column, query.productIds) : undefined;
-
+async function receivedCells(query: InboundQuery): Promise<Cell[]> {
   // The two sources are independent, so both queries run at once.
-  const [shipmentCells, localCells] = await Promise.all([query.source === "LOCAL" ? [] : db
+  const [shipmentCells, localCells] = await Promise.all([!wantsShipments(query) ? [] : db
     .select({
       productId: containerItems.productCategoryId,
       date: sql<string>`${containers.dateUnloaded}`,
@@ -97,16 +115,9 @@ async function receivedCells(query: z.infer<typeof inboundQuery>): Promise<Cell[
     .innerJoin(containers, eq(containerItems.containerId, containers.id))
     .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
     .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
-    .where(and(
-      unloadedIn(query.dateFrom, query.dateTo),
-      productFilter(containerItems.productCategoryId),
-      query.source === "INTERNATIONAL" ? eq(suppliers.kind, "INTERNATIONAL") : undefined,
-      query.source === "NATIONAL" ? eq(suppliers.kind, "NATIONAL") : undefined,
-      query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
-      query.shipmentIds.length ? inArray(shipments.id, query.shipmentIds) : undefined,
-    ))
+    .where(shipmentFilter(query))
     .groupBy(containerItems.productCategoryId, containers.dateUnloaded),
-  query.source !== "ALL" && query.source !== "LOCAL" || query.shipmentIds.length ? [] : db
+  !wantsLocal(query) ? [] : db
     .select({
       productId: localDeliveryItems.productCategoryId,
       date: localDeliveries.dateReceived,
@@ -115,11 +126,7 @@ async function receivedCells(query: z.infer<typeof inboundQuery>): Promise<Cell[
     .from(localDeliveryItems)
     .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
     .innerJoin(suppliers, eq(localDeliveries.supplierId, suppliers.id))
-    .where(and(
-      deliveredIn(query.dateFrom, query.dateTo),
-      productFilter(localDeliveryItems.productCategoryId),
-      query.supplierIds.length ? inArray(suppliers.id, query.supplierIds) : undefined,
-    ))
+    .where(localFilter(query))
     .groupBy(localDeliveryItems.productCategoryId, localDeliveries.dateReceived)]);
 
   // A product can arrive both ways on one day; merge them into one cell.
@@ -131,6 +138,120 @@ async function receivedCells(query: z.infer<typeof inboundQuery>): Promise<Cell[
     else merged.set(key, { ...cell });
   }
   return [...merged.values()].filter((cell) => cell.sacks !== 0);
+}
+
+/**
+ * One entry per unloaded container or local delivery in the period, with the
+ * products it brought (counted sacks; a product on several lines of one
+ * container is added up). This is the stock summary's "by container" view,
+ * laid out like the shipments notebook: which brands arrived together.
+ */
+async function receivedArrivals(query: InboundQuery) {
+  const product = {
+    productId: productCategories.id,
+    brand: productCategories.brand,
+    variety: productCategories.variety,
+    code: productCategories.code,
+    sizeKg: productCategories.sizeKg,
+  };
+  const [containerRows, localRows] = await Promise.all([!wantsShipments(query) ? [] : db
+    .select({
+      id: containers.id,
+      date: sql<string>`${containers.dateUnloaded}`,
+      containerNo: containers.containerNo,
+      shippingCompany: shippingCompanies.name,
+      reference: shipments.reference,
+      supplier: suppliers.name,
+      supplierKind: suppliers.kind,
+      ...product,
+      sacks: sql<number>`coalesce(sum(${containerItems.actualQtySacks}), 0)::int`,
+    })
+    .from(containerItems)
+    .innerJoin(containers, eq(containerItems.containerId, containers.id))
+    .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
+    .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
+    .innerJoin(productCategories, eq(containerItems.productCategoryId, productCategories.id))
+    .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
+    .where(shipmentFilter(query))
+    .groupBy(containers.id, shippingCompanies.id, shipments.id, suppliers.id, productCategories.id),
+  !wantsLocal(query) ? [] : db
+    .select({
+      id: localDeliveries.id,
+      date: localDeliveries.dateReceived,
+      reference: localDeliveries.reference,
+      supplier: suppliers.name,
+      ...product,
+      sacks: sql<number>`sum(${localDeliveryItems.qtySacks})::int`,
+    })
+    .from(localDeliveryItems)
+    .innerJoin(localDeliveries, eq(localDeliveryItems.localDeliveryId, localDeliveries.id))
+    .innerJoin(suppliers, eq(localDeliveries.supplierId, suppliers.id))
+    .innerJoin(productCategories, eq(localDeliveryItems.productCategoryId, productCategories.id))
+    .where(localFilter(query))
+    .groupBy(localDeliveries.id, suppliers.id, productCategories.id)]);
+
+  type Arrival = {
+    key: string;
+    kind: "CONTAINER" | "LOCAL";
+    date: string;
+    container_no: string | null;
+    shipping_company: string | null;
+    reference: string | null;
+    supplier: string;
+    supplier_kind: "INTERNATIONAL" | "NATIONAL" | "LOCAL";
+    lines: { product_category_id: string; brand: string; variety: string | null; code: string | null; size_kg: number; sacks: number }[];
+    total: number;
+  };
+  const arrivals = new Map<string, Arrival>();
+  const add = (key: string, base: Omit<Arrival, "key" | "lines" | "total">, row: typeof containerRows[number] | typeof localRows[number]) => {
+    if (!row.sacks) return;
+    const arrival = arrivals.get(key) ?? { key, ...base, lines: [], total: 0 };
+    arrival.lines.push({
+      product_category_id: row.productId,
+      brand: row.brand,
+      variety: row.variety,
+      code: row.code,
+      size_kg: row.sizeKg,
+      sacks: row.sacks,
+    });
+    arrival.total += row.sacks;
+    arrivals.set(key, arrival);
+  };
+  for (const row of containerRows) {
+    add(`container:${row.id}`, {
+      kind: "CONTAINER",
+      date: row.date,
+      container_no: row.containerNo,
+      shipping_company: row.shippingCompany,
+      reference: row.reference,
+      supplier: row.supplier,
+      supplier_kind: row.supplierKind,
+    }, row);
+  }
+  for (const row of localRows) {
+    add(`local:${row.id}`, {
+      kind: "LOCAL",
+      date: row.date,
+      container_no: null,
+      shipping_company: null,
+      reference: row.reference,
+      supplier: row.supplier,
+      supplier_kind: "LOCAL",
+    }, row);
+  }
+  // By day, containers before local deliveries, then by number or reference.
+  return [...arrivals.values()]
+    .map((arrival) => ({
+      ...arrival,
+      lines: arrival.lines.sort((a, b) =>
+        a.brand.localeCompare(b.brand)
+        || (a.variety ?? "").localeCompare(b.variety ?? "")
+        || b.size_kg - a.size_kg),
+    }))
+    .sort((a, b) =>
+      a.date.localeCompare(b.date)
+      || (a.kind === b.kind ? 0 : a.kind === "CONTAINER" ? -1 : 1)
+      || (a.container_no ?? a.reference ?? "").localeCompare(b.container_no ?? b.reference ?? ""));
 }
 
 export async function reportRoutes(app: FastifyInstance): Promise<void> {
@@ -184,7 +305,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   app.get("/reports/inbound", warehouseOnly, async (request) => {
     const query = inboundQuery.parse(request.query);
     assertRange(query);
-    const cells = await receivedCells(query);
+    const [cells, arrivals] = await Promise.all([receivedCells(query), receivedArrivals(query)]);
 
     // Retired products appear only when they still have figures in the period.
     const withFigures = [...new Set(cells.map((cell) => cell.productId))];
@@ -209,6 +330,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     return {
       products,
       cells: cells.map((cell) => ({ product_category_id: cell.productId, date: cell.date, sacks: cell.sacks })),
+      arrivals,
     };
   });
 

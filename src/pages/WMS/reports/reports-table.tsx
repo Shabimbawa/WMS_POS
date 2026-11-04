@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../../../common/items/table/table";
 import type { ReceivingRow } from "../../../queries/types";
 import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
-import { cellText, fmtReportDate, type BrandGrid, type SummaryGrid, type SupplierGroup } from "./report-grid";
+import { cellText, fmtReportDate, type BrandGrid, type GroupedRow, type GroupedSummary, type SupplierGroup } from "./report-grid";
 import { useLanguage, type Translate } from "../../../common/context/language-context";
 
 // Plain text color throughout: black on the light theme, like the sheets.
@@ -111,29 +111,79 @@ export function TimeframeGrid({ grid }: { grid: BrandGrid }) {
   );
 }
 
-type SummaryTableRow = {
-  key: string;
-  brand: string;
-  product: string;
-  total: number;
-  isTotal: boolean;
-};
+/** A grouped row, or the Grand Total at the bottom. */
+type GroupedTableRow = GroupedRow | (Omit<GroupedRow, "kind"> & { kind: "grandTotal" });
 
-export function StockSummaryTable({ grid }: { grid: SummaryGrid }) {
+/**
+ * The stock summary: the brands received, grouped per container or truck
+ * delivery. Over a date range a Date column groups them by day as well.
+ */
+export function GroupedStockTable({ summary, byDay }: { summary: GroupedSummary; byDay: boolean }) {
   const { t } = useLanguage();
-  const columns = useMemo<ColumnDef<SummaryTableRow, any>[]>(() => [
-    { id: "brand", header: t("Brand"), accessorFn: (row) => row.brand, size: 180, meta: { fixed: "left" }, cell: (cell) => <strong>{cell.getValue<string>()}</strong> },
-    { id: "product", header: t("Product"), accessorFn: (row) => row.product, size: 170 },
-    { id: "total", header: () => <div style={{ ...headerStyle, textAlign: "right" }}>{t("Total")}<br />{t("Sacks")}</div>, accessorFn: (row) => row.total, size: 110, meta: { fixed: "right" }, cell: (cell) => <div style={{ textAlign: "right", fontWeight: 700 }}>{fmtInt(cell.getValue<number>())}</div> },
-  ], [grid, t]);
-  const data = useMemo<SummaryTableRow[]>(() => [
-    ...grid.rows.map((row) => ({ key: row.product.id, brand: row.brand, product: row.label, total: row.total, isTotal: false })),
-    { key: "grand-total", brand: t("Grand Total"), product: "", total: grid.grandTotal, isTotal: true },
-  ], [grid, t]);
+  const emphasis = (row: GroupedTableRow) => row.kind !== "line";
+  const columns = useMemo<ColumnDef<GroupedTableRow, any>[]>(() => [
+    ...(byDay ? [{
+      id: "date",
+      header: t("Date"),
+      accessorFn: (row: GroupedTableRow) => row.date,
+      size: 110,
+      meta: { fixed: "left" as const },
+      cell: (cell: { getValue: <V>() => V }) => {
+        const date = cell.getValue<string | null>();
+        return date ? <strong style={{ whiteSpace: "nowrap" }}>{fmtReportDate(date)}</strong> : null;
+      },
+    }] : []),
+    {
+      id: "group",
+      header: t("Container / delivery"),
+      accessorFn: (row) => row.group?.name ?? "",
+      size: 260,
+      cell: (cell) => {
+        const group = cell.row.original.group;
+        if (!group) return null;
+        return (
+          <div style={{ display: "grid", gap: 2 }}>
+            <strong style={{ fontFamily: group.truck ? undefined : "var(--mono)" }}>{group.name}</strong>
+            {group.detail && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{group.detail}</Typography.Text>}
+          </div>
+        );
+      },
+    },
+    {
+      id: "brand",
+      header: t("Brand"),
+      accessorFn: (row) => row.brand,
+      size: 160,
+      cell: (cell) => emphasis(cell.row.original) ? null : cell.getValue<string>(),
+    },
+    {
+      id: "product",
+      header: t("Product"),
+      accessorFn: (row) => row.product,
+      size: 180,
+      cell: (cell) => emphasis(cell.row.original) ? <strong>{cell.getValue<string>()}</strong> : cell.getValue<string>(),
+    },
+    {
+      id: "sacks",
+      header: () => <div style={{ ...headerStyle, textAlign: "right" }}>{t("Sacks")}</div>,
+      accessorFn: (row) => row.sacks,
+      size: 110,
+      meta: { fixed: "right" },
+      cell: (cell) => (
+        <div style={{ textAlign: "right", fontWeight: emphasis(cell.row.original) ? 700 : 400 }}>
+          {fmtInt(cell.getValue<number>())}
+        </div>
+      ),
+    },
+  ], [byDay, t]);
+  const data = useMemo<GroupedTableRow[]>(() => [
+    ...summary.rows,
+    { key: "grand-total", kind: "grandTotal", date: null, group: null, brand: "", product: t("Grand Total"), sacks: summary.grandTotal },
+  ], [summary, t]);
   return (
     <div>
-      <SectionTitle title={t("Stock summary")} subtitle={t("All brands and products in one table")} />
-      {grid.columns.length ? <DataTable data={data} columns={columns} /> : <Flex justify="center" style={{ padding: 16 }}><Typography.Text type="secondary">{t("Nothing received in this period")}</Typography.Text></Flex>}
+      <SectionTitle title={t("Stock summary")} subtitle={t("Brands received, grouped per container or truck delivery")} />
+      <DataTable data={data} columns={columns} />
     </div>
   );
 }

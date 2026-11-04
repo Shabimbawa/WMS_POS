@@ -668,10 +668,31 @@ interface ReportRange {
 export interface InboundReportParams extends ReportRange {}
 
 /** Inbound sacks per product per arrival day; quiet days are absent. */
+/**
+ * One unloaded container or local truck delivery in the stock summary, with
+ * the products it brought (counted sacks).
+ */
+export interface InboundArrival {
+  key: string;
+  kind: "CONTAINER" | "LOCAL";
+  /** Unload date, or date received for a truck delivery. */
+  date: string;
+  container_no: string | null;
+  shipping_company: string | null;
+  /** Packing list reference, or the delivery receipt for a truck delivery. */
+  reference: string | null;
+  supplier: string;
+  supplier_kind: SupplierKind;
+  lines: (Omit<ProductLabel, "id"> & { product_category_id: string; sacks: number })[];
+  total: number;
+}
+
 export interface InboundReport {
   /** Every product the grid should list, quiet ones included. */
   products: ProductLabel[];
   cells: { product_category_id: string; date: string; sacks: number }[];
+  /** The same stock, per container or truck delivery. */
+  arrivals: InboundArrival[];
 }
 
 export interface ReceivingParams extends ReportRange {}

@@ -33,10 +33,10 @@ import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
 import { printReport, type PrintableReport } from "./print-report";
 import {
   buildGrids,
-  combineGrids,
+  buildGroupedSummary,
   fmtReportDate,
   granularityFor,
-  summaryGridPrintSection,
+  groupedSummaryPrintSection,
   groupBySupplier,
   receivingSummaryPrintSection,
   type Granularity,
@@ -45,7 +45,7 @@ import {
   today,
   toIsoDate,
 } from "./report-period";
-import { ReceivingSummaryTable, StockSummaryTable } from "./reports-table";
+import { GroupedStockTable, ReceivingSummaryTable } from "./reports-table";
 import { useLanguage } from "../../../common/context/language-context";
 
 const { RangePicker } = DatePicker;
@@ -58,7 +58,7 @@ const REPORT_OPTIONS: { label: string; value: ReportType; description: string }[
     label: "Stock summary",
     value: "stock",
     description:
-      "See how many sacks were received in the selected dates, grouped by brand and product size. Use this for stock trends and receiving totals.",
+      "See the brands received in the selected dates, grouped per container or truck delivery.",
   },
   {
     label: "Receiving detail",
@@ -127,7 +127,15 @@ export default function ReportsPage() {
   const { t, language } = useLanguage();
   const [reportType, setReportType] = useState<ReportType>("stock");
   const [source, setSource] = useState<SourceFilter>("ALL");
-  const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>(() => [today().startOf("month"), today()]);
+  // Daily (the default, set to today) is the everyday summary; Date range
+  // covers longer periods.
+  const [periodMode, setPeriodMode] = useState<"daily" | "range">("daily");
+  const [dailyDate, setDailyDate] = useState<Dayjs>(today);
+  const [rangeDates, setRangeDates] = useState<[Dayjs, Dayjs]>(() => [today().startOf("month"), today()]);
+  const reportRange = useMemo<[Dayjs, Dayjs]>(
+    () => (periodMode === "daily" ? [dailyDate, dailyDate] : rangeDates),
+    [periodMode, dailyDate, rangeDates],
+  );
   // Picked filter entries: product IDs (one size each, as when registering a
   // shipment) or "all:<brand variety>" for every size of a product.
   const [productPicks, setProductPicks] = useState<string[]>([]);
@@ -232,7 +240,9 @@ export default function ReportsPage() {
 
   const generate = () => {
     const [from, to] = reportRange;
-    const dateLine = `${t("Date range")}: ${fmtReportDate(toIsoDate(from))} – ${fmtReportDate(toIsoDate(to))}`;
+    const dateLine = periodMode === "daily"
+      ? `${t("Date")}: ${fmtReportDate(toIsoDate(from))}`
+      : `${t("Date range")}: ${fmtReportDate(toIsoDate(from))} – ${fmtReportDate(toIsoDate(to))}`;
     if (reportType === "stock") {
       const subtitle = [
         dateLine,
@@ -292,7 +302,12 @@ export default function ReportsPage() {
         : [],
     [applied, inbound.data],
   );
-  const summaryGrid = useMemo(() => combineGrids(grids), [grids]);
+  // A Date column is only needed when the report can span several days.
+  const groupByDay = applied?.type === "stock" && applied.params.dateFrom !== applied.params.dateTo;
+  const grouped = useMemo(
+    () => buildGroupedSummary(applied?.type === "stock" ? inbound.data?.arrivals ?? [] : [], groupByDay, t),
+    [applied, inbound.data, groupByDay, t],
+  );
   const supplierGroups = useMemo(
     () => (applied?.type === "receiving" && receiving.data ? groupBySupplier(receiving.data) : []),
     [applied, receiving.data],
@@ -306,8 +321,7 @@ export default function ReportsPage() {
         ? {
           title: t("Stock Summary (Inbound)"),
           subtitle: applied.subtitle,
-          sections: [summaryGridPrintSection(summaryGrid, t)],
-          pagePerSection: true,
+          sections: [groupedSummaryPrintSection(grouped, groupByDay, t)],
           language,
         }
         : {
@@ -336,7 +350,9 @@ export default function ReportsPage() {
     setSupplierIds([]);
     setShipmentIds([]);
     setProductPicks([]);
-    setReportRange([today().startOf("month"), today()]);
+    setPeriodMode("daily");
+    setDailyDate(today());
+    setRangeDates([today().startOf("month"), today()]);
   };
 
   return (
@@ -377,16 +393,35 @@ export default function ReportsPage() {
 
           <div className="report-filter-grid">
             <Form.Item
-              label={t("Date range")}
+              label={t("Period")}
               style={{ marginBottom: 0 }}
-              extra={t("Only stock received inside these dates is included.")}
+              extra={t(periodMode === "daily" ? "Stock received on this day." : "Only stock received inside these dates is included.")}
             >
-              <RangePicker
-                value={reportRange}
-                allowClear={false}
-                format="MM/DD/YYYY"
-                onChange={(value) => value?.[0] && value[1] && setReportRange([value[0], value[1]])}
-              />
+              <Flex gap={8} wrap>
+                <Segmented
+                  value={periodMode}
+                  onChange={(value) => setPeriodMode(value as "daily" | "range")}
+                  options={[
+                    { label: t("Daily"), value: "daily" },
+                    { label: t("Date range"), value: "range" },
+                  ]}
+                />
+                {periodMode === "daily" ? (
+                  <DatePicker
+                    value={dailyDate}
+                    allowClear={false}
+                    format="MM/DD/YYYY"
+                    onChange={(value) => value && setDailyDate(value)}
+                  />
+                ) : (
+                  <RangePicker
+                    value={rangeDates}
+                    allowClear={false}
+                    format="MM/DD/YYYY"
+                    onChange={(value) => value?.[0] && value[1] && setRangeDates([value[0], value[1]])}
+                  />
+                )}
+              </Flex>
             </Form.Item>
             <Form.Item label={t("Suppliers")} extra={t("Optional · choose one or more suppliers.")} style={{ marginBottom: 0 }}>
               <Select
@@ -501,6 +536,7 @@ export default function ReportsPage() {
           <Card size="small">
             {applied.type === "stock" ? (
               <Flex wrap gap={32} align="center">
+                <Statistic title={t("Containers & deliveries")} value={grouped.arrivals} />
                 <Statistic title={t("Brands")} value={grids.length} />
                 <Statistic title={t(applied.granularity === "day" ? "Days with arrivals" : "Months with arrivals")} value={activeColumns} />
                 <Statistic title={t("Sacks received")} value={fmtInt(grandTotal)} />
@@ -521,7 +557,7 @@ export default function ReportsPage() {
             )}
           </Card>
           {applied.type === "stock"
-            ? <Card size="small"><StockSummaryTable grid={summaryGrid} /></Card>
+            ? <Card size="small"><GroupedStockTable summary={grouped} byDay={groupByDay} /></Card>
             : <Card size="small"><ReceivingSummaryTable groups={supplierGroups} /></Card>}
         </Space>
       )}
