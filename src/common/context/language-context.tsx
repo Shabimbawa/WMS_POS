@@ -116,6 +116,7 @@ const zh: Record<string, string> = {
   'Note': '备注',
   'Notes': '备注',
   'Reason': '原因',
+  'Reason (optional)': '原因（选填）',
   'Product': '产品',
   'Products': '产品',
   'Brand': '品牌',

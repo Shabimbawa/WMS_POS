@@ -553,7 +553,7 @@ export type BulkContainerStep =
   | { action: "DELIVER"; date: string; setOwnTruckIds: string[] }
   /** Unloads as all matched: declared quantities, no discrepancies. */
   | { action: "UNLOAD"; date: string }
-  | { action: "MOVE_BACK"; status: MoveContainerBackInput["status"]; reason: string };
+  | { action: "MOVE_BACK"; status: MoveContainerBackInput["status"]; reason?: string };
 
 export type BulkContainerResult = {
   done: number;

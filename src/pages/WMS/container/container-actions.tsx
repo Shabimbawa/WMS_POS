@@ -50,7 +50,7 @@ type DateValues = {
 
 type MoveBackValues = {
   status: MoveContainerBackInput["status"];
-  reason: string;
+  reason?: string;
 };
 
 type HaulingValues = {
@@ -108,11 +108,7 @@ function MoveBackFields({
           style={{ marginBottom: 24 }}
         />
       )}
-      <Form.Item
-        name="reason"
-        label={t("Reason")}
-        rules={[{ required: true, whitespace: true, message: t("Enter a reason") }]}
-      >
+      <Form.Item name="reason" label={t("Reason (optional)")}>
         <Input.TextArea rows={3} maxLength={2000} placeholder={t("e.g. Marked by mistake")} />
       </Form.Item>
     </>
@@ -313,7 +309,8 @@ export function ContainerActions({
     const input = {
       containerId: container.id,
       status: v.status,
-      reason: v.reason.trim(),
+      // Blank is fine; the API records it as "No reason given".
+      reason: v.reason?.trim() || undefined,
       allowNegativeInventory,
     };
     try {
@@ -431,23 +428,14 @@ export function ContainerActions({
         </Button>
       </Tooltip>
     ) : container.status === "ARRIVED_AT_PORT" ? (
-      <Popconfirm
-        disabled={!haulingUnset}
-        title={t("Hauling was not set")}
-        description={t("It will be set to own truck.")}
-        okText={t("Set own truck and deliver")}
-        cancelText={t("Cancel")}
-        onConfirm={markDelivered}
+      // One click: unset hauling becomes own truck without asking.
+      <Button
+        type="primary"
+        loading={updateStatus.isPending || updateHauling.isPending}
+        onClick={markDelivered}
       >
-        <Button
-          type="primary"
-          loading={updateStatus.isPending || updateHauling.isPending}
-          // With hauling unset the click only opens the prompt above.
-          onClick={haulingUnset ? undefined : markDelivered}
-        >
-          {t("Mark delivered")}
-        </Button>
-      </Popconfirm>
+        {t("Mark delivered")}
+      </Button>
     ) : container.status === "DELIVERED" ? (
       <Tooltip title={deliveredLater ? t("The delivered date is after today. Correct it with Edit dates first.") : undefined}>
         <Popconfirm
@@ -460,7 +448,10 @@ export function ContainerActions({
           // clicking outside, so dismissing never unloads by accident.
           onConfirm={() => navigate(`/containers/${container.id}/unload`)}
           onCancel={unloadMatched}
-          cancelButtonProps={{ loading: unload.isPending }}
+          // Colored so the two answers can't be mistaken: green for "all
+          // good, unload now", orange for "there's a problem to resolve".
+          okButtonProps={{ color: "orange", variant: "solid" }}
+          cancelButtonProps={{ color: "green", variant: "solid", loading: unload.isPending }}
         >
           <Button type="primary" disabled={deliveredLater} loading={unload.isPending}>
             {t("Unload")}

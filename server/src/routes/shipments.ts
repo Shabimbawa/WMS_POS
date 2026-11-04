@@ -94,7 +94,9 @@ const containerDatesBody = z
   );
 const moveBackBody = z.object({
   status: z.enum(["DOCUMENTED", "ARRIVED_AT_PORT", "DELIVERED"]),
-  reason: z.string().trim().min(1).max(2_000),
+  // Optional: a mis-click needs no explanation. A blank reason is recorded
+  // as "No reason given" so the audit log and stock notes read cleanly.
+  reason: z.string().trim().max(2_000).optional().transform((value) => value || "No reason given"),
   allowNegativeInventory: z.boolean().default(false),
 });
 const cancelBody = z.object({ reason: z.string().trim().min(1).max(1_000) });

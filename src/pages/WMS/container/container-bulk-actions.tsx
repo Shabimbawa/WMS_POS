@@ -10,7 +10,7 @@ import { STATUS_LABEL } from "../type-format/format";
 import { useLanguage } from "../../../common/context/language-context";
 
 type MoveBackTarget = MoveContainerBackInput["status"];
-type MoveBackValues = { status: MoveBackTarget; reason: string };
+type MoveBackValues = { status: MoveBackTarget; reason?: string };
 
 /** A primary mass action that always asks before it runs. */
 function ConfirmStep({
@@ -104,12 +104,7 @@ function MoveBackFields({
           style={{ marginBottom: 12 }}
         />
       )}
-      <Form.Item
-        name="reason"
-        label={t("Reason")}
-        rules={[{ required: true, whitespace: true, message: t("Enter a reason") }]}
-        style={{ marginTop: 12 }}
-      >
+      <Form.Item name="reason" label={t("Reason (optional)")} style={{ marginTop: 12 }}>
         <Input.TextArea rows={3} maxLength={2000} placeholder={t("e.g. Marked by mistake")} />
       </Form.Item>
     </>
@@ -169,7 +164,7 @@ export function ContainerBulkActions({
           .map((c) => c.id);
         const result = await run(
           ids,
-          { action: "MOVE_BACK", status: v.status, reason: v.reason.trim() },
+          { action: "MOVE_BACK", status: v.status, reason: v.reason?.trim() || undefined },
           "{count} containers moved back to {status}",
           { status: t(STATUS_LABEL[v.status]) },
         );
@@ -213,13 +208,11 @@ export function ContainerBulkActions({
         label={t("Mark delivered")}
         count={total}
         loading={busy === "DELIVER"}
-        title={haulingUnset.length
-          ? t("{count} of {total} have no hauling set", { count: haulingUnset.length, total })
-          : t("Mark {count} containers delivered?", { count: total })}
-        description={haulingUnset.length
-          ? t("They will be set to own truck.")
-          : t("They are recorded as delivered today.")}
-        okText={haulingUnset.length ? t("Set own truck and deliver") : t("Mark delivered")}
+        // Still confirmed, as every mass step is, but without the hauling
+        // warning: unset hauling quietly becomes own truck.
+        title={t("Mark {count} containers delivered?", { count: total })}
+        description={t("They are recorded as delivered today.")}
+        okText={t("Mark delivered")}
         onConfirm={() => run(
           containers.map((c) => c.id),
           { action: "DELIVER", date: today, setOwnTruckIds: haulingUnset },

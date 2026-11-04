@@ -399,7 +399,8 @@ export type UpdateContainerDatesInput = {
 export type MoveContainerBackInput = {
   containerId: string;
   status: "DOCUMENTED" | "ARRIVED_AT_PORT" | "DELIVERED";
-  reason: string;
+  /** Optional; the API records a blank one as "No reason given". */
+  reason?: string;
   allowNegativeInventory?: boolean;
 };
 
