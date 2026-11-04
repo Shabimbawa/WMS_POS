@@ -122,6 +122,7 @@ export default function CreateDeliveryPage() {
     editing ? dayjs(editing.date_received) : dayjs(),
   );
   const [reference, setReference] = useState(editing?.reference ?? "");
+  const [notes, setNotes] = useState(editing?.notes ?? "");
   const [items, setItems] = useState<DraftItem[]>(() =>
     (editing?.items ?? []).map((item) => ({
       key: item.id,
@@ -226,6 +227,8 @@ export default function CreateDeliveryPage() {
       supplierId,
       dateReceived: dateReceived.format("YYYY-MM-DD"),
       reference: reference.trim() || null,
+      // Sent on edits too: clearing the box clears the saved note.
+      notes: notes.trim() || null,
       // the client-side key is not part of the payload
       items: items.map((item) => ({
         product_category_id: item.product_category_id,
@@ -343,6 +346,21 @@ export default function CreateDeliveryPage() {
             </Form.Item>
           </Form>
         </Flex>
+        <Form layout="vertical" style={{ marginTop: 12 }}>
+          {/* Room below for the character count. */}
+          <Form.Item label={t("Notes (optional)")} style={{ marginBottom: 12 }}>
+            <Input.TextArea
+              rows={2}
+              maxLength={2000}
+              showCount
+              value={notes}
+              onChange={(e) => {
+                setDirty(true);
+                setNotes(e.target.value);
+              }}
+            />
+          </Form.Item>
+        </Form>
       </Card>
 
       <Card
