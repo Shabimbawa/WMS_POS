@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, DatePicker, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Typography, message } from "antd";
-import type { GetRef, RefSelectProps } from "antd";
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import type { GetRef, InputRef, RefSelectProps } from "antd";
+import { CopyOutlined, DeleteOutlined, PlusOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -18,6 +18,9 @@ const newKey = () => crypto.randomUUID();
 /** Compared without spaces or dashes, so "ABCU 123" and "ABCU-123" are the same box. */
 const normalizeNo = (value: string | null) => (value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const blankContainer = (): DraftContainer => ({ key: newKey(), container_no: null, shipping_company_id: "", notes: null, items: [] });
+/** Quick setup's paste box: one container number per line, blank lines ignored. */
+const parseNumbers = (text: string) => text.split(/\r?\n/).map((line) => line.trim().toUpperCase()).filter(Boolean);
+const hasEntries = (c: DraftContainer) => Boolean(c.container_no?.trim() || c.notes?.trim() || c.items.length);
 
 export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: "INTERNATIONAL" | "NATIONAL" }) {
   const { t } = useLanguage();
@@ -52,14 +55,36 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   // product picker for the next product.
   const pickerRefs = useRef(new Map<string, RefSelectProps>());
   const qtyRefs = useRef(new Map<string, GetRef<typeof InputNumber>>());
+  const numberRefs = useRef(new Map<string, InputRef>());
+  const submitRef = useRef<HTMLButtonElement>(null);
   const focusQtyOf = useRef<string | null>(null);
+  // Focus asked for before the target exists (e.g. cards quick setup is
+  // about to create); applied after the next render.
+  const pendingFocus = useRef<(() => void) | null>(null);
   useEffect(() => {
     const itemKey = focusQtyOf.current;
-    if (!itemKey) return;
-    focusQtyOf.current = null;
-    // Next frame, once the picker has finished closing its list.
-    requestAnimationFrame(() => qtyRefs.current.get(itemKey)?.focus({ cursor: "all" }));
+    if (itemKey) {
+      focusQtyOf.current = null;
+      // Next frame, once the picker has finished closing its list.
+      requestAnimationFrame(() => qtyRefs.current.get(itemKey)?.focus({ cursor: "all" }));
+    }
+    const focus = pendingFocus.current;
+    if (focus) {
+      pendingFocus.current = null;
+      requestAnimationFrame(focus);
+    }
   });
+  /** A card's first empty spot: its number if it has none, else the product picker. */
+  const focusContainer = (container: DraftContainer) => {
+    if (!container.container_no?.trim()) numberRefs.current.get(container.key)?.focus();
+    else pickerRefs.current.get(container.key)?.focus();
+  };
+  /** Ctrl+Enter: on to the next card, or to Submit after the last one. */
+  const goToNextContainer = (index: number) => {
+    const next = containers[index + 1];
+    if (next) focusContainer(next);
+    else submitRef.current?.focus();
+  };
   const tabFromPrice = (event: React.KeyboardEvent, container: DraftContainer, rowIndex: number) => {
     if (event.key !== "Tab" || event.shiftKey) return;
     event.preventDefault();
@@ -73,9 +98,18 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   const addItem = (container: DraftContainer, productId: string) => {
     const key = newKey();
     focusQtyOf.current = key;
+    // Price memory: reuse the latest price already entered for this product
+    // anywhere in the shipment. It stays editable.
+    const rememberedPrice = containers.flatMap((c) => c.items).reverse()
+      .find((item) => item.product_category_id === productId && item.price_per_sack !== null)?.price_per_sack ?? null;
     updateContainer(container.key, {
-      items: [...container.items, { key, product_category_id: productId, qty_sacks: 1, price_per_sack: null }],
+      items: [...container.items, { key, product_category_id: productId, qty_sacks: 1, price_per_sack: rememberedPrice }],
     });
+  };
+  /** Copies the previous card's product rows (sacks and prices included). */
+  const copyItemsFrom = (source: DraftContainer, target: DraftContainer) => {
+    updateContainer(target.key, { items: source.items.map((item) => ({ ...item, key: newKey() })) });
+    pendingFocus.current = () => pickerRefs.current.get(target.key)?.focus();
   };
   const removeItem = (container: DraftContainer, itemKey: string) => updateContainer(container.key, { items: container.items.filter((row) => row.key !== itemKey) });
   const productLabel = (productId: string) => productOptions.find((option) => option.value === productId)?.label ?? productId;
@@ -93,17 +127,59 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
   };
   const addContainer = () => setContainers((current) => [...current, blankContainer()]);
 
+  /** The shipping company whose code (longest match wins) prefixes the number. */
+  const companyForNumber = (containerNo: string): string | undefined => {
+    const normalized = normalizeNo(containerNo);
+    if (!normalized) return undefined;
+    return shippingCompanies.flatMap((company) => {
+      const codes = company.codes?.length ? company.codes : company.code ? [company.code] : [];
+      return codes.map((code) => ({ id: company.id, code: normalizeNo(code) }));
+    }).filter(({ code }) => code && normalized.startsWith(code)).sort((a, b) => b.code.length - a.code.length)[0]?.id;
+  };
   const detectShippingCompany = (containerKey: string, containerNo: string) => {
-    const normalized = containerNo.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (!normalized) {
+    if (!normalizeNo(containerNo)) {
       updateContainer(containerKey, { container_no: null, shipping_company_id: "" });
       return;
     }
-    const match = shippingCompanies.flatMap((company) => {
-      const codes = company.codes?.length ? company.codes : company.code ? [company.code] : [];
-      return codes.map((code) => ({ id: company.id, code: code.toUpperCase().replace(/[^A-Z0-9]/g, "") }));
-    }).filter(({ code }) => code && normalized.startsWith(code)).sort((a, b) => b.code.length - a.code.length)[0];
-    updateContainer(containerKey, { container_no: containerNo.trim() || null, ...(match ? { shipping_company_id: match.id } : {}) });
+    const companyId = companyForNumber(containerNo);
+    updateContainer(containerKey, { container_no: containerNo.trim() || null, ...(companyId ? { shipping_company_id: companyId } : {}) });
+  };
+
+  // ---- quick setup (new shipments only) ----
+  // Enter a count and/or paste the numbers, and the container cards are
+  // built in one go instead of clicking Add container for each.
+  const [setupCount, setSetupCount] = useState<number | null>(null);
+  const [setupNumbers, setSetupNumbers] = useState("");
+  const pastedNumbers = parseNumbers(setupNumbers);
+  const setupTarget = Math.max(setupCount ?? 0, pastedNumbers.length);
+  const applyQuickSetup = () => {
+    if (setupTarget < 1) return;
+    const build = () => {
+      // Existing cards keep everything entered on them; a pasted number
+      // fills (or replaces) the number on the card in the same position.
+      const next = Array.from({ length: setupTarget }, (_, i) => {
+        const base = containers[i] ?? blankContainer();
+        const no = pastedNumbers[i];
+        if (!no) return base;
+        return { ...base, container_no: no, shipping_company_id: companyForNumber(no) ?? base.shipping_company_id };
+      });
+      setContainers(next);
+      setSetupCount(null);
+      setSetupNumbers("");
+      pendingFocus.current = () => { if (next[0]) focusContainer(next[0]); };
+    };
+    // Fewer containers than cards: the extra cards come off the end, and
+    // only after a confirm if anything was entered on them.
+    const dropped = containers.slice(setupTarget).filter(hasEntries);
+    if (!dropped.length) return build();
+    Modal.confirm({
+      title: t("Remove {count} container(s)?", { count: containers.length - setupTarget }),
+      content: t("Cards after container {index} have entries that will be lost.", { index: setupTarget }),
+      okText: t("Remove"),
+      okButtonProps: { danger: true },
+      cancelText: t("Keep them"),
+      onOk: build,
+    });
   };
 
   // Container numbers repeated within this shipment.
@@ -183,14 +259,48 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
       </div></Form>
     </Card>
 
+    {!isEditing && <Card size="small" title={<Flex gap={8} align="center"><ThunderboltOutlined /><span>{t("Quick setup")}</span></Flex>}>
+      <Flex gap={12} wrap align="start">
+        <label style={{ display: "grid", gap: 5 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t("Number of containers")}</Typography.Text>
+          <InputNumber min={1} max={200} precision={0} value={setupCount} placeholder="0" style={{ width: 140 }} onChange={setSetupCount} onPressEnter={applyQuickSetup} />
+        </label>
+        <label style={{ display: "grid", gap: 5, flex: 1, minWidth: 260 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t("Container numbers (optional): paste or type one per line")}</Typography.Text>
+          <Input.TextArea
+            rows={3}
+            value={setupNumbers}
+            placeholder={"ABCU1234567\nABCU7654321"}
+            style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }}
+            onChange={(event) => setSetupNumbers(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); applyQuickSetup(); } }}
+          />
+        </label>
+        <Flex vertical gap={5} style={{ alignSelf: "end" }}>
+          <Button type="primary" icon={<ThunderboltOutlined />} disabled={setupTarget < 1} onClick={applyQuickSetup}>
+            {setupTarget > 0 ? t("Set up {count} container(s)", { count: setupTarget }) : t("Set up containers")}
+          </Button>
+        </Flex>
+      </Flex>
+      <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, marginTop: 8 }}>
+        {t("Enter in the count box or Ctrl+Enter in the numbers box sets up the cards. Then, in any card, Ctrl+Enter jumps to the next container.")}
+      </Typography.Text>
+    </Card>}
+
     <Flex vertical gap={10}>
       {containers.map((container, index) => {
         const labels = rowLabels(container);
-        return <Card key={container.key} size="small" className="shipment-entry-card" title={<Flex gap={8} align="center"><span className="shipment-entry-index">{index + 1}</span><span>{t("Container")}</span></Flex>} extra={<Popconfirm title={t("Remove this container?")} description={t("Its product rows are removed with it.")} okText={t("Remove")} okButtonProps={{ danger: true }} onConfirm={() => setContainers((current) => current.filter((item) => item.key !== container.key))}><Button type="text" danger icon={<DeleteOutlined />}>{t("Remove")}</Button></Popconfirm>}>
+        const previous = containers[index - 1];
+        return <div key={container.key} onKeyDownCapture={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.stopPropagation(); goToNextContainer(index); } }}><Card size="small" className="shipment-entry-card" title={<Flex gap={8} align="center"><span className="shipment-entry-index">{index + 1}</span><span>{t("Container")}</span></Flex>} extra={<Flex gap={4}>{previous && previous.items.length > 0 && (container.items.length === 0
+          ? <Button type="text" icon={<CopyOutlined />} onClick={() => copyItemsFrom(previous, container)}>{t("Same products as container {index}", { index })}</Button>
+          : <Popconfirm title={t("Replace this container's products?")} description={t("Its rows are replaced with container {index}'s.", { index })} okText={t("Replace")} onConfirm={() => copyItemsFrom(previous, container)}><Button type="text" icon={<CopyOutlined />}>{t("Same products as container {index}", { index })}</Button></Popconfirm>)}<Popconfirm title={t("Remove this container?")} description={t("Its product rows are removed with it.")} okText={t("Remove")} okButtonProps={{ danger: true }} onConfirm={() => setContainers((current) => current.filter((item) => item.key !== container.key))}><Button type="text" danger icon={<DeleteOutlined />}>{t("Remove")}</Button></Popconfirm></Flex>}>
           <div className="shipment-container-fields">
-            <label><span className="shipment-required-label">{t("Container no.")}</span><Input status={!container.container_no?.trim() || duplicateOf.has(container.key) || onOtherShipment.has(container.key) ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} />{duplicateOf.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Same number as container {index}", { index: duplicateOf.get(container.key)! })}</Typography.Text>}{onOtherShipment.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Already on an active shipment: {supplier}, list received {date}", { supplier: onOtherShipment.get(container.key)!.supplier, date: dayjs(onOtherShipment.get(container.key)!.date_list_received).format("MMMM DD, YYYY") })}</Typography.Text>}</label>
+            <label><span className="shipment-required-label">{t("Container no.")}</span><Input ref={(input) => { if (input) numberRefs.current.set(container.key, input); else numberRefs.current.delete(container.key); }} onPressEnter={() => pickerRefs.current.get(container.key)?.focus()} status={!container.container_no?.trim() || duplicateOf.has(container.key) || onOtherShipment.has(container.key) ? "error" : undefined} value={container.container_no ?? ""} placeholder={t("Enter container number")} style={{ fontFamily: "var(--mono)", textTransform: "uppercase" }} onChange={(event) => detectShippingCompany(container.key, event.target.value.toUpperCase())} />{duplicateOf.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Same number as container {index}", { index: duplicateOf.get(container.key)! })}</Typography.Text>}{onOtherShipment.has(container.key) && <Typography.Text type="danger" style={{ fontSize: 12 }}>{t("Already on an active shipment: {supplier}, list received {date}", { supplier: onOtherShipment.get(container.key)!.supplier, date: dayjs(onOtherShipment.get(container.key)!.date_list_received).format("MMMM DD, YYYY") })}</Typography.Text>}</label>
             <label><span>{t("Shipping company")}</span><Select value={container.shipping_company_id || undefined} showSearch optionFilterProp="label" placeholder={t("Select shipping company")} loading={loadingShipping} options={shippingOptions} onChange={(value) => updateContainer(container.key, { shipping_company_id: value })} /></label>
-            <label className="shipment-container-notes"><span>{t("Notes (optional)")}</span><Input.TextArea rows={2} maxLength={2000} showCount value={container.notes ?? ""} placeholder={t("Add notes about this container")} onChange={(event) => updateContainer(container.key, { notes: event.target.value })} /></label>
+            {/* Notes are rarely used, so they sit behind a link and add no Tab stop until opened. */}
+            {container.notes === null
+              ? <div className="shipment-container-notes"><Button type="link" size="small" style={{ padding: 0 }} tabIndex={-1} icon={<PlusOutlined />} onClick={() => { updateContainer(container.key, { notes: "" }); }}>{t("Add note")}</Button></div>
+              : <label className="shipment-container-notes"><span>{t("Notes (optional)")}</span><Input.TextArea autoFocus={!container.notes} rows={2} maxLength={2000} showCount value={container.notes} placeholder={t("Add notes about this container")} onChange={(event) => updateContainer(container.key, { notes: event.target.value })} /></label>}
           </div>
           <div className="shipment-item-editor">
             <label className="shipment-product-picker"><span>{t("Products")}</span><Select<string | null>
@@ -219,7 +329,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
               <Button type="text" danger aria-label={t("Remove product")} icon={<DeleteOutlined />} onClick={() => removeItem(container, item.key)} />
             </div>)}
           </div>
-        </Card>;
+        </Card></div>;
       })}
       <Button type="dashed" className="shipment-add-container" icon={<PlusOutlined />} onClick={addContainer}>{t("Add container")}</Button>
     </Flex>
@@ -229,7 +339,7 @@ export default function CreateShipmentPage({ kind = "INTERNATIONAL" }: { kind?: 
 
     <Flex justify="space-between" align="center" gap={12} wrap className="shipment-register-footer">
       <Typography.Text type="secondary">{!containers.length ? t("Add at least one container to continue.") : hasDuplicates ? t("Fix the repeated container numbers to continue.") : !isComplete ? t("Complete all required container and product fields.") : t("Ready to submit.")}</Typography.Text>
-      <Flex gap={8}><Button onClick={cancel}>{t("Cancel")}</Button><Button type="primary" disabled={!isComplete} loading={createShipment.isPending || updateShipment.isPending} onClick={() => submit()}>{t(isEditing ? "Save changes" : "Submit shipment")}</Button></Flex>
+      <Flex gap={8}><Button onClick={cancel}>{t("Cancel")}</Button><Button ref={submitRef} type="primary" disabled={!isComplete} loading={createShipment.isPending || updateShipment.isPending} onClick={() => submit()}>{t(isEditing ? "Save changes" : "Submit shipment")}</Button></Flex>
     </Flex>
   </div>;
 }
