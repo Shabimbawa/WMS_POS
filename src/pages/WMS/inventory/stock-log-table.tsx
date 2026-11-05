@@ -83,9 +83,9 @@ export const stockLogColumns = (translate: Translate): ColumnDef<StockLogRow, an
   {
     id: "weight_kg",
     header: "Weight",
-    accessorFn: (r) => Math.abs(r.quantity_delta) * r.size_kg,
+    accessorFn: (r) => r.size_kg === null ? null : Math.abs(r.quantity_delta) * r.size_kg,
     size: 120,
-    cell: (c) => fmtKg(c.getValue<number>()),
+    cell: (c) => c.getValue<number | null>() === null ? "—" : fmtKg(c.getValue<number>()),
   },
   {
     id: "source",

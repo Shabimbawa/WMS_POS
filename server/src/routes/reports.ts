@@ -199,7 +199,7 @@ async function receivedArrivals(query: InboundQuery) {
     reference: string | null;
     supplier: string;
     supplier_kind: "INTERNATIONAL" | "NATIONAL" | "LOCAL";
-    lines: { product_category_id: string; brand: string; variety: string | null; code: string | null; size_kg: number; sacks: number }[];
+    lines: { product_category_id: string; brand: string; variety: string | null; code: string | null; size_kg: number | null; sacks: number }[];
     total: number;
   };
   const arrivals = new Map<string, Arrival>();
@@ -246,7 +246,9 @@ async function receivedArrivals(query: InboundQuery) {
       lines: arrival.lines.sort((a, b) =>
         a.brand.localeCompare(b.brand)
         || (a.variety ?? "").localeCompare(b.variety ?? "")
-        || b.size_kg - a.size_kg),
+        // Largest size first; products without one last.
+        || Number(a.size_kg === null) - Number(b.size_kg === null)
+        || (b.size_kg ?? 0) - (a.size_kg ?? 0)),
     }))
     .sort((a, b) =>
       a.date.localeCompare(b.date)
@@ -325,7 +327,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
             ? sql`(${productCategories.isActive} or ${inArray(productCategories.id, withFigures)})`
             : eq(productCategories.isActive, true),
       )
-      .orderBy(asc(productCategories.brand), asc(productCategories.variety), desc(productCategories.sizeKg));
+      .orderBy(asc(productCategories.brand), asc(productCategories.variety), sql`${productCategories.sizeKg} desc nulls last`);
 
     return {
       products,
@@ -421,6 +423,8 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       a.supplier.localeCompare(b.supplier)
       || a.date.localeCompare(b.date)
       || a.brand.localeCompare(b.brand)
-      || a.size_kg - b.size_kg);
+      // Products without a size after the sized ones.
+      || Number(a.size_kg === null) - Number(b.size_kg === null)
+      || (a.size_kg ?? 0) - (b.size_kg ?? 0));
   });
 }

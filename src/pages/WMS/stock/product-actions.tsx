@@ -24,7 +24,7 @@ export type ProductValues = {
   brand: string;
   variety?: string;
   code?: string;
-  sizeKg: number;
+  sizeKg?: number | null;
   isAvailable: boolean;
   sellingPrice?: number | null;
 };
@@ -33,11 +33,12 @@ export type ProductValues = {
 const trimmed = (v: string | undefined) => v?.trim() || null;
 
 /**
- * Shared by Add Product and the row editor. `lockSize` disables the size
- * field: brand + variety + size is the product's identity, and every past
- * container item and stock movement points at it.
+ * Shared by Add Product and the row editor. Size is optional, but once set
+ * `lockSize` disables it: brand + variety + size is the product's identity,
+ * and every past container item and stock movement points at it. A product
+ * without a size can be given one once (`fillSize`).
  */
-export function ProductFields({ lockSize = false }: { lockSize?: boolean }) {
+export function ProductFields({ lockSize = false, fillSize = false }: { lockSize?: boolean; fillSize?: boolean }) {
   const { t } = useLanguage();
   return (
     <>
@@ -59,11 +60,10 @@ export function ProductFields({ lockSize = false }: { lockSize?: boolean }) {
         <Form.Item
           name="sizeKg"
           label={t("Size (kg)")}
-          rules={[{ required: true, message: t("Enter a sack size") }]}
-          extra={lockSize ? t("Fixed after creation") : undefined}
+          extra={lockSize ? t("Fixed after creation") : fillSize ? t("Can be set once; fixed after saving") : undefined}
           style={{ flex: 1 }}
         >
-          <InputNumber min={0.001} disabled={lockSize} style={{ width: "100%" }} />
+          <InputNumber min={0.001} disabled={lockSize} placeholder={t("Optional")} style={{ width: "100%" }} />
         </Form.Item>
         <Form.Item
           name="code"
@@ -208,6 +208,8 @@ export function ProductActions({ row }: { row: StockStatusRow }) {
         brand: v.brand.trim(),
         variety: trimmed(v.variety),
         code: trimmed(v.code),
+        // Only a missing size can be filled in; a set one is never sent.
+        ...(product.size_kg === null && v.sizeKg != null ? { sizeKg: v.sizeKg } : {}),
         isAvailable: v.isAvailable,
         sellingPrice: v.sellingPrice ?? null,
       });
@@ -235,13 +237,13 @@ export function ProductActions({ row }: { row: StockStatusRow }) {
               brand: product.brand,
               variety: product.variety ?? undefined,
               code: product.code ?? undefined,
-              sizeKg: product.size_kg,
+              sizeKg: product.size_kg ?? undefined,
               isAvailable: product.is_available,
               sellingPrice: product.selling_price ?? undefined,
             }}
             onSave={save}
           >
-            <ProductFields lockSize />
+            <ProductFields lockSize={product.size_kg !== null} fillSize={product.size_kg === null} />
           </CommonModalForm>
         </span>
       </Tooltip>

@@ -146,7 +146,7 @@ export interface ProductCategory {
   id: string;
   brand: string;
   variety: string | null;
-  size_kg: number;
+  size_kg: number | null;
   /** Notebook shorthand (L, G, PAL…), shared across a brand's sizes. */
   code: string | null;
   /** The only availability signal — a price on an unavailable product is a leftover. */
@@ -243,7 +243,7 @@ export interface StockLogRow {
   brand: string;
   variety: string | null;
   code: string | null;
-  size_kg: number;
+  size_kg: number | null;
   container_id: string | null;
   container_no: string | null;
   supplier: string | null;
@@ -322,19 +322,21 @@ export interface AdjustStockResult {
 export interface CreateProductInput {
   brand: string;
   variety: string | null;
-  sizeKg: number;
+  sizeKg: number | null;
   code: string | null;
   isAvailable: boolean;
   sellingPrice: number | null;
 }
 
 /**
- * Absent means "leave alone", explicit null means "clear it". sizeKg is not
- * editable — it is the product's identity and the weight of its history.
+ * Absent means "leave alone", explicit null means "clear it". sizeKg can only
+ * fill in a missing size — once set it is the product's identity and the
+ * weight of its history (the API refuses with PRODUCT_SIZE_FIXED).
  */
 export interface UpdateProductInput {
   id: string;
   brand?: string;
+  sizeKg?: number;
   variety?: string | null;
   code?: string | null;
   isAvailable?: boolean;
@@ -572,7 +574,7 @@ export interface ContainerVarianceItem {
   brand: string;
   variety: string | null;
   code: string | null;
-  size_kg: number;
+  size_kg: number | null;
   declared_qty: number;
   /** Null only before unload; this report is unloaded containers only. */
   actual_qty: number | null;
@@ -633,7 +635,7 @@ export interface OpenQuestionRow {
   supplier: string;
   brand: string;
   variety: string | null;
-  size_kg: number;
+  size_kg: number | null;
   note: string | null;
 }
 
@@ -720,7 +722,7 @@ export interface ReceivingRow {
   brand: string;
   variety: string | null;
   code: string | null;
-  size_kg: number;
+  size_kg: number | null;
   declared_qty: number;
   actual_qty: number;
   /** actual − declared; always 0 for local deliveries. */

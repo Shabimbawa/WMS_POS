@@ -10,7 +10,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { fmtTableDate } from "../../../common/utils/util";
 
 import type { InboundArrival, InboundReport, ProductLabel, ReceivingRow } from "../../../queries/types";
-import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import { fmtInt, fmtMoney, fmtProduct, fmtSize } from "../type-format/format";
 import type { PrintSection } from "./print-report";
 import type { Translate } from "../../../common/context/language-context";
 
@@ -54,7 +54,9 @@ export function granularityFor([from, to]: [Dayjs, Dayjs]): Granularity {
   return to.diff(from, "day") + 1 > MAX_DAY_COLUMNS ? "month" : "day";
 }
 
-const rowLabel = (p: ProductLabel) => [p.variety, `${p.size_kg}kg`].filter(Boolean).join(" ");
+/** Variety and size under the brand heading; "No size" when there is neither. */
+const rowLabel = (p: Pick<ProductLabel, "variety" | "size_kg">, t: Translate) =>
+  [p.variety, fmtSize(p.size_kg)].filter(Boolean).join(" ") || t("No size");
 
 function column(key: string, granularity: Granularity): GridColumn {
   const date = dayjs(key);
@@ -67,7 +69,7 @@ function column(key: string, granularity: Granularity): GridColumn {
  * One grid per brand, listing only the sizes that received sacks in the
  * period. A brand with nothing received is left out entirely.
  */
-export function buildGrids(report: InboundReport, granularity: Granularity): BrandGrid[] {
+export function buildGrids(report: InboundReport, granularity: Granularity, t: Translate = (text) => text): BrandGrid[] {
   const bucket = (date: string) => (granularity === "day" ? date : `${date.slice(0, 7)}-01`);
   const sacksByProduct = new Map<string, Map<string, number>>();
   for (const cell of report.cells) {
@@ -94,7 +96,7 @@ export function buildGrids(report: InboundReport, granularity: Granularity): Bra
         const values = columns.map((c) => sacks?.get(c.key) ?? 0);
         return {
           product,
-          label: rowLabel(product),
+          label: rowLabel(product, t),
           values,
           total: values.reduce((a, b) => a + b, 0),
         };
@@ -177,7 +179,7 @@ export function buildGroupedSummary(arrivals: InboundArrival[], byDay: boolean, 
         date: byDay && arrivalIndex === 0 && lineIndex === 0 ? date : null,
         group: lineIndex === 0 ? groupLabel(arrival, t) : null,
         brand: line.brand,
-        product: [line.variety, `${line.size_kg}kg`].filter(Boolean).join(" "),
+        product: rowLabel(line, t),
         sacks: line.sacks,
       }));
       // A subtotal only helps when the container carried more than one product.

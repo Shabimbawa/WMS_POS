@@ -89,7 +89,7 @@ export default function StockPage() {
         brand: v.brand.trim(),
         variety: v.variety?.trim() || null,
         code: v.code?.trim() || null,
-        sizeKg: v.sizeKg,
+        sizeKg: v.sizeKg ?? null,
         isAvailable: v.isAvailable,
         sellingPrice: v.sellingPrice ?? null,
       });

@@ -189,7 +189,8 @@ export const productCategories = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     brand: text("brand").notNull(),
     variety: text("variety"),
-    sizeKg: numeric("size_kg", { precision: 10, scale: 3, mode: "number" }).notNull(),
+    // Optional; once set it is fixed (see PATCH /products/:id).
+    sizeKg: numeric("size_kg", { precision: 10, scale: 3, mode: "number" }),
     code: text("code"),
     isActive: boolean("is_active").notNull().default(true),
     isAvailable: boolean("is_available").notNull().default(false),
@@ -205,7 +206,8 @@ export const productCategories = pgTable(
     uniqueIndex("product_category_identity_uq").on(
       sql`lower(${table.brand})`,
       sql`lower(coalesce(${table.variety}, ''))`,
-      table.sizeKg,
+      // Sizes are > 0, so 0 means "no size": one sizeless product per brand + variety.
+      sql`coalesce(${table.sizeKg}, 0)`,
     ),
   ],
 );

@@ -185,7 +185,8 @@ export default function ReportsPage() {
     return [...groups.entries()]
       .sort(([, a], [, b]) => a.name.localeCompare(b.name))
       .flatMap(([key, group]) => {
-        const sizes = [...group.products].sort((a, b) => Number(b.size_kg) - Number(a.size_kg));
+        // Largest size first; a product without a size last.
+        const sizes = [...group.products].sort((a, b) => (b.size_kg ?? 0) - (a.size_kg ?? 0));
         const withSacks = sizes.filter((product) => hasSacks(product.id));
         const sizeOptions = sizes
           .filter((product) => hasSacks(product.id) || picked.has(product.id))
@@ -298,7 +299,7 @@ export default function ReportsPage() {
   const grids = useMemo(
     () =>
       applied?.type === "stock" && inbound.data
-        ? buildGrids(inbound.data, applied.granularity)
+        ? buildGrids(inbound.data, applied.granularity, t)
         : [],
     [applied, inbound.data],
   );

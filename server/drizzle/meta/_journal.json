@@ -169,6 +169,13 @@
       "when": 1792560000000,
       "tag": "0023_container_item_allow_duplicates",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792570000000,
+      "tag": "0024_product_size_optional",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import { productCategories, suppliers } from "../db/schema.js";
@@ -35,20 +35,22 @@ const idParams = z.object({ id: z.uuid() });
 const createProduct = z.object({
   brand: z.string().trim().min(1).max(200),
   variety: z.string().trim().min(1).max(200).nullable().default(null),
-  sizeKg: z.number().positive().max(10_000),
+  sizeKg: z.number().positive().max(10_000).nullable().default(null),
   code: z.string().trim().min(1).max(50).nullable().default(null),
   isAvailable: z.boolean().default(false),
   sellingPrice: z.number().nonnegative().nullable().default(null),
 });
 
 /**
- * sizeKg is deliberately absent: brand + variety + size is the product's
- * identity, and every container item and stock movement points at this row.
- * Changing a sack size would rewrite the weight of everything already counted.
+ * sizeKg can only fill in a missing size: brand + variety + size is the
+ * product's identity, and every container item and stock movement points at
+ * this row. Changing a set sack size would rewrite the weight of everything
+ * already counted.
  */
 const updateProduct = z
   .object({
     brand: z.string().trim().min(1).max(200).optional(),
+    sizeKg: z.number().positive().max(10_000).optional(),
     variety: z.string().trim().min(1).max(200).nullable().optional(),
     code: z.string().trim().min(1).max(50).nullable().optional(),
     isAvailable: z.boolean().optional(),
@@ -72,7 +74,7 @@ function isUniqueViolation(error: unknown): boolean {
   return code(error) === "23505" || code((error as { cause?: unknown } | null)?.cause) === "23505";
 }
 
-/** product_category_identity_uq is lower(brand) + lower(variety) + size_kg. */
+/** product_category_identity_uq is lower(brand) + lower(variety) + coalesce(size_kg, 0). */
 const duplicateProduct = () =>
   new ApiError(
     409,
@@ -220,10 +222,21 @@ export async function referenceRoutes(app: FastifyInstance): Promise<void> {
       const [updated] = await db
         .update(productCategories)
         .set({ ...body, updatedAt: new Date() })
-        .where(eq(productCategories.id, id))
+        .where(and(
+          eq(productCategories.id, id),
+          // Only a missing size can be filled in (resending the same one is fine).
+          body.sizeKg === undefined
+            ? undefined
+            : or(isNull(productCategories.sizeKg), eq(productCategories.sizeKg, body.sizeKg)),
+        ))
         .returning(productColumns);
-      if (!updated) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product was not found");
-      return updated;
+      if (updated) return updated;
+      const [exists] = await db
+        .select({ id: productCategories.id })
+        .from(productCategories)
+        .where(eq(productCategories.id, id));
+      if (!exists) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product was not found");
+      throw new ApiError(409, "PRODUCT_SIZE_FIXED", "Size can only be added to a product that has none");
     } catch (error) {
       if (isUniqueViolation(error)) throw duplicateProduct();
       throw error;
