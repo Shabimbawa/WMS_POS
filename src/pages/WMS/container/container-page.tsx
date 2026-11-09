@@ -59,8 +59,8 @@ export default function ContainerPage({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [view, setView] = useState<"active" | "port" | "archived">("active");
   const [page, setPage] = useState(1);
-  // ?view=archived opens a tab directly, e.g. from the auto-archive pop-up's
-  // View button. Consumed once, so the tabs work normally afterwards.
+  // ?view=archived opens the archived tab directly. Consumed once, so the
+  // tabs work normally afterwards.
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
   // Applied while rendering (React's "adjust state when a prop changes"

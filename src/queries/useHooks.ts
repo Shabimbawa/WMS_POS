@@ -94,9 +94,6 @@ import type {
   OrderSlipTrashParams,
 } from "./posTypes.ts";
 
-import type { AutoArchivedShipment } from "./types.ts";
-import { announceAutoArchive } from "../common/utils/auto-archive-events.ts";
-
 const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 
 // ---- query keys -------------------------------------------------
@@ -492,20 +489,12 @@ export function useUpdateProduct() {
   });
 }
 
-/** Cancel and unload can archive the shipment; announce it when they do. */
-function announceIfAutoArchived(result: unknown) {
-  const shipment = (result as { auto_archived_shipment?: AutoArchivedShipment | null } | undefined)
-    ?.auto_archived_shipment;
-  if (shipment) announceAutoArchive(shipment);
-}
-
 export function useUpdateContainerStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: updateContainerStatus,
-    onSuccess: (result) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.notebooks });
-      announceIfAutoArchived(result);
     },
   });
 }
@@ -580,9 +569,7 @@ export function useBulkContainerUpdate() {
             }
             await updateContainerStatus({ containerId, status: "DELIVERED", dateDelivered: step.date });
           } else if (step.action === "UNLOAD") {
-            // An unload can archive its shipment; each gets its own pop-up
-            // so each can be restored.
-            announceIfAutoArchived(await unloadContainer({ containerId, dateUnloaded: step.date, discrepancies: [] }));
+            await unloadContainer({ containerId, dateUnloaded: step.date, discrepancies: [] });
           } else {
             await moveContainerBack({ containerId, status: step.status, reason: step.reason });
           }
@@ -623,12 +610,11 @@ export function useUnloadContainer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: unloadContainer,
-    onSuccess: (result) => {
+    onSuccess: () => {
       // The transaction writes counts and discrepancies; every view is stale.
       qc.invalidateQueries({ queryKey: qk.notebooks });
       qc.invalidateQueries({ queryKey: qk.stock });
       qc.invalidateQueries({ queryKey: qk.discrepancies });
-      announceIfAutoArchived(result);
     },
   });
 }
