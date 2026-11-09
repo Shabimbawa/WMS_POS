@@ -15,7 +15,6 @@ import {
   Tabs,
   Typography,
 } from "antd";
-import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import {
@@ -37,6 +36,7 @@ import {
   type MonthRange,
 } from "../../../common/items/date-range/month-range";
 import { useLanguage } from "../../../common/context/language-context";
+import { getPullOutAttention } from "../../../common/utils/port-pull-out";
 
 export default function ContainerPage({
   kind = "INTERNATIONAL",
@@ -48,9 +48,7 @@ export default function ContainerPage({
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers({ kind });
   const { data: shippingCompanies = [], isLoading: loadingShippingCompanies } = useShippingCompanies();
   const { data: pullOutRows = [] } = usePortPullOuts(kind);
-  const today = dayjs().startOf("day");
-  const overduePullOuts = pullOutRows.filter((row) => dayjs(row.pull_out_before).startOf("day").diff(today, "day") <= 0).length;
-  const urgentPullOuts = pullOutRows.filter((row) => dayjs(row.pull_out_before).startOf("day").diff(today, "day") <= 3).length;
+  const { overdue: overduePullOuts, urgent: urgentPullOuts } = getPullOutAttention(pullOutRows);
 
   // undefined = all suppliers
   const [supplierId, setSupplierId] = useState<string | undefined>();

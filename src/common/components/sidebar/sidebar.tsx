@@ -1,9 +1,11 @@
-import { Menu } from 'antd'
+import { Badge, Menu } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ItemType } from 'antd/es/menu/interface'
 import { useCurrentProfile } from '../../../pages/login/auth-useQuery'
 import { NAV_ITEMS, navItemForPath } from './nav-items'
 import { useLanguage } from '../../context/language-context'
+import { usePortPullOuts } from '../../../queries/useHooks'
+import { getPullOutAttention, type PullOutAttention } from '../../utils/port-pull-out'
 
 type SidebarProps = {
   collapsed: boolean
@@ -14,6 +16,13 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: profile } = useCurrentProfile()
+  const showShipmentAttention = profile?.roles === 'warehouse_admin'
+  const { data: internationalPullOuts = [] } = usePortPullOuts('INTERNATIONAL', showShipmentAttention)
+  const { data: nationalPullOuts = [] } = usePortPullOuts('NATIONAL', showShipmentAttention)
+  const pullOutAttention: Partial<Record<string, PullOutAttention>> = {
+    containers: getPullOutAttention(internationalPullOuts),
+    national: getPullOutAttention(nationalPullOuts),
+  }
 
   const items: ItemType[] = []
   if (profile) {
@@ -35,12 +44,27 @@ export function Sidebar({ collapsed }: SidebarProps) {
         flush()
         currentGroup = item.group
       }
+      const attention = pullOutAttention[item.key]
+      const badge = attention && attention.urgent > 0
+        ? {
+            count: attention.urgent,
+            size: 'small' as const,
+            color: attention.overdue > 0 ? '#cf1322' : '#d46b08',
+            title: t('Port pull-out attention required'),
+          }
+        : null
+      const label = t(item.label)
+
       children.push({
         key: item.key,
-        icon: item.icon,
+        icon: collapsed && badge
+          ? <Badge {...badge} offset={[4, -2]}>{item.icon}</Badge>
+          : item.icon,
         // Keep the label mounted when collapsed so Ant Design can expose it in
         // the item tooltip. CSS handles the compact rail presentation.
-        label: t(item.label),
+        label: !collapsed && badge
+          ? <span className="sidebar-nav-label"><span className="sidebar-nav-label-text">{label}</span><Badge {...badge} /></span>
+          : label,
         onClick: () => navigate(item.path),
       })
     }
