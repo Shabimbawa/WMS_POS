@@ -663,6 +663,7 @@ const zh: Record<string, string> = {
   'Move them back to Documented instead.': '请改为退回到已登记。',
   'Mark {count} containers at port?': '将 {count} 个货柜标记到港？',
   'They are recorded as arrived at port today.': '将记录为今天到港。',
+  'Mark all containers at port': '将所有货柜标记到港',
   'Mark {count} containers delivered?': '将 {count} 个货柜标记送达？',
   'They are recorded as delivered today.': '将记录为今天送达。',
   'Unload as all matched': '全部相符卸货',
