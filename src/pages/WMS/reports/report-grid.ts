@@ -9,8 +9,8 @@ import dayjs, { type Dayjs } from "dayjs";
 
 import { fmtTableDate } from "../../../common/utils/util";
 
-import type { InboundReport, ProductLabel, ReceivingRow } from "../../../queries/types";
-import { fmtInt, fmtMoney, fmtProduct } from "../type-format/format";
+import type { InboundArrival, InboundReport, ProductLabel, ReceivingRow } from "../../../queries/types";
+import { fmtInt, fmtMoney, fmtProduct, fmtSize } from "../type-format/format";
 import type { PrintSection } from "./print-report";
 import type { Translate } from "../../../common/context/language-context";
 
@@ -48,24 +48,15 @@ export interface BrandGrid {
   grandTotal: number;
 }
 
-export interface SummaryGridRow extends GridRow {
-  brand: string;
-}
-
-export interface SummaryGrid {
-  columns: GridColumn[];
-  rows: SummaryGridRow[];
-  totals: number[];
-  grandTotal: number;
-}
-
 export type Granularity = "day" | "month";
 
 export function granularityFor([from, to]: [Dayjs, Dayjs]): Granularity {
   return to.diff(from, "day") + 1 > MAX_DAY_COLUMNS ? "month" : "day";
 }
 
-const rowLabel = (p: ProductLabel) => [p.variety, `${p.size_kg}kg`].filter(Boolean).join(" ");
+/** Variety and size under the brand heading; "No size" when there is neither. */
+const rowLabel = (p: Pick<ProductLabel, "variety" | "size_kg">, t: Translate) =>
+  [p.variety, fmtSize(p.size_kg)].filter(Boolean).join(" ") || t("No size");
 
 function column(key: string, granularity: Granularity): GridColumn {
   const date = dayjs(key);
@@ -78,7 +69,7 @@ function column(key: string, granularity: Granularity): GridColumn {
  * One grid per brand, listing only the sizes that received sacks in the
  * period. A brand with nothing received is left out entirely.
  */
-export function buildGrids(report: InboundReport, granularity: Granularity): BrandGrid[] {
+export function buildGrids(report: InboundReport, granularity: Granularity, t: Translate = (text) => text): BrandGrid[] {
   const bucket = (date: string) => (granularity === "day" ? date : `${date.slice(0, 7)}-01`);
   const sacksByProduct = new Map<string, Map<string, number>>();
   for (const cell of report.cells) {
@@ -105,7 +96,7 @@ export function buildGrids(report: InboundReport, granularity: Granularity): Bra
         const values = columns.map((c) => sacks?.get(c.key) ?? 0);
         return {
           product,
-          label: rowLabel(product),
+          label: rowLabel(product, t),
           values,
           total: values.reduce((a, b) => a + b, 0),
         };
@@ -117,19 +108,6 @@ export function buildGrids(report: InboundReport, granularity: Granularity): Bra
     grids.push({ brand, columns, rows, totals, grandTotal });
   }
   return grids;
-}
-
-/** Combines the per-brand calculations into one report-wide table. */
-export function combineGrids(grids: BrandGrid[]): SummaryGrid {
-  const columns = [...new Map(grids.flatMap((grid) => grid.columns.map((column) => [column.key, column]))).values()]
-    .sort((a, b) => a.key.localeCompare(b.key));
-  const rows = grids.flatMap((grid) => grid.rows.map((row) => {
-    const valuesByKey = new Map(grid.columns.map((column, index) => [column.key, row.values[index] ?? 0]));
-    const values = columns.map((column) => valuesByKey.get(column.key) ?? 0);
-    return { ...row, brand: grid.brand, values, total: values.reduce((sum, value) => sum + value, 0) };
-  }));
-  const totals = columns.map((_, index) => rows.reduce((sum, row) => sum + row.values[index], 0));
-  return { columns, rows, totals, grandTotal: totals.reduce((sum, value) => sum + value, 0) };
 }
 
 /** Blank for zero inside the grid, like a hand-kept sheet. */
@@ -151,20 +129,110 @@ export function gridPrintSection(grid: BrandGrid, t: Translate = (text) => text)
   };
 }
 
-export function summaryGridPrintSection(grid: SummaryGrid, t: Translate = (text) => text): PrintSection {
+// ---- stock summary, grouped per container / truck delivery -----------
+// Each container or truck delivery with the brands it brought, in arrival
+// order; over a date range, grouped by day too. The screen table and the
+// PDF are both built from these rows.
+
+export interface GroupedRow {
+  key: string;
+  kind: "line" | "subtotal" | "dayTotal";
+  /** Set on the first row of each day, over a date range. */
+  date: string | null;
+  /** Set on the first row of each container / delivery. */
+  group: { name: string; detail: string; truck: boolean } | null;
+  brand: string;
+  product: string;
+  sacks: number;
+}
+
+export interface GroupedSummary {
+  rows: GroupedRow[];
+  /** Containers and truck deliveries. */
+  arrivals: number;
+  days: number;
+  grandTotal: number;
+}
+
+const groupLabel = (arrival: InboundArrival, t: Translate) => arrival.kind === "LOCAL"
+  ? {
+    name: `${t("Truck delivery")} · ${arrival.reference || t("No reference")}`,
+    detail: arrival.supplier,
+    truck: true,
+  }
+  : {
+    name: arrival.container_no || t("No box"),
+    detail: [arrival.shipping_company, arrival.reference, arrival.supplier].filter(Boolean).join(" · "),
+    truck: false,
+  };
+
+/** `byDay` adds a date to each day's first row and a total after busy days. */
+export function buildGroupedSummary(arrivals: InboundArrival[], byDay: boolean, t: Translate = (text) => text): GroupedSummary {
+  const rows: GroupedRow[] = [];
+  const days = [...new Set(arrivals.map((a) => a.date))];
+  for (const date of days) {
+    const dayArrivals = arrivals.filter((a) => a.date === date);
+    dayArrivals.forEach((arrival, arrivalIndex) => {
+      arrival.lines.forEach((line, lineIndex) => rows.push({
+        key: `${arrival.key}:${line.product_category_id}`,
+        kind: "line",
+        date: byDay && arrivalIndex === 0 && lineIndex === 0 ? date : null,
+        group: lineIndex === 0 ? groupLabel(arrival, t) : null,
+        brand: line.brand,
+        product: rowLabel(line, t),
+        sacks: line.sacks,
+      }));
+      // A subtotal only helps when the container carried more than one product.
+      if (arrival.lines.length > 1) {
+        rows.push({ key: `${arrival.key}:subtotal`, kind: "subtotal", date: null, group: null, brand: "", product: t("Subtotal"), sacks: arrival.total });
+      }
+    });
+    // A day total only adds something when the day had several arrivals;
+    // with one, its subtotal (or single line) already shows it.
+    if (byDay && dayArrivals.length > 1) {
+      rows.push({
+        key: `${date}:total`,
+        kind: "dayTotal",
+        date: null,
+        group: null,
+        brand: "",
+        product: `${t("Total for")} ${fmtReportDate(date)}`,
+        sacks: dayArrivals.reduce((n, a) => n + a.total, 0),
+      });
+    }
+  }
+  return {
+    rows,
+    arrivals: arrivals.length,
+    days: days.length,
+    grandTotal: arrivals.reduce((n, a) => n + a.total, 0),
+  };
+}
+
+export function groupedSummaryPrintSection(summary: GroupedSummary, byDay: boolean, t: Translate = (text) => text): PrintSection {
   return {
     title: t("Stock summary"),
-    subtitle: t("All brands and products in one table"),
+    subtitle: t("Brands received, grouped per container or truck delivery"),
     layout: "list",
     columns: [
+      ...(byDay ? [{ label: t("Date") }] : []),
+      { label: t("Container / delivery") },
       { label: t("Brand") },
       { label: t("Product") },
-      { label: `${t("Total")}\n${t("Sacks")}`, align: "right" },
+      { label: t("Sacks"), align: "right" as const },
     ],
-    rows: grid.rows.map((row) => ({
-      cells: [row.brand, row.label, fmtInt(row.total)],
+    rows: summary.rows.map((row) => ({
+      groupStart: Boolean(row.group) || row.kind === "dayTotal",
+      emphasis: row.kind !== "line",
+      cells: [
+        ...(byDay ? [row.date ? fmtReportDate(row.date) : ""] : []),
+        row.group ? `${row.group.name}\n${row.group.detail}` : "",
+        row.brand,
+        row.product,
+        fmtInt(row.sacks),
+      ],
     })),
-    totals: [t("Grand Total"), "", fmtInt(grid.grandTotal)],
+    totals: [...(byDay ? [""] : []), t("Grand Total"), "", "", fmtInt(summary.grandTotal)],
   };
 }
 

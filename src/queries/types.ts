@@ -146,7 +146,7 @@ export interface ProductCategory {
   id: string;
   brand: string;
   variety: string | null;
-  size_kg: number;
+  size_kg: number | null;
   /** Notebook shorthand (L, G, PAL…), shared across a brand's sizes. */
   code: string | null;
   /** The only availability signal — a price on an unavailable product is a leftover. */
@@ -243,7 +243,7 @@ export interface StockLogRow {
   brand: string;
   variety: string | null;
   code: string | null;
-  size_kg: number;
+  size_kg: number | null;
   container_id: string | null;
   container_no: string | null;
   supplier: string | null;
@@ -322,19 +322,21 @@ export interface AdjustStockResult {
 export interface CreateProductInput {
   brand: string;
   variety: string | null;
-  sizeKg: number;
+  sizeKg: number | null;
   code: string | null;
   isAvailable: boolean;
   sellingPrice: number | null;
 }
 
 /**
- * Absent means "leave alone", explicit null means "clear it". sizeKg is not
- * editable — it is the product's identity and the weight of its history.
+ * Absent means "leave alone", explicit null means "clear it". sizeKg can only
+ * fill in a missing size — once set it is the product's identity and the
+ * weight of its history (the API refuses with PRODUCT_SIZE_FIXED).
  */
 export interface UpdateProductInput {
   id: string;
   brand?: string;
+  sizeKg?: number;
   variety?: string | null;
   code?: string | null;
   isAvailable?: boolean;
@@ -399,7 +401,8 @@ export type UpdateContainerDatesInput = {
 export type MoveContainerBackInput = {
   containerId: string;
   status: "DOCUMENTED" | "ARRIVED_AT_PORT" | "DELIVERED";
-  reason: string;
+  /** Optional; the API records a blank one as "No reason given". */
+  reason?: string;
   allowNegativeInventory?: boolean;
 };
 
@@ -512,21 +515,9 @@ export interface UnloadContainerInput {
   discrepancies: DiscrepancyInput[];
 }
 
-/**
- * Set on unload and cancel responses when finishing that container left
- * every container on its shipment unloaded or cancelled, so the API
- * archived the shipment in the same save.
- */
-export interface AutoArchivedShipment {
-  id: string;
-  reference: string | null;
-  kind: "INTERNATIONAL" | "NATIONAL";
-}
-
 export interface ContainerFinishResult {
   id: string;
   status: ContainerStatus;
-  auto_archived_shipment: AutoArchivedShipment | null;
 }
 
 /** One container with everything the resolve page shows. */
@@ -571,7 +562,7 @@ export interface ContainerVarianceItem {
   brand: string;
   variety: string | null;
   code: string | null;
-  size_kg: number;
+  size_kg: number | null;
   declared_qty: number;
   /** Null only before unload; this report is unloaded containers only. */
   actual_qty: number | null;
@@ -632,7 +623,7 @@ export interface OpenQuestionRow {
   supplier: string;
   brand: string;
   variety: string | null;
-  size_kg: number;
+  size_kg: number | null;
   note: string | null;
 }
 
@@ -667,10 +658,31 @@ interface ReportRange {
 export interface InboundReportParams extends ReportRange {}
 
 /** Inbound sacks per product per arrival day; quiet days are absent. */
+/**
+ * One unloaded container or local truck delivery in the stock summary, with
+ * the products it brought (counted sacks).
+ */
+export interface InboundArrival {
+  key: string;
+  kind: "CONTAINER" | "LOCAL";
+  /** Unload date, or date received for a truck delivery. */
+  date: string;
+  container_no: string | null;
+  shipping_company: string | null;
+  /** Packing list reference, or the delivery receipt for a truck delivery. */
+  reference: string | null;
+  supplier: string;
+  supplier_kind: SupplierKind;
+  lines: (Omit<ProductLabel, "id"> & { product_category_id: string; sacks: number })[];
+  total: number;
+}
+
 export interface InboundReport {
   /** Every product the grid should list, quiet ones included. */
   products: ProductLabel[];
   cells: { product_category_id: string; date: string; sacks: number }[];
+  /** The same stock, per container or truck delivery. */
+  arrivals: InboundArrival[];
 }
 
 export interface ReceivingParams extends ReportRange {}
@@ -698,7 +710,7 @@ export interface ReceivingRow {
   brand: string;
   variety: string | null;
   code: string | null;
-  size_kg: number;
+  size_kg: number | null;
   declared_qty: number;
   actual_qty: number;
   /** actual − declared; always 0 for local deliveries. */

@@ -107,7 +107,7 @@ const productColumns: ColumnDef<ProductCategory, any>[] = [
     header: "Size",
     accessorFn: (r) => r.size_kg,
     size: 80,
-    cell: (c) => `${c.getValue<number>()} kg`,
+    cell: (c) => c.getValue<number | null>() === null ? dash : `${c.getValue<number>()} kg`,
   },
 ];
 

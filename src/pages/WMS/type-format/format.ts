@@ -30,13 +30,17 @@ export const fmtProduct = ({ code, ...product }: Omit<ProductLabel, "id">) => {
   return code ? `${code} · ${name}` : name;
 };
 
+/** "50kg", or null for a product registered without a sack size. */
+export const fmtSize = (sizeKg: number | null) =>
+  sizeKg === null ? null : `${sizeKg}kg`;
+
 /** The product without its shorthand code: "Brand Variety 50kg". */
 export const fmtProductName = ({
   brand,
   variety,
   size_kg,
 }: Pick<ProductLabel, "brand" | "variety" | "size_kg">) =>
-  [brand, variety, `${size_kg}kg`].filter(Boolean).join(" ");
+  [brand, variety, fmtSize(size_kg)].filter(Boolean).join(" ");
 
 /** Postgres numerics arrive as strings over PostgREST. */
 export const toNum = (v: number | string | null | undefined) =>

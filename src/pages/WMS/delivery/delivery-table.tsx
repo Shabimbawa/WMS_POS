@@ -1,4 +1,4 @@
-import { Button, Flex, Form, Input, Tag, Tooltip, message } from "antd";
+import { Button, Flex, Form, Input, Tag, Tooltip, Typography, message } from "antd";
 import { EditOutlined, StopOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -116,8 +116,22 @@ const deliveryColumns = (t: Translate): ColumnDef<LocalDeliveryRow, any>[] => [
     id: "reference",
     header: "Reference",
     accessorFn: (r) => r.reference,
-    size: 150,
-    cell: (c) => c.getValue<string | null>() ?? dash,
+    size: 180,
+    // The note rides under the reference, one line with the rest on hover,
+    // so rows stay one height.
+    cell: (c) => {
+      const notes = c.row.original.notes;
+      return (
+        <div style={{ display: "grid" }}>
+          <span>{c.getValue<string | null>() ?? dash}</span>
+          {notes && (
+            <Typography.Text type="secondary" ellipsis={{ tooltip: notes }} style={{ maxWidth: 170, fontSize: 12 }}>
+              {notes}
+            </Typography.Text>
+          )}
+        </div>
+      );
+    },
   },
   {
     id: "items",

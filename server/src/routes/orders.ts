@@ -56,13 +56,13 @@ type OrderItemRow = {
   productId: string;
   brand: string;
   variety: string | null;
-  sizeKg: number;
+  sizeKg: number | null;
   unitPrice: number;
   stockQuantity: number;
 };
 
-export function variant(variety: string | null, sizeKg: number): string {
-  return [variety, `${sizeKg}kg`].filter(Boolean).join(" ");
+export function variant(variety: string | null, sizeKg: number | null): string {
+  return [variety, sizeKg === null ? null : `${sizeKg}kg`].filter(Boolean).join(" ");
 }
 
 export function toApiItem(row: OrderItemRow) {

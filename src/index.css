@@ -1014,6 +1014,19 @@ code {
   white-space: nowrap;
 }
 
+.sidebar-nav-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sidebar-nav-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .app-sidebar .ant-menu-item .anticon {
   min-width: 18px;
   font-size: 17px;

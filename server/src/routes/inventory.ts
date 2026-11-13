@@ -178,7 +178,8 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
         .from(stockBalances)
         .innerJoin(productCategories, eq(stockBalances.productCategoryId, productCategories.id))
         .where(where)
-        .orderBy(query.sortDir === "asc" ? asc(sortColumn) : desc(sortColumn))
+        // Products without a size or price stay at the bottom either way.
+        .orderBy(sql`${sortColumn} ${sql.raw(query.sortDir === "asc" ? "asc" : "desc")} nulls last`)
         .limit(query.pageSize)
         .offset((query.page - 1) * query.pageSize);
 

@@ -5,7 +5,14 @@ import inter700Url from "@fontsource/inter/files/inter-latin-700-normal.woff2?ur
 
 // Print-ready HTML reports rendered in a temporary iframe.
 export interface PrintColumn { top?: string; label: string; align?: "left" | "right"; }
-export interface PrintRow { cells: string[]; }
+export interface PrintRow {
+  /** "\n" breaks a cell onto a second line. */
+  cells: string[];
+  /** First row of a group (e.g. a container): a rule above it. */
+  groupStart?: boolean;
+  /** A subtotal or total line inside the table: bold. */
+  emphasis?: boolean;
+}
 export interface PrintSection {
   title: string;
   subtitle?: string;
@@ -37,8 +44,9 @@ function sectionHtml(section: PrintSection): string {
   const label = (text: string) => escapeHtml(text).replace(/\n/g, "<br>");
   const head = withSpacer(section.columns.map((column, index) =>
     `<th class="${cls(index)}">${column.top ? `<span class="top">${escapeHtml(column.top)}</span>` : ""}${label(column.label)}</th>`), '<th class="spacer"></th>').join("");
-  const body = section.rows.map((row) => `<tr>${withSpacer(row.cells.map((cell, index) =>
-    `<td class="${cls(index)}">${escapeHtml(cell)}</td>`), '<td class="spacer"></td>').join("")}</tr>`).join("");
+  const rowClass = (row: PrintRow) => [row.groupStart ? "group-start" : "", row.emphasis ? "emphasis" : ""].join(" ").trim();
+  const body = section.rows.map((row) => `<tr${rowClass(row) ? ` class="${rowClass(row)}"` : ""}>${withSpacer(row.cells.map((cell, index) =>
+    `<td class="${cls(index)}">${label(cell)}</td>`), '<td class="spacer"></td>').join("")}</tr>`).join("");
   const foot = section.totals ? `<tfoot><tr>${withSpacer(section.totals.map((cell, index) =>
     `<td class="${cls(index)}">${escapeHtml(cell)}</td>`), '<td class="spacer"></td>').join("")}</tr></tfoot>` : "";
   return `<section>
@@ -103,6 +111,8 @@ td { border-bottom:1px solid #ddd; font-variant-numeric:tabular-nums; padding:6p
 .total.num { text-align:right; } td.total { font-weight:700; }
 tfoot td { border-bottom:0; border-top:2px solid #555; color:#111; font-weight:700; padding:7px 8px; }
 .empty { border:1px solid #ccc; color:#666; padding:32px; text-align:center; }
+tr.group-start td { border-top:1.5px solid #777; }
+tr.emphasis td { font-weight:700; }
 footer { border-top:1px solid #ccc; bottom:0; color:#666; font-size:8px; left:0; padding-top:4px; position:fixed; right:0; }
 </style></head><body>
 <header class="document-header">

@@ -346,7 +346,10 @@ const shipmentOverviewColumns = (t: Translate): ColumnDef<ShipmentRow, any>[] =>
   { id: "actions", header: "", accessorFn: (row) => row.id, size: 210, meta: { fixed: "right" }, cell: (cell) => <ShipmentActions shipment={cell.row.original} /> },
 ];
 
-export const containerOverviewColumns = <T extends ShipmentContainer>(t: Translate): ColumnDef<T, any>[] => [
+export const containerOverviewColumns = <T extends ShipmentContainer>(
+  t: Translate,
+  inlineActions = false,
+): ColumnDef<T, any>[] => [
   {
     id: "container",
     header: "Container / shipping line",
@@ -375,10 +378,10 @@ export const containerOverviewColumns = <T extends ShipmentContainer>(t: Transla
     size: 310,
     cell: (cell) => { const row = cell.row.original; return <div className="shipment-timeline"><span><small>{t("At port")}</small>{row.date_arrived_at_port ? fmtTableDate(row.date_arrived_at_port) : "—"}</span><span><small>{t("Delivered")}</small>{row.date_delivered ? fmtTableDate(row.date_delivered) : "—"}</span><span><small>{t("Unloaded")}</small>{row.date_unloaded ? fmtTableDate(row.date_unloaded) : "—"}</span></div>; },
   },
-  { id: "actions", header: "", accessorFn: (row) => row.id, size: 230, meta: { fixed: "right" }, cell: (cell) => {
+  { id: "actions", header: "", accessorFn: (row) => row.id, size: inlineActions ? 420 : 230, meta: { fixed: "right" }, cell: (cell) => {
     // Status-list rows carry their shipment; shipment-nested rows don't need it.
     const row = cell.row.original as T & { shipment?: { archived_at: string | null } };
-    return <ContainerActions container={row} archived={!!row.shipment?.archived_at} />;
+    return <ContainerActions container={row} archived={!!row.shipment?.archived_at} inline={inlineActions} />;
   } },
 ];
 
@@ -407,9 +410,11 @@ const containerShipmentColumn = (t: Translate): ColumnDef<ContainerListRow, any>
 export function ContainerStatusTable({ data, status, total }: { data: ContainerListRow[]; status?: ContainerStatus; total: number }) {
   const { t } = useLanguage();
   const columns = useMemo(() => {
-    const [container, ...rest] = containerOverviewColumns<ContainerListRow>(t);
+    // A container-number search should expose the same action buttons as an
+    // expanded container, instead of hiding them behind a Manage dropdown.
+    const [container, ...rest] = containerOverviewColumns<ContainerListRow>(t, !status);
     return [container, containerShipmentColumn(t), ...rest];
-  }, [t]);
+  }, [status, t]);
   const sacks = data.reduce((sum, container) => sum + container.container_item.reduce((quantity, item) => quantity + (item.actual_qty_sacks ?? item.qty_sacks), 0), 0);
 
   // Mass actions. Rows start ticked, except on Delivered: unloading adds

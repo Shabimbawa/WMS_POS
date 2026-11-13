@@ -38,9 +38,9 @@ export const stockColumns = (t: Translate): ColumnDef<StockStatusRow, any>[] => 
   {
     id: "weight_kg",
     header: "Weight",
-    accessorFn: (r) => r.remaining_qty * r.product_category.size_kg,
+    accessorFn: (r) => r.product_category.size_kg === null ? null : r.remaining_qty * r.product_category.size_kg,
     size: 120,
-    cell: (c) => fmtKg(c.getValue<number>()),
+    cell: (c) => c.getValue<number | null>() === null ? "—" : fmtKg(c.getValue<number>()),
   },
   {
     id: "selling_price",
