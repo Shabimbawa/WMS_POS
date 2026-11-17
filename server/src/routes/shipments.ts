@@ -348,7 +348,10 @@ async function loadContainers(where: SQL) {
     .from(containers)
     .leftJoin(shippingCompanies, eq(containers.shippingCompanyId, shippingCompanies.id))
     .where(where)
-    .orderBy(asc(containers.createdAt));
+    // Containers created with one shipment can share the same transaction
+    // timestamp. The immutable id makes their order stable across updates and
+    // refreshes when createdAt ties.
+    .orderBy(asc(containers.createdAt), asc(containers.id));
 
   const itemRows = containerRows.length
     ? await db
@@ -513,7 +516,12 @@ export async function shipmentRoutes(app: FastifyInstance): Promise<void> {
       .innerJoin(shipments, eq(containers.shipmentId, shipments.id))
       .innerJoin(suppliers, eq(shipments.supplierId, suppliers.id))
       .where(where)
-      .orderBy(order(shipments.dateListReceived), order(shipments.createdAt), asc(containers.createdAt))
+      .orderBy(
+        order(shipments.dateListReceived),
+        order(shipments.createdAt),
+        asc(containers.createdAt),
+        asc(containers.id),
+      )
       .limit(query.pageSize)
       .offset((query.page - 1) * query.pageSize)).map((row) => row.id);
 
